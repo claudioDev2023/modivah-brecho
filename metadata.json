@@ -1,0 +1,6 @@
+{
+  "name": "MODIVAH BRECHÓ",
+  "description": "Curadoria exclusiva de moda premium para mulheres autênticas. Peças elegantes, selecionadas e únicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

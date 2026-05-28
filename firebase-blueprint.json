@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A single clothing product in the Modivah Brechó stock catalog.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique product ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the piece"
+        },
+        "description": {
+          "type": "string",
+          "description": "Justified detailed description and narrative"
+        },
+        "price": {
+          "type": "number",
+          "description": "Current selling price"
+        },
+        "originalPrice": {
+          "type": "number",
+          "description": "Original retail price if known"
+        },
+        "category": {
+          "type": "string",
+          "description": "The item category"
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the item"
+        },
+        "brand": {
+          "type": "string",
+          "description": "Brand of the item"
+        },
+        "condition": {
+          "type": "string",
+          "description": "The item preservation condition"
+        },
+        "material": {
+          "type": "string",
+          "description": "Fabric material information"
+        },
+        "image": {
+          "type": "string",
+          "description": "Primary visual image URL"
+        },
+        "images": {
+          "type": "array",
+          "description": "Up to 10 photos in the gallery"
+        },
+        "video": {
+          "type": "string",
+          "description": "Video presentation link"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["available", "reserved", "sold"],
+          "description": "Stock status"
+        },
+        "stock": {
+          "type": "number",
+          "description": "Quantity in stock"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Tag badge such as Premium"
+        },
+        "sku": {
+          "type": "string",
+          "description": "Unique warehouse SKU code"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp or human creation date"
+        }
+      },
+      "required": ["id", "title", "description", "price", "category", "size", "brand", "condition", "material", "image", "status", "stock", "createdAt"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "The shared live products catalog collection."
+    }
+  }
+}
