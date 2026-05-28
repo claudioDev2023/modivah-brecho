@@ -101,36 +101,18 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
               
               {/* Product Visual Slide Panel (Col 5) */}
               <div 
-                className="col-span-1 md:col-span-5 relative aspect-[1/1] md:aspect-auto h-full overflow-hidden bg-neutral-900 group/spotlight cursor-pointer"
+                className="col-span-1 md:col-span-5 relative aspect-[3/4] md:aspect-auto h-full overflow-hidden bg-neutral-950 group/spotlight cursor-pointer"
                 onClick={() => onViewDetails(currentItem)}
               >
                 <img 
                   src={currentItem.image} 
                   alt={currentItem.title}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover/spotlight:scale-105"
+                  className="w-full h-full object-contain bg-neutral-950 transition-transform duration-700 group-hover/spotlight:scale-105"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
                   }}
                 />
-                
-                {/* Floating details badge */}
-                <span className="absolute top-4 left-4 px-3 py-1 bg-black/80 backdrop-blur-md border border-[#00f0ff]/20 text-[#00f0ff] font-sans font-bold text-[9px] uppercase tracking-wider rounded-full shadow-[0_0_12px_rgba(0,240,255,0.25)]">
-                  TAM {currentItem.size}
-                </span>
-
-                {/* Condition descriptor indicator */}
-                <span className="absolute bottom-4 left-4 px-2.5 py-0.5 bg-black/80 backdrop-blur-md rounded border border-white/10 text-[9px] text-white">
-                  Condição: <strong className="font-semibold text-amber-300">{currentItem.condition}</strong>
-                </span>
-                
-                {/* Visual hover hint */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/spotlight:opacity-100 transition duration-300 flex items-center justify-center">
-                  <span className="bg-black/95 text-white text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-full border border-white/10 flex items-center gap-1.5 shadow-2xl">
-                    <Eye className="h-3 w-3 text-amber-300" />
-                    Ver Peça Completa
-                  </span>
-                </div>
               </div>
 
               {/* Product Description Pane Panel (Col 7) */}
@@ -140,10 +122,18 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
                 <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#00f0ff]/30 to-transparent" />
 
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-xs text-amber-300 font-bold uppercase tracking-widest font-mono">
-                      {currentItem.brand}
-                    </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-amber-300 font-bold uppercase tracking-widest font-mono mr-1">
+                        {currentItem.brand}
+                      </span>
+                      <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded-md text-[10px] font-semibold text-amber-100 uppercase font-mono">
+                        TAM {currentItem.size}
+                      </span>
+                      <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded-md text-[10px] font-medium text-neutral-300 font-sans">
+                        {currentItem.condition}
+                      </span>
+                    </div>
                     {currentItem.tag && (
                       <span className="px-2 py-0.5 bg-[#00f0ff]/10 text-[#00f0ff] text-[8px] font-bold uppercase tracking-widest border border-[#00f0ff]/20 rounded-full">
                         {currentItem.tag}
@@ -171,14 +161,14 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
                     <div>
                       <span className="text-[10px] text-neutral-500 block uppercase font-mono tracking-wider">Garimpo Modivah</span>
                       <span className="text-lg sm:text-2xl font-mono font-bold text-[#39ff14] tracking-tight">
-                        R$ {currentItem.price.toFixed(2)}
+                        R$ {Number(currentItem.price).toFixed(2)}
                       </span>
                     </div>
                     {currentItem.originalPrice && (
                       <div>
                         <span className="text-[9px] text-neutral-600 block uppercase font-mono leading-none mb-0.5">Novo Na Loja</span>
                         <span className="text-xs text-neutral-500 line-through font-mono">
-                          R$ {currentItem.originalPrice.toFixed(2)}
+                          R$ {Number(currentItem.originalPrice).toFixed(2)}
                         </span>
                       </div>
                     )}

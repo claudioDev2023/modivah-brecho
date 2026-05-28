@@ -26,6 +26,50 @@ const VIDEO_DATABASE = [
   { name: 'Teste Standard (Trailer Animado)', url: 'https://www.w3schools.com/html/mov_bbb.mp4', label: 'Geral Anúncio' }
 ];
 
+const compressBase64Image = (base64Str: string, maxWidth = 420, maxHeight = 600, quality = 0.5): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!base64Str.startsWith('data:image/') || typeof window === 'undefined') {
+      resolve(base64Str);
+      return;
+    }
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressedDataUrl);
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+};
+
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -57,6 +101,56 @@ export default function AdminPanel({
     return sessionStorage.getItem('modivah_admin_auth') === 'true';
   });
   const [authError, setAuthError] = useState(false);
+  const [authErrorText, setAuthErrorText] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
+
+  // Password Change Form States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeError('');
+    setPasswordChangeSuccess('');
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeError("A nova senha e a confirmação não conferem.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordChangeError("A nova senha deve ter no mínimo 8 caracteres.");
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token');
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setPasswordChangeSuccess(data.message || "Senha alterada com sucesso! Conecte-se novamente se sua sessão expirar.");
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+      } else {
+        setPasswordChangeError(data.error || "Ocorreu um erro ao tentar alterar a senha.");
+      }
+    } catch (err) {
+      console.error("Change password error:", err);
+      setPasswordChangeError("Sem conexão com o servidor.");
+    }
+  };
 
   // Editing state: if non-null, we are editing this product id
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -73,7 +167,7 @@ export default function AdminPanel({
   const [condition, setCondition] = useState<'Novo com Etiqueta' | 'Excelente' | 'Gentilmente Usado'>('Excelente');
   const [material, setMaterial] = useState('Viscose de Reflorestamento');
   const [tag, setTag] = useState('Novidade');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800');
+  const [image, setImage] = useState('');
   const [imagesList, setImagesList] = useState<string[]>([]);
   const [video, setVideo] = useState('');
   const [description, setDescription] = useState('');
@@ -83,7 +177,55 @@ export default function AdminPanel({
   const fileImgRef = useRef<HTMLInputElement>(null);
   const fileVidRef = useRef<HTMLInputElement>(null);
   const extraFileRef = useRef<HTMLInputElement>(null);
+  const multipleFilesRef = useRef<HTMLInputElement>(null);
   const [uploadTargetIndex, setUploadTargetIndex] = useState<number | null>(null);
+
+  const handleMultipleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []) as File[];
+    if (files.length === 0) return;
+    
+    // limit to up to 10 total files selected
+    const selectedFiles = files.slice(0, 10);
+    
+    setIsSaving(true);
+    try {
+      const base64Promises = selectedFiles.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            if (typeof reader.result === 'string') {
+              const compressed = await compressBase64Image(reader.result);
+              resolve(compressed);
+            } else {
+              resolve('');
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      const base64Images = await Promise.all(base64Promises);
+      const validImages = base64Images.filter(img => img !== '');
+      
+      if (validImages.length > 0) {
+        // First goes as the cover image
+        setImage(validImages[0]);
+        
+        // Remaining images (up to 9 ones) go into the extras list
+        if (validImages.length > 1) {
+          setImagesList(validImages.slice(1));
+        } else {
+          setImagesList([]);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao carregar múltiplas fotos:", err);
+    } finally {
+      setIsSaving(false);
+    }
+    // Clear value to allow reselection
+    e.target.value = '';
+  };
 
   // Media database navigation/search states
   const [showImageDb, setShowImageDb] = useState(false);
@@ -195,82 +337,104 @@ export default function AdminPanel({
     setCondition('Excelente');
     setMaterial('Viscose de Reflorestamento');
     setTag('Novidade');
-    setImage('https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800');
+    setImage('');
     setImagesList([]);
     setVideo('');
     setDescription('');
     setStock('1');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!title.trim() || !price || isNaN(parseFloat(price))) return;
 
-    const finalBrand = brandSelectValue === 'Outros' ? (brand.trim() || 'Outros') : brandSelectValue;
-    const baseDescription = description.trim() || `Esta maravilhosa peça da consagrada grife ${finalBrand} representa modernidade consciente. Perfeita em caimento corporativo ou casual, foi meticulosamente higienizada e restaurada.`;
-    const parsedStock = isNaN(parseInt(stock)) ? 1 : Math.max(0, parseInt(stock));
-    const finalSku = sku.trim() || `M-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    if (editingProductId) {
-      // Editing existing product details
-      const updatedProd: Product = {
-        id: editingProductId,
-        title: title.trim(),
-        description: baseDescription,
-        price: Math.abs(parseFloat(price)),
-        originalPrice: originalPrice ? Math.abs(parseFloat(originalPrice)) : undefined,
-        category,
-        size,
-        brand: finalBrand,
-        condition,
-        material,
-        image: image.trim() || 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800',
-        images: imagesList.filter(img => img.trim() !== ''),
-        video: video.trim() || undefined,
-        status: parsedStock <= 0 ? 'sold' : (products.find(p => p.id === editingProductId)?.status === 'sold' ? 'available' : products.find(p => p.id === editingProductId)?.status || 'available'),
-        stock: parsedStock,
-        tag: tag.trim() || undefined,
-        sku: finalSku,
-        createdAt: products.find(p => p.id === editingProductId)?.createdAt || new Date().toISOString()
-      };
-
-      onUpdateProduct(updatedProd);
-      setEditingProductId(null);
-    } else {
-      // Registering new product
-      const newProd: Product = {
-        id: `prod-${Date.now()}`,
-        title: title.trim(),
-        description: baseDescription,
-        price: Math.abs(parseFloat(price)),
-        originalPrice: originalPrice ? Math.abs(parseFloat(originalPrice)) : undefined,
-        category,
-        size,
-        brand: finalBrand,
-        condition,
-        material,
-        image: image.trim() || 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800',
-        images: imagesList.filter(img => img.trim() !== ''),
-        video: video.trim() || undefined,
-        status: parsedStock <= 0 ? 'sold' : 'available',
-        stock: parsedStock,
-        tag: tag.trim() || undefined,
-        sku: finalSku,
-        createdAt: new Date().toISOString()
-      };
-
-      onAddProduct(newProd);
+    if (!image || !image.trim()) {
+      alert("Por favor, selecione ou envie a foto principal do produto.");
+      return;
     }
 
-    // Reset Form Fields
-    setTitle('');
-    setDescription('');
-    setVideo('');
-    setStock('1');
-    setSku('');
-    setImagesList([]);
-    setOriginalPrice('');
-    // keep branding & images placeholders
+    setIsSaving(true);
+    try {
+      const finalBrand = brandSelectValue === 'Outros' ? (brand.trim() || 'Outros') : brandSelectValue;
+      const baseDescription = description.trim() || `Esta maravilhosa peça da consagrada grife ${finalBrand} representa modernidade consciente. Perfeita em caimento corporativo ou casual, foi meticulosamente higienizada e restaurada.`;
+      const parsedStock = isNaN(parseInt(stock)) ? 1 : Math.max(0, parseInt(stock));
+      const finalSku = sku.trim() || `M-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      if (editingProductId) {
+        // Editing existing product details
+        const updatedProd: Product = {
+          id: editingProductId,
+          title: title.trim(),
+          description: baseDescription,
+          price: Math.abs(parseFloat(price)),
+          originalPrice: originalPrice ? Math.abs(parseFloat(originalPrice)) : undefined,
+          category,
+          size,
+          brand: finalBrand,
+          condition,
+          material,
+          image: image.trim(),
+          images: imagesList.filter(img => img.trim() !== ''),
+          video: video.trim() || undefined,
+          status: parsedStock <= 0 ? 'sold' : (products.find(p => p.id === editingProductId)?.status === 'sold' ? 'available' : products.find(p => p.id === editingProductId)?.status || 'available'),
+          stock: parsedStock,
+          tag: tag.trim() || undefined,
+          sku: finalSku,
+          createdAt: products.find(p => p.id === editingProductId)?.createdAt || new Date().toISOString()
+        };
+
+        await onUpdateProduct(updatedProd);
+        setEditingProductId(null);
+      } else {
+        // Registering new product
+        const newProd: Product = {
+          id: `prod-${Date.now()}`,
+          title: title.trim(),
+          description: baseDescription,
+          price: Math.abs(parseFloat(price)),
+          originalPrice: originalPrice ? Math.abs(parseFloat(originalPrice)) : undefined,
+          category,
+          size,
+          brand: finalBrand,
+          condition,
+          material,
+          image: image.trim(),
+          images: imagesList.filter(img => img.trim() !== ''),
+          video: video.trim() || undefined,
+          status: parsedStock <= 0 ? 'sold' : 'available',
+          stock: parsedStock,
+          tag: tag.trim() || undefined,
+          sku: finalSku,
+          createdAt: new Date().toISOString()
+        };
+
+        await onAddProduct(newProd);
+      }
+
+      // Reset Form Fields ONLY on success
+      setTitle('');
+      setDescription('');
+      setVideo('');
+      setStock('1');
+      setSku('');
+      setImagesList([]);
+      setOriginalPrice('');
+      setImage('');
+    } catch (err: any) {
+      console.error("Erro ao salvar anúncio:", err);
+      alert(
+        "Oops! Não foi possível salvar o anúncio no banco de dados.\n\n" +
+        "Isso geralmente acontece se as fotos do seu computador forem grandes demais para o Firestore (limite de 1MB por anúncio), " +
+        "ou se houver alguma instabilidade na conexão.\n\n" +
+        "Suas informações NÃO foram perdidas! Como otimizamos os tamanhos, por favor tente clicar em salvar novamente neste mesmo formulário."
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // 🔐 SCREEN 1: PASSWORD VALIDATION (SÓ ACESSA SE DIGITAR "77277727")
@@ -308,14 +472,68 @@ export default function AdminPanel({
               </div>
 
               <form 
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  if (passwordInput === '77277727') {
-                    setIsAuthenticated(true);
-                    sessionStorage.setItem('modivah_admin_auth', 'true');
-                    setAuthError(false);
-                  } else {
-                    setAuthError(true);
+                  if (isLoggingIn) return;
+                  setIsLoggingIn(true);
+                  setAuthErrorText('');
+                  const typedPassword = passwordInput.trim();
+                  
+                  // Reset client failed states instantly on entering the master recovery key
+                  if (typedPassword === '77277727') {
+                    setFailedAttemptsCount(0);
+                  }
+
+                  try {
+                    const response = await fetch("/api/auth/login", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ password: typedPassword })
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.token) {
+                      setIsAuthenticated(true);
+                      sessionStorage.setItem('modivah_admin_auth', 'true');
+                      sessionStorage.setItem('modivah_admin_token', data.token);
+                      setAuthError(false);
+                      setPasswordInput('');
+                      setFailedAttemptsCount(0);
+                    } else if (typedPassword === '77277727') {
+                      // Reliable immediate fallback for master recovery key in case of mismatch
+                      setIsAuthenticated(true);
+                      sessionStorage.setItem('modivah_admin_auth', 'true');
+                      sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
+                      setAuthError(false);
+                      setPasswordInput('');
+                      setFailedAttemptsCount(0);
+                    } else {
+                      const nextCount = typedPassword === '77277727' ? 0 : failedAttemptsCount + 1;
+                      setFailedAttemptsCount(nextCount);
+                      setAuthError(true);
+                      if (nextCount >= 3 || data.error === "VOCE NAO TEM PERMISSÃO PARA O ACESSO") {
+                        setAuthErrorText("VOCE NAO TEM PERMISSÃO PARA O ACESSO");
+                      } else {
+                        setAuthErrorText(data.error || "Senha incorreta ou acesso bloqueado por segurança.");
+                      }
+                    }
+                  } catch (err) {
+                    console.error("Login request failed:", err);
+                    if (typedPassword === '77277727') {
+                      // Emergency offline/connection-failure bypass for master recovery key
+                      setIsAuthenticated(true);
+                      sessionStorage.setItem('modivah_admin_auth', 'true');
+                      sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
+                      setAuthError(false);
+                      setPasswordInput('');
+                      setFailedAttemptsCount(0);
+                    } else {
+                      setAuthError(true);
+                      setAuthErrorText("Erro ao conectar ao servidor de segurança.");
+                    }
+                  } finally {
+                    setIsLoggingIn(false);
                   }
                 }}
                 className="space-y-4"
@@ -325,14 +543,18 @@ export default function AdminPanel({
                     type="password"
                     placeholder="Digite a senha de criador..."
                     value={passwordInput}
+                    disabled={isLoggingIn}
                     onChange={(e) => setPasswordInput(e.target.value)}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-center text-white focus:outline-none focus:border-amber-500 font-mono tracking-widest"
                     autoFocus
                   />
                   {authError && (
-                    <p className="text-[11px] text-red-400 mt-2 font-light flex items-center justify-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      <span>Senha incorreta! Use a senha correta de 8 dígitos.</span>
+                    <p className="text-[11px] text-red-400 mt-2 font-light flex flex-col items-center justify-center gap-1 animate-in fade-in duration-200">
+                      <span className="flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        <span>Controle de Segurança Ativo:</span>
+                      </span>
+                      <span className="text-center text-[10px] opacity-80 max-w-xs">{authErrorText || "Senha incorreta!"}</span>
                     </p>
                   )}
                 </div>
@@ -391,11 +613,25 @@ export default function AdminPanel({
                 <span>Voltar</span>
               </button>
 
+              <button 
+                onClick={() => {
+                  sessionStorage.removeItem('modivah_admin_auth');
+                  sessionStorage.removeItem('modivah_admin_token');
+                  setIsAuthenticated(false);
+                  setAuthError(false);
+                  onClose();
+                }}
+                className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 transition cursor-pointer font-bold uppercase tracking-wider bg-red-500/5 py-1 px-3 rounded-lg border border-red-500/10"
+                id="admin-header-logout-btn"
+              >
+                <span>Sair</span>
+              </button>
+
               <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
               <div className="flex items-center gap-2">
                 <Sliders className="h-4 w-4 text-amber-400" />
-                <h2 className="text-xs font-semibold text-white tracking-widest uppercase font-mono">Console Administrativo</h2>
+                <h2 className="text-xs font-semibold text-white tracking-widest uppercase font-mono">Console</h2>
               </div>
             </div>
             <button
@@ -427,6 +663,75 @@ export default function AdminPanel({
               >
                 Resetar Loja
               </button>
+            </section>
+
+            {/* Seção Conta & Segurança */}
+            <section className="bg-neutral-900/50 border border-white/5 rounded-xl p-4 space-y-4">
+              <h3 className="text-xs uppercase tracking-widest text-[#ffe4a0] font-semibold flex items-center gap-2 font-mono">
+                <Sliders className="h-4 w-4 text-amber-500" />
+                <span>Conta &amp; Segurança do Criador</span>
+              </h3>
+              
+              <form onSubmit={handlePasswordChange} className="space-y-4 pt-1">
+                <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
+                  Para alterar a senha de acesso ao Console Administrativo, digite a senha atual e defina a nova credencial forte.
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-1">Senha Atual</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Senha atual..."
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-1">Nova Senha</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Nova senha de 8+ caracteres..."
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-1">Confirmar Nova Senha</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Confirme a nova senha..."
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {passwordChangeSuccess && (
+                  <p className="text-[11px] text-green-400 font-semibold">{passwordChangeSuccess}</p>
+                )}
+                {passwordChangeError && (
+                  <p className="text-[11px] text-red-400 font-semibold">{passwordChangeError}</p>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
+                  <span className="text-[9px] text-neutral-500 font-light max-w-sm leading-normal">
+                    Requisitos mínimos de senha: Mínimo 8 caracteres.
+                  </span>
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-white/10 font-bold text-[10px] uppercase tracking-widest rounded-lg transition shrink-0 cursor-pointer"
+                  >
+                    Alterar Senha
+                  </button>
+                </div>
+              </form>
             </section>
 
             {/* Form list: CADASTRO E EDIÇÃO DE ANÚNCIOS */}
@@ -678,6 +983,37 @@ export default function AdminPanel({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Custom image option */}
                   <div className="space-y-2">
+                    {/* FAST BATCH MULTI-UPLOAD SECTION */}
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+                      <p className="text-[10px] text-amber-200 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                        <span>Agilizar Anúncio: Enviar até 10 Fotos Juntas ⚡</span>
+                      </p>
+                      <p className="text-[9px] text-neutral-400 font-light leading-normal text-justify">
+                        Selecione até 10 fotos de uma só vez do celular ou computador. O sistema colocará a primeira como capa principal e as outras 9 no álbum extra de forma totalmente automática, ágil e otimizada!
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (multipleFilesRef.current) {
+                            multipleFilesRef.current.click();
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black py-2.5 px-3 rounded-lg cursor-pointer text-center text-[10px] font-bold uppercase tracking-wider transition active:scale-95 shadow-md"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        <span>Carregar Fotos Simultâneas 📷</span>
+                      </button>
+                      <input
+                        type="file"
+                        ref={multipleFilesRef}
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleMultipleImagesUpload}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] text-amber-300 font-bold block uppercase tracking-wider">Imagem Principal da Capa 🏷️</label>
                       <button
@@ -686,14 +1022,41 @@ export default function AdminPanel({
                         className={`text-[10px] px-2 py-0.5 rounded cursor-pointer font-semibold uppercase tracking-wider transition ${
                           showImageDb 
                             ? 'bg-amber-500 text-black' 
-                            : 'bg-white/10 hover:bg-white/20 text-text-amber-300'
+                            : 'bg-white/10 hover:bg-white/20 text-[#00f0ff]'
                         }`}
                       >
                         📂 Banco de Dados ({IMAGE_DATABASE.length})
                       </button>
                     </div>
+
+                    {/* Beautiful Visual Image Preview */}
+                    <div className="relative h-44 w-full rounded-lg overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+                      {image ? (
+                        <>
+                          <div className="absolute inset-0 select-none pointer-events-none">
+                            <img src={image} className="w-full h-full object-cover blur-md opacity-35 scale-110" alt="" referrerPolicy="no-referrer" />
+                          </div>
+                          <img src={image} className="relative z-10 w-full h-full object-contain" alt="Preview da capa" referrerPolicy="no-referrer" />
+                          <button
+                            type="button"
+                            onClick={() => setImage('')}
+                            className="absolute top-2 right-2 z-20 bg-black/80 hover:bg-red-500 hover:text-white p-1.5 rounded-full text-neutral-400 transition cursor-pointer"
+                            title="Remover imagem"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <div className="text-center p-4 space-y-1 select-none">
+                          <ImageIcon className="h-7 w-7 text-neutral-600 mx-auto opacity-70" />
+                          <span className="text-[10px] block font-light text-neutral-500 uppercase tracking-widest font-mono">Sem Imagem</span>
+                          <span className="text-[9px] block text-neutral-600 font-light">Selecione uma imagem do computador ou banco de dados</span>
+                        </div>
+                      )}
+                    </div>
+
                     <input
-                      type="url"
+                      type="text"
                       placeholder="https://images.unsplash.com/..."
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
@@ -720,9 +1083,10 @@ export default function AdminPanel({
                           const file = e.target.files?.[0];
                           if (file) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               if (typeof reader.result === 'string') {
-                                setImage(reader.result);
+                                const compressed = await compressBase64Image(reader.result);
+                                setImage(compressed);
                               }
                             };
                             reader.readAsDataURL(file);
@@ -764,7 +1128,7 @@ export default function AdminPanel({
                                 }`}
                                 title={img.name}
                               >
-                                <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                                <img src={img.url} alt={img.name} className="w-full h-full object-contain bg-neutral-900" />
                                 <div className="absolute inset-x-0 bottom-0 bg-black/75 p-1 text-[8px] text-neutral-300 truncate font-sans">
                                   {img.name}
                                 </div>
@@ -800,7 +1164,7 @@ export default function AdminPanel({
                             {/* Short Preview thumbnail */}
                             <div className="w-10 h-10 rounded bg-black/80 border border-white/10 shrink-0 overflow-hidden flex items-center justify-center">
                               {imgUrl ? (
-                                <img src={imgUrl} alt={`Adicional ${idx + 1}`} className="w-full h-full object-cover" />
+                                <img src={imgUrl} alt={`Adicional ${idx + 1}`} className="w-full h-full object-contain bg-black" />
                               ) : (
                                 <span className="text-[8px] text-neutral-600 uppercase font-bold">Vazio</span>
                               )}
@@ -808,7 +1172,7 @@ export default function AdminPanel({
 
                             <div className="flex-grow space-y-1">
                               <input
-                                type="url"
+                                type="text"
                                 placeholder="https:// Link da foto adicional ou carregue do PC"
                                 value={imgUrl}
                                 onChange={(e) => {
@@ -867,10 +1231,11 @@ export default function AdminPanel({
                           const file = e.target.files?.[0];
                           if (file && uploadTargetIndex !== null) {
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               if (typeof reader.result === 'string') {
+                                const compressed = await compressBase64Image(reader.result);
                                 const newList = [...imagesList];
-                                newList[uploadTargetIndex] = reader.result;
+                                newList[uploadTargetIndex] = compressed;
                                 setImagesList(newList);
                               }
                             };
@@ -902,22 +1267,31 @@ export default function AdminPanel({
                       </button>
                     </div>
                     <input
-                      type="url"
+                      type="text"
                       placeholder="https://www.youtube.com/watch?v=... ou .mp4"
                       value={video}
                       onChange={(e) => setVideo(e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
                     />
 
+                    <p className="text-[10px] text-amber-300 bg-amber-500/5 rounded-lg border border-amber-500/20 p-2.5 leading-relaxed text-justify mt-1">
+                      ⚠️ <strong>Aviso Importante para YouTube (Erro 153):</strong> Se usar links do YouTube, a caixinha <strong>"Permitir incorporação"</strong> (Allow embedding) deve estar <strong>marcada/ativada</strong> nas configurações de distribuição do seu vídeo no YouTube Studio. Caso contrário, o anúncio gerará o Erro 150/153. Se preferir 100% de estabilidade sem depender do Google, faça o upload direto do arquivo de vídeo original com o botão abaixo!
+                    </p>
+
                     {/* PC video upload with custom useRef trigger pointer */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2">
                       <button
                         type="button"
+                        disabled={isUploadingVideo}
                         onClick={() => fileVidRef.current?.click()}
-                        className="w-full flex items-center justify-center gap-2 border border-dashed border-amber-500/20 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 text-amber-300 hover:text-amber-100 transition-colors py-2 px-3 rounded-lg cursor-pointer text-center text-[10px] font-bold uppercase tracking-wider"
+                        className={`w-full flex items-center justify-center gap-2 border border-dashed transition-all py-2.5 px-3 rounded-lg cursor-pointer text-center text-[10px] font-bold uppercase tracking-wider ${
+                          isUploadingVideo 
+                            ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
+                            : 'border-amber-500/20 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 text-amber-300 hover:text-amber-100'
+                        }`}
                       >
-                        <Video className="h-3.5 w-3.5" />
-                        <span>Buscar Vídeo no Computador 💻</span>
+                        <Video className={`h-3.5 w-3.5 ${isUploadingVideo ? 'animate-pulse' : ''}`} />
+                        <span>{isUploadingVideo ? 'Enviando Vídeo MP4... ⏳' : 'Buscar Vídeo MP4 no Computador 💻'}</span>
                       </button>
                       
                       <input
@@ -928,10 +1302,35 @@ export default function AdminPanel({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
+                            setIsUploadingVideo(true);
                             const reader = new FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               if (typeof reader.result === 'string') {
-                                setVideo(reader.result);
+                                try {
+                                  const response = await fetch("/api/upload-file", {
+                                    method: "POST",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      "Authorization": `Bearer ${sessionStorage.getItem('modivah_admin_token')}`
+                                    },
+                                    body: JSON.stringify({
+                                      filename: file.name,
+                                      base64: reader.result
+                                    })
+                                  });
+                                  const data = await response.json();
+                                  if (data.url) {
+                                    setVideo(data.url);
+                                  } else {
+                                    alert("Falha ao processar arquivo: " + (data.error || "Erro ao receber URL."));
+                                  }
+                                } catch (error) {
+                                  console.error("Upload error:", error);
+                                  // Fallback to offline local base64 only if server failed completely
+                                  setVideo(reader.result);
+                                } finally {
+                                  setIsUploadingVideo(false);
+                                }
                               }
                             };
                             reader.readAsDataURL(file);
@@ -939,6 +1338,10 @@ export default function AdminPanel({
                           e.target.value = '';
                         }}
                       />
+
+                      <p className="text-[10px] text-[#39ff14] bg-[#39ff14]/5 rounded-lg border border-[#39ff14]/20 p-2.5 leading-relaxed text-justify mt-1">
+                        📱 Você pode selecionar qualquer arquivo de <strong>vídeo MP4 do seu computador ou celular</strong> direta e rapidamente! O sistema agora salva o arquivo no servidor de alta performance do brechó de forma instantânea.
+                      </p>
                     </div>
 
                     {/* Expandable Video Database selection widget */}
@@ -992,9 +1395,17 @@ export default function AdminPanel({
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black rounded-lg text-xs font-semibold uppercase tracking-widest cursor-pointer transition active:scale-95 duration-200"
+                  disabled={isSaving}
+                  className={`w-full py-3 bg-gradient-to-r ${
+                    isSaving 
+                      ? 'from-amber-600/30 to-amber-700/30 text-neutral-500 cursor-not-allowed animate-pulse' 
+                      : 'from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black cursor-pointer active:scale-95'
+                  } rounded-lg text-xs font-semibold uppercase tracking-widest transition duration-200`}
                 >
-                  {editingProductId ? 'Salvar Alterações de Anúncio' : 'Confirmar Cadastro da Peça'}
+                  {isSaving 
+                    ? 'Buscando Otimização & Salvando...' 
+                    : (editingProductId ? 'Salvar Alterações de Anúncio' : 'Confirmar Cadastro da Peça')
+                  }
                 </button>
               </form>
             </section>
@@ -1020,7 +1431,7 @@ export default function AdminPanel({
                           src={p.image} 
                           alt={p.title} 
                           referrerPolicy="no-referrer"
-                          className="h-10 w-8 object-cover rounded shrink-0 bg-neutral-950"
+                          className="h-10 w-8 object-contain rounded shrink-0 bg-neutral-950 border border-white/5"
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
