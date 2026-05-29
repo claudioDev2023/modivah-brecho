@@ -17,7 +17,7 @@ import ProductCarousel from './components/ProductCarousel';
 // @ts-ignore
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
 // @ts-ignore
-import mascotImg from './assets/images/modivah_app_icon_1779927087425.png';
+import mascotImg from './assets/images/modivah_official_mascot_1780072687232.png';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 

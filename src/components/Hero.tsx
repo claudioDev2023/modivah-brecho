@@ -2,7 +2,7 @@ import React from 'react';
 import { Eye, ShieldCheck, Heart } from 'lucide-react';
 import { motion } from 'motion/react';
 // @ts-ignore
-import mascotImg from '../assets/images/modivah_app_icon_1779927087425.png';
+import mascotImg from '../assets/images/modivah_official_mascot_1780072687232.png';
 
 interface HeroProps {
   onOpenStylist: () => void;

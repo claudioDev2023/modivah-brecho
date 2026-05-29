@@ -2,6 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ShoppingBag, MessageSquare, Shield, HelpCircle, Sparkles, Play, Video } from 'lucide-react';
 import { Product } from '../types';
 
+function getVideoMimeType(url: string) {
+  const lower = url.toLowerCase();
+  if (lower.includes('.mp4')) return 'video/mp4';
+  if (lower.includes('.mov') || lower.includes('.quicktime')) return 'video/mp4';
+  if (lower.includes('.webm')) return 'video/webm';
+  if (lower.includes('.ogv') || lower.includes('.ogg')) return 'video/ogg';
+  if (lower.includes('.m4v')) return 'video/mp4';
+  return 'video/mp4';
+}
+
 function getEmbeddableVideo(url: string) {
   const normalized = url.trim();
   
@@ -166,19 +176,10 @@ export default function ProductModal({ product, onClose, onAddToCart, initialVie
   const videoRefCallback = (el: HTMLVideoElement | null) => {
     videoRef.current = el;
     if (el) {
-      el.muted = false;
       el.playsInline = true;
       el.setAttribute('playsinline', 'true');
-      
-      el.play()
-        .then(() => {
-          setIsPlaying(true);
-          setVideoPlayError(false); // Reset error status on successful playback
-        })
-        .catch((err) => {
-          console.log("Play failed or blocked by sandbox permissions, user will use physical controls:", err);
-          // Don't set isPlaying = false since they explicitly tapped play and it's mounted
-        });
+      el.setAttribute('webkit-playsinline', 'true');
+      el.preload = 'metadata';
     }
   };
 
@@ -358,14 +359,13 @@ export default function ProductModal({ product, onClose, onAddToCart, initialVie
                           src={videoData.url}
                           controls
                           autoPlay
-                          muted
                           playsInline
                           loop
-                          className="w-full h-full object-contain bg-black"
+                          preload="metadata"
+                          className="w-full h-full object-contain bg-black rounded-2xl"
                           style={{
                             width: '100%',
                             height: '100%',
-                            borderRadius: '16px',
                             background: '#000',
                             objectFit: 'contain'
                           }}
@@ -373,38 +373,51 @@ export default function ProductModal({ product, onClose, onAddToCart, initialVie
                             console.warn("Top-panel video failed:", e);
                             setVideoPlayError(true);
                           }}
-                        />
+                        >
+                          <source src={videoData.url} type={getVideoMimeType(videoData.url)} />
+                          Seu navegador não suporta reprodução de vídeo nativo.
+                        </video>
                       ) : (
-                        // Fallback visual to prevent black screen! Displays thumbnail automatically.
+                        // Fallback visual to prevent black screen! Displays thumbnail and explicit CTA to play/open externally
                         <div className="absolute inset-0 w-full h-full bg-neutral-950 flex flex-col items-center justify-center relative">
                           <img 
                             src={activeProduct.image} 
                             alt={activeProduct.title} 
-                            className="absolute inset-0 w-full h-full object-contain bg-black opacity-50 blur-sm"
+                            className="absolute inset-0 w-full h-full object-contain bg-black opacity-40 blur-sm"
                             referrerPolicy="no-referrer"
                           />
-                          <div className="z-10 text-center px-4 py-3 bg-black/75 rounded-xl border border-white/10 m-4 max-w-xs">
-                            <Video className="h-8 w-8 text-amber-400 mx-auto mb-1 animate-pulse" />
-                            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Vídeo Indisponível</h4>
-                            <p className="text-[10px] text-zinc-300 leading-relaxed mb-3">
-                              Erro ao reproduzir o vídeo. Deseja ver as fotos da peça?
+                          <div className="z-10 text-center px-5 py-4 bg-black/85 rounded-2xl border border-white/10 m-4 max-w-xs shadow-2xl">
+                            <Video className="h-9 w-9 text-amber-400 mx-auto mb-2 animate-pulse" />
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1.5">Vídeo não carregou no navegador</h4>
+                            <p className="text-[10px] text-zinc-300 leading-relaxed mb-4">
+                              Não se preocupe! Você pode abrir o vídeo original externamente em tela cheia ou continuar visualizando as fotos da peça.
                             </p>
-                            <div className="flex gap-2 justify-center">
-                              <button 
-                                onClick={() => {
-                                  setVideoPlayError(false);
-                                  setIsPlaying(false);
-                                }} 
-                                className="px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-black text-[9px] font-bold uppercase tracking-wider rounded transition"
+                            <div className="flex flex-col gap-2.5 w-full">
+                              <a
+                                href={videoData.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full text-center px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-black uppercase tracking-wider rounded-xl transition active:scale-95 shadow-lg"
                               >
-                                Tentar Novamente
-                              </button>
-                              <button 
-                                onClick={() => handleChangeViewMode('image')} 
-                                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white text-[9px] font-bold uppercase tracking-wider rounded transition"
-                              >
-                                Ver Fotos
-                              </button>
+                                Abrir Vídeo Externo ➔
+                              </a>
+                              <div className="flex gap-2 w-full">
+                                <button 
+                                  onClick={() => {
+                                    setVideoPlayError(false);
+                                    setIsPlaying(false);
+                                  }} 
+                                  className="flex-1 px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[9px] font-bold uppercase tracking-wider rounded-lg transition"
+                                >
+                                  Tentar Novamente
+                                </button>
+                                <button 
+                                  onClick={() => handleChangeViewMode('image')} 
+                                  className="flex-1 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white text-[9px] font-bold uppercase tracking-wider rounded-lg transition"
+                                >
+                                  Ver Fotos
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
