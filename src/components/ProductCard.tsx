@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { ShoppingBag, Eye, Tag } from 'lucide-react';
 import { Product } from '../types';
 
@@ -9,7 +9,7 @@ interface ProductCardProps {
   onAddToCart: (product: Product) => void;
 }
 
-const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
+export default function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
   const isSold = product.status === 'sold' || product.stock <= 0;
   const isReserved = product.status === 'reserved' && !isSold;
   const isAvailable = product.status === 'available' && product.stock > 0;
@@ -28,20 +28,20 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
 
   return (
     <div 
-      className="group relative flex flex-col bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all duration-300 shadow-md hover:shadow-xl"
+      className="group relative flex flex-col bg-white/[0.02] border border-white/5 hover:border-white/15 rounded-2xl overflow-hidden transition-all duration-300 shadow-md hover:shadow-xl"
       id={`product-card-${product.id}`}
     >
       {/* Product Image Area - Clickable to enter product details */}
       <div 
         onClick={() => onViewDetails(product)}
-        className="relative aspect-[3/4] bg-neutral-950 overflow-hidden cursor-pointer group/img"
+        className="relative aspect-[3/4] bg-neutral-900 overflow-hidden cursor-pointer group/img"
         title="Clique para ver todos os detalhes desta peça"
       >
         <img
           src={product.image}
           alt={product.title}
           referrerPolicy="no-referrer"
-          className="w-full h-full object-cover bg-neutral-950 transition-transform duration-700 group-hover/img:scale-105"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105"
           onError={(e) => {
             // Fallback generic clothing image URL if standard fails to load
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
@@ -140,7 +140,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
                 De (Grife)
               </span>
               <span className="text-xs text-neutral-500 line-through font-mono">
-                R$ {(Number(product.originalPrice) || (Math.round((Number(product.price) * 2.5) / 10) * 10)).toFixed(2)}
+                R$ {(product.originalPrice || (Math.round((product.price * 2.5) / 10) * 10)).toFixed(2)}
               </span>
             </div>
             <div className="text-right">
@@ -148,7 +148,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
                 Por (Modivah) ✨
               </span>
               <span className="text-sm sm:text-base text-amber-300 font-mono font-bold tracking-tight">
-                R$ {Number(product.price).toFixed(2)}
+                R$ {product.price.toFixed(2)}
               </span>
             </div>
           </div>
@@ -185,6 +185,4 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
       </div>
     </div>
   );
-});
-
-export default ProductCard;
+}

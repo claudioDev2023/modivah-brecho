@@ -240,12 +240,12 @@ export default function StylistChat({
                               src={p.image} 
                               alt={p.title} 
                               referrerPolicy="no-referrer"
-                              className="h-12 w-10 object-contain bg-neutral-950 rounded-md shrink-0 border border-white/5"
+                              className="h-12 w-10 object-cover rounded-md shrink-0 border border-white/5"
                             />
                             <div className="flex-1 min-w-0">
                               <span className="text-[9px] uppercase font-mono tracking-tight text-neutral-400">{p.brand}</span>
                               <h4 className="text-[11px] text-white font-normal truncate">{p.title}</h4>
-                              <span className="text-xs text-neutral-300 font-mono">R$ {Number(p.price).toFixed(2)}</span>
+                              <span className="text-xs text-neutral-300 font-mono">R$ {p.price.toFixed(2)}</span>
                             </div>
                             
                             <div className="flex gap-1 shrink-0">

@@ -33,7 +33,7 @@ export default function CartDrawer({
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
   const [showUploadField, setShowUploadField] = useState(false);
 
-  const totalCost = cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
+  const totalCost = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const finalTotal = totalCost;
 
   // Pre-validate coordinates and step into Step 2: PIX Transfer Instruction
@@ -76,9 +76,9 @@ export default function CartDrawer({
     
     text += `[PEÇAS ADQUIRIDAS]\n`;
     cart.forEach((item, idx) => {
-      const productSku = item.product.sku || 'M-' + String(item.product.id).replace('prod-', '').toUpperCase().padStart(4, '0');
+      const productSku = item.product.sku || 'M-' + item.product.id.replace('prod-', '').toUpperCase().padStart(4, '0');
       text += `${idx + 1}. ${item.product.title} (SKU: ${productSku}) - Tam: ${item.product.size}\n`;
-      text += `   Marca: ${item.product.brand} | R$ ${Number(item.product.price).toFixed(2)}\n\n`;
+      text += `   Marca: ${item.product.brand} | R$ ${item.product.price.toFixed(2)}\n\n`;
     });
 
     text += `-----------------------------------\n`;
@@ -96,65 +96,15 @@ export default function CartDrawer({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" id="cart-drawer-container">
-      {/* Drawer Overlay backdrop with highlighted products on the left for Desktop */}
+      {/* Drawer Overlay backdrop */}
       <div 
-        className="absolute inset-0 bg-black/85 backdrop-blur-sm transition-opacity flex items-center justify-start pr-12 md:pr-[450px]" 
+        className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
-      >
-        {cart.length > 0 && (
-          <div className="hidden md:flex flex-col gap-5 p-8 overflow-y-auto h-full max-w-xl flex-grow items-center justify-center pointer-events-none select-none">
-            <div className="text-center space-y-1.5 mb-2">
-              <span className="px-3 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase tracking-widest rounded-full animate-pulse">
-                ✨ Peças na sua Sacola Premium
-              </span>
-              <p className="text-xs text-neutral-400 font-light max-w-sm">
-                Confira abaixo as peças que estão no seu carrinho em tamanho real de capa:
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-5 w-full max-w-md">
-              {cart.map((item) => (
-                <div 
-                  key={`drawer-left-${item.product.id}`}
-                  className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
-                >
-                  <div className="aspect-[3/4] relative bg-neutral-900 w-full overflow-hidden">
-                    <img 
-                      src={item.product.image} 
-                      alt={item.product.title}
-                      className="w-full h-full object-contain bg-neutral-950"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-amber-500/30 rounded-md px-2 py-0.5 text-[9px] font-mono text-amber-300 font-bold uppercase">
-                      {item.product.brand}
-                    </div>
-                    <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-white">
-                      TAM {item.product.size}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-neutral-950 border-t border-neutral-900">
-                    <h4 className="text-[11px] text-white font-medium truncate mb-1">
-                      {item.product.title}
-                    </h4>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[#39ff14] font-mono font-black">
-                        R$ {Number(item.product.price).toFixed(2)}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 font-mono">
-                        Qtd: {item.quantity}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      />
 
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
         {/* Slidin panel content container */}
-        <div className="w-screen max-w-md bg-neutral-955 border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className="w-screen max-w-md bg-neutral-950 border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
           
           {/* Header section */}
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
@@ -377,110 +327,85 @@ export default function CartDrawer({
                     </button>
                   </div>
                 ) : (
-                  cart.map((item) => {
-                    const itemOrigPrice = Number(item.product.originalPrice) || (Math.round((Number(item.product.price) * 2.5) / 10) * 10);
-                    const isEcoNew = item.product.condition === 'Novo com Etiqueta';
-                    const isExcellent = item.product.condition === 'Excelente';
+                  cart.map((item) => (
+                    <div 
+                      key={item.product.id}
+                      className="flex gap-4 p-3 bg-white/[0.02] border border-white/5 rounded-xl hover:border-white/10 transition group"
+                    >
+                      {/* Thumbnail */}
+                      <div className="h-32 w-24 sm:h-36 sm:w-28 bg-neutral-900 border border-white/10 rounded-xl overflow-hidden shrink-0 shadow-lg relative group-hover:border-white/20 transition">
+                        <img 
+                          src={item.product.image} 
+                          alt={item.product.title} 
+                          referrerPolicy="no-referrer"
+                          className="h-full w-full object-cover group-hover:scale-105 transition duration-300"
+                        />
+                      </div>
 
-                    return (
-                      <div 
-                        key={item.product.id}
-                        className="flex gap-4 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl hover:border-zinc-700 transition-all duration-300 group shadow-md"
-                      >
-                        {/* Thumbnail with exact same backdrop-blur effect as the main product card cover */}
-                        <div className="relative aspect-[3/4] w-24 sm:w-28 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden shrink-0 shadow-lg group-hover:border-white/20 transition duration-300">
-                          <img 
-                            src={item.product.image} 
-                            alt={item.product.title} 
-                            referrerPolicy="no-referrer"
-                            className="h-full w-full object-contain bg-neutral-950 group-hover:scale-105 transition duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
-                            }}
-                          />
+                      {/* Descriptions block */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
+                        <div>
+                          <div className="flex justify-between items-start gap-1">
+                            <span className="text-[10px] uppercase tracking-wider text-amber-300 font-bold">
+                              {item.product.brand}
+                            </span>
+                            
+                            {/* Remove item button */}
+                            <button
+                              onClick={() => onRemoveItem(item.product.id)}
+                              className="text-neutral-500 hover:text-red-400 p-0.5 cursor-pointer transform hover:scale-110 transition"
+                              title="Remover item"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          
+                          <h4 className="text-sm font-medium text-white line-clamp-2 whitespace-normal leading-snug my-1.5">
+                            {item.product.title}
+                          </h4>
+                          
+                          <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                            <span>Tam: <strong>{item.product.size}</strong></span>
+                            <span>•</span>
+                            <span>Cond: <strong>{item.product.condition}</strong></span>
+                            {item.product.stock !== undefined && (
+                              <>
+                                <span>•</span>
+                                <span className="text-amber-200">Estoq: {item.product.stock} un.</span>
+                              </>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Highlighted Descriptions block & Luxury metadata */}
-                        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5 bg-zinc-950 p-3 rounded-xl border border-zinc-850">
-                          <div>
-                            <div className="flex justify-between items-start gap-1 mb-1">
-                              <span className="text-[9px] uppercase tracking-widest text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
-                                {item.product.brand}
-                              </span>
-                              
-                              {/* Remove item button */}
-                              <button
-                                onClick={() => onRemoveItem(item.product.id)}
-                                className="text-neutral-500 hover:text-red-400 p-1 cursor-pointer transform hover:scale-110 transition rounded hover:bg-white/5"
-                                title="Remover item"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                            
-                            <h4 className="text-xs font-medium text-white hover:text-amber-200 transition-colors line-clamp-1 whitespace-normal leading-tight font-sans">
-                              {item.product.title}
-                            </h4>
-                            
-                            {/* Rich info badges instead of plain text */}
-                            <div className="flex flex-wrap gap-1.5 items-center mt-2">
-                              <span className="bg-white/5 border border-white/10 text-white text-[8px] font-mono font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                TAM {item.product.size}
-                              </span>
-                              <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded border ${
-                                isEcoNew 
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                  : isExcellent
-                                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                    : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                              }`}>
-                                {item.product.condition}
-                              </span>
-                              {item.product.stock !== undefined && item.product.stock <= 1 && (
-                                <span className="text-[8px] font-bold px-1.5 py-0.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded uppercase tracking-wide animate-pulse">
-                                  Última Peça! 🏷️
-                                </span>
-                              )}
-                            </div>
+                        {/* Counts slider and subtotal pricing */}
+                        <div className="flex items-center justify-between pt-1">
+                          <div className="flex items-center bg-white/5 border border-white/10 rounded-md">
+                            <button
+                              onClick={() => onUpdateQuantity(item.product.id, -1)}
+                              className="px-2 py-0.5 text-neutral-400 hover:text-white cursor-pointer"
+                              title="Diminuir"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                            <span className="text-xs text-white font-mono min-w-[16px] text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => onUpdateQuantity(item.product.id, 1)}
+                              className="px-2 py-0.5 text-neutral-400 hover:text-white cursor-pointer"
+                              title="Aumentar"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </button>
                           </div>
 
-                          {/* Subtotal highlights + Original-price comparative details */}
-                          <div className="mt-3 pt-2 border-t border-white/5 flex items-end justify-between">
-                            <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-0.5">
-                              <button
-                                onClick={() => onUpdateQuantity(item.product.id, -1)}
-                                className="px-1.5 py-0.5 text-neutral-400 hover:text-white cursor-pointer hover:bg-white/5 rounded transition"
-                                title="Diminuir"
-                              >
-                                <Minus className="h-2.5 w-2.5" />
-                              </button>
-                              <span className="text-[10px] text-white font-mono min-w-[12px] text-center font-bold px-1">
-                                {item.quantity}
-                              </span>
-                              <button
-                                onClick={() => onUpdateQuantity(item.product.id, 1)}
-                                className="px-1.5 py-0.5 text-neutral-400 hover:text-white cursor-pointer hover:bg-white/5 rounded transition"
-                                title="Aumentar"
-                              >
-                                <Plus className="h-2.5 w-2.5" />
-                              </button>
-                            </div>
-
-                            <div className="text-right flex flex-col">
-                              {/* Comparative Pricing */}
-                              <span className="text-[8px] text-neutral-500 line-through font-mono">
-                                R$ {(itemOrigPrice * item.quantity).toFixed(2)}
-                              </span>
-                              <span className="text-[11px] text-[#39ff14] font-mono font-black tracking-tight flex items-center justify-end gap-1">
-                                <span className="text-[7px] text-[#39ff14]/70 font-sans uppercase animate-pulse">Modivah</span>
-                                <span>R$ {(Number(item.product.price) * item.quantity).toFixed(2)}</span>
-                              </span>
-                            </div>
-                          </div>
+                          <span className="text-xs text-white font-mono">
+                            R$ {(item.product.price * item.quantity).toFixed(2)}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })
+                    </div>
+                  ))
                 )}
               </div>
 

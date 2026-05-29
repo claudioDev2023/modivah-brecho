@@ -16,7 +16,7 @@ service cloud.firestore {
         && data.brand is string && data.brand.size() <= 100
         && data.condition is string && data.condition.size() <= 100
         && data.material is string && data.material.size() <= 500
-        && data.image is string && data.image.size() <= 2000000
+        && data.image is string && data.image.size() <= 5000
         && data.status is string && (data.status == 'available' || data.status == 'reserved' || data.status == 'sold')
         && data.stock is number && data.stock >= 0;
     }
