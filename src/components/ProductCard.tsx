@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ShoppingBag, Eye, Tag } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
   key?: string | number;
   product: Product;
-  onViewDetails: (product: Product) => void;
+  onViewDetails: (product: Product, initialView?: 'image' | 'video') => void;
   onAddToCart: (product: Product) => void;
 }
 
-export default function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
+const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
   const isSold = product.status === 'sold' || product.stock <= 0;
   const isReserved = product.status === 'reserved' && !isSold;
   const isAvailable = product.status === 'available' && product.stock > 0;
@@ -28,20 +28,20 @@ export default function ProductCard({ product, onViewDetails, onAddToCart }: Pro
 
   return (
     <div 
-      className="group relative flex flex-col bg-white/[0.02] border border-white/5 hover:border-white/15 rounded-2xl overflow-hidden transition-all duration-300 shadow-md hover:shadow-xl"
+      className="group relative flex flex-col bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all duration-300 shadow-md hover:shadow-xl"
       id={`product-card-${product.id}`}
     >
       {/* Product Image Area - Clickable to enter product details */}
       <div 
         onClick={() => onViewDetails(product)}
-        className="relative aspect-[3/4] bg-neutral-900 overflow-hidden cursor-pointer group/img"
+        className="relative aspect-square bg-neutral-950 overflow-hidden cursor-pointer group/img"
         title="Clique para ver todos os detalhes desta peça"
       >
         <img
           src={product.image}
           alt={product.title}
           referrerPolicy="no-referrer"
-          className="w-full h-full object-cover transition-transform duration-700 group-hover/img:scale-105"
+          className="w-full h-full object-contain bg-black transition-transform duration-700 group-hover/img:scale-105"
           onError={(e) => {
             // Fallback generic clothing image URL if standard fails to load
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
@@ -71,6 +71,21 @@ export default function ProductCard({ product, onViewDetails, onAddToCart }: Pro
         {product.tag && isAvailable && (
           <span className="absolute top-3 left-3 px-2.5 py-1 bg-black/80 backdrop-blur-md text-amber-300 text-[9px] uppercase tracking-wider font-semibold rounded-full border border-amber-500/20 shadow">
             {product.tag}
+          </span>
+        )}
+
+        {/* Floating pulse indicator to highlight video availability inside the app */}
+        {product.video && product.video.trim() !== '' && isAvailable && (
+          <span 
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails(product, 'video');
+            }}
+            className="absolute top-3 right-3 z-30 px-2 py-0.5 bg-[#39ff14]/90 backdrop-blur-md text-black text-[9px] uppercase tracking-widest font-black rounded border border-[#39ff14]/20 shadow-md flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+            title="Clique para assistir o vídeo deste look no próprio app!"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-650 animate-pulse bg-red-600" />
+            VÍDEO 🎬
           </span>
         )}
 
@@ -140,7 +155,7 @@ export default function ProductCard({ product, onViewDetails, onAddToCart }: Pro
                 De (Grife)
               </span>
               <span className="text-xs text-neutral-500 line-through font-mono">
-                R$ {(product.originalPrice || (Math.round((product.price * 2.5) / 10) * 10)).toFixed(2)}
+                R$ {(Number(product.originalPrice) || (Math.round((Number(product.price) * 2.5) / 10) * 10)).toFixed(2)}
               </span>
             </div>
             <div className="text-right">
@@ -148,7 +163,7 @@ export default function ProductCard({ product, onViewDetails, onAddToCart }: Pro
                 Por (Modivah) ✨
               </span>
               <span className="text-sm sm:text-base text-amber-300 font-mono font-bold tracking-tight">
-                R$ {product.price.toFixed(2)}
+                R$ {Number(product.price).toFixed(2)}
               </span>
             </div>
           </div>
@@ -185,4 +200,6 @@ export default function ProductCard({ product, onViewDetails, onAddToCart }: Pro
       </div>
     </div>
   );
-}
+});
+
+export default ProductCard;

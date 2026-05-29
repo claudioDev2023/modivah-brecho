@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Filter, RotateCcw, HelpCircle, Check, Search, Calendar, Heart, ArrowRight, Sparkles } from 'lucide-react';
+import { 
+  Filter, RotateCcw, HelpCircle, Check, Search, Calendar, Heart, ArrowRight, Sparkles,
+  Shirt, Footprints, Briefcase, Gem, Award, Lock, Truck, Home, Grid, Plus, User, Eye, ShoppingBag
+} from 'lucide-react';
 import { Product, CartItem } from './types';
 import { INITIAL_PRODUCTS } from './data/initialProducts';
 import Navbar from './components/Navbar';
@@ -13,12 +16,27 @@ import AdminPanel from './components/AdminPanel';
 import ProductCarousel from './components/ProductCarousel';
 // @ts-ignore
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
+// @ts-ignore
+import mascotImg from './assets/images/modivah_app_icon_1779927087425.png';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 
 export default function App() {
   // Products list from localStorage or INITIAL_PRODUCTS fallback
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('modivah_products_cache');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao ler modivah_products_cache de localStorage:', e);
+    }
+    return INITIAL_PRODUCTS;
+  });
   
   // Cart state sync
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -33,6 +51,17 @@ export default function App() {
   const [isStylistOpen, setIsStylistOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductViewMode, setSelectedProductViewMode] = useState<'image' | 'video'>('image');
+
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('modivah_favorites');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
 
   // Admin session flag
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -50,6 +79,11 @@ export default function App() {
       });
       await batch.commit();
       notify("Estoque inicial carregado no banco de dados sincronizado!");
+      try {
+        localStorage.setItem('modivah_products_cache', JSON.stringify(INITIAL_PRODUCTS));
+      } catch (err) {
+        console.warn('Erro ao salvar cache de produtos:', err);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'products');
     }
@@ -67,16 +101,62 @@ export default function App() {
         });
 
         if (fetchedProducts.length === 0) {
-          // Empty DB, seed default catalog
-          seedDatabase();
+          // If Firestore is empty, let's see if we have products in local cache first
+          let cached: Product[] = [];
+          try {
+            const saved = localStorage.getItem('modivah_products_cache');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                cached = parsed;
+              }
+            }
+          } catch (e) {}
+
+          if (cached.length > 0) {
+            // Seed Firestore with our cached products so they aren't lost!
+            const batch = writeBatch(db);
+            cached.forEach((product) => {
+              const docRef = doc(db, 'products', product.id);
+              batch.set(docRef, product);
+            });
+            batch.commit()
+              .then(() => notify("Estoque recuperado e sincronizado com o banco de dados remoto!"))
+              .catch((err) => console.error("Erro ao subir cache local para o Firestore:", err));
+            setProducts(cached);
+          } else {
+            // Empty DB and empty cache: seed with default catalog
+            seedDatabase();
+          }
         } else {
-          // Sort products by creation timestamp descending so new pieces appear on top
+          // Sort fetched products by creation timestamp descending
           fetchedProducts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+          // Set products directly from the latest snapshot of Firestore - guaranteeing real-time updates!
           setProducts(fetchedProducts);
+
+          // Update disk storage cache
+          try {
+            localStorage.setItem('modivah_products_cache', JSON.stringify(fetchedProducts));
+          } catch (err) {
+            console.warn('Erro ao atualizar modivah_products_cache:', err);
+          }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'products');
+        console.warn('Firestore connection issue or permission denied. Falling back to local cache.', error);
+        // Fallback: Read cache
+        try {
+          const saved = localStorage.getItem('modivah_products_cache');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setProducts(parsed);
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao ler cache local após falha do Firestore:', e);
+        }
       }
     );
 
@@ -93,120 +173,386 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Save cart changes
-  const saveCartToStorage = (newCart: CartItem[]) => {
+  // Save cart changes asynchronously to prevent blocking the UI thread (INP optimization)
+  const saveCartToStorage = useCallback((newCart: CartItem[]) => {
     setCart(newCart);
-    localStorage.setItem('modivah_cart', JSON.stringify(newCart));
-  };
+    setTimeout(() => {
+      try {
+        localStorage.setItem('modivah_cart', JSON.stringify(newCart));
+      } catch (err) {
+        console.warn('Erro ao salvar no localStorage:', err);
+      }
+    }, 0);
+  }, []);
 
-  // Push notifications
-  const notify = (msg: string) => {
+  // Memoized push notifications
+  const notify = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => {
       setNotification(null);
     }, 3000);
-  };
+  }, []);
 
-  // CART HANDLERS
-  const handleAddToCart = (product: Product) => {
-    const existing = cart.find(item => item.product.id === product.id);
-    const currentQty = existing ? existing.quantity : 0;
-    const availableStock = product.stock !== undefined ? product.stock : 1;
-
-    if (currentQty >= availableStock) {
-      notify(`Limite esgotado! Apenas ${availableStock} ${availableStock === 1 ? 'peça única' : 'unidades'} deste item em estoque.`);
-      return;
-    }
-
-    if (existing) {
-      const updated = cart.map(item => 
-        item.product.id === product.id 
-          ? { ...item, quantity: item.quantity + 1 } 
-          : item
-      );
-      saveCartToStorage(updated);
-    } else {
-      saveCartToStorage([...cart, { product, quantity: 1 }]);
-    }
-    notify(`"${product.title}" adicionado à sacola! ✨`);
-    setIsCartOpen(true);
-  };
-
-  const handleUpdateCartQuantity = (productId: string, delta: number) => {
-    const updated = cart.map(item => {
-      if (item.product.id === productId) {
-        const nextQty = item.quantity + delta;
-        const availableStock = item.product.stock !== undefined ? item.product.stock : 1;
-        
-        if (nextQty > availableStock) {
-          notify(`Poxa! Apenas ${availableStock} ${availableStock === 1 ? 'unidade está' : 'unidades estão'} disponível no momento.`);
-          return item;
+  const toggleFavorite = useCallback((productId: string) => {
+    setFavorites((prev) => {
+      const isFav = prev.includes(productId);
+      const updated = isFav ? prev.filter((id) => id !== productId) : [...prev, productId];
+      setTimeout(() => {
+        try {
+          localStorage.setItem('modivah_favorites', JSON.stringify(updated));
+        } catch (e) {
+          console.warn(e);
         }
-        return nextQty > 0 ? { ...item, quantity: nextQty } : item;
-      }
-      return item;
+      }, 0);
+      notify(isFav ? 'Removido dos favoritos 🖤' : 'Adicionado aos favoritos! ❤️');
+      return updated;
     });
-    saveCartToStorage(updated);
-  };
+  }, [notify]);
 
-  const handleRemoveCartItem = (productId: string) => {
-    const updated = cart.filter(item => item.product.id !== productId);
-    saveCartToStorage(updated);
-  };
+  // CART HANDLERS - Optimized for maximum performance and touch latency reduction (PWA/Mobile INP)
+  const handleAddToCart = useCallback((product: Product) => {
+    setCart((prevCart) => {
+      const existing = prevCart.find(item => item.product.id === product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      const availableStock = product.stock !== undefined ? product.stock : 1;
 
-  const handleClearCart = () => {
-    saveCartToStorage([]);
-    notify("Sacola esvaziada.");
+      if (currentQty >= availableStock) {
+        // Enqueue next tick to maintain clean call stack
+        setTimeout(() => {
+          notify(`Limite esgotado! Apenas ${availableStock} ${availableStock === 1 ? 'peça única' : 'unidades'} deste item em estoque.`);
+        }, 0);
+        return prevCart;
+      }
+
+      let updated: CartItem[];
+      if (existing) {
+        updated = prevCart.map(item => 
+          item.product.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 } 
+            : item
+        );
+      } else {
+        updated = [...prevCart, { product, quantity: 1 }];
+      }
+
+      // Defer high cost side-effects (Disk I/O and secondary UI rendering transitions)
+      setTimeout(() => {
+        try {
+          localStorage.setItem('modivah_cart', JSON.stringify(updated));
+        } catch (e) {
+          console.warn(e);
+        }
+        
+        notify(`"${product.title}" adicionado à sacola! ✨`);
+        
+        // Defer drawer opening to allow button click ripple animation to finish instantly
+        setTimeout(() => {
+          React.startTransition(() => {
+            setIsCartOpen(true);
+          });
+        }, 30);
+      }, 0);
+
+      return updated;
+    });
+  }, [notify]);
+
+  const handleUpdateCartQuantity = useCallback((productId: string, delta: number) => {
+    setCart((prevCart) => {
+      const updated = prevCart.map(item => {
+        if (item.product.id === productId) {
+          const nextQty = item.quantity + delta;
+          const availableStock = item.product.stock !== undefined ? item.product.stock : 1;
+          
+          if (nextQty > availableStock) {
+            setTimeout(() => {
+              notify(`Poxa! Apenas ${availableStock} ${availableStock === 1 ? 'unidade está' : 'unidades estão'} disponível no momento.`);
+            }, 0);
+            return item;
+          }
+          return nextQty > 0 ? { ...item, quantity: nextQty } : item;
+        }
+        return item;
+      });
+
+      setTimeout(() => {
+        try {
+          localStorage.setItem('modivah_cart', JSON.stringify(updated));
+        } catch (e) {
+          console.warn(e);
+        }
+      }, 0);
+
+      return updated;
+    });
+  }, [notify]);
+
+  const handleRemoveCartItem = useCallback((productId: string) => {
+    setCart((prevCart) => {
+      const updated = prevCart.filter(item => item.product.id !== productId);
+      
+      setTimeout(() => {
+        try {
+          localStorage.setItem('modivah_cart', JSON.stringify(updated));
+        } catch (e) {
+          console.warn(e);
+        }
+      }, 0);
+
+      return updated;
+    });
+  }, []);
+
+  const handleClearCart = useCallback(() => {
+    setCart([]);
+    setTimeout(() => {
+      try {
+        localStorage.removeItem('modivah_cart');
+      } catch (e) {
+        console.warn(e);
+      }
+      notify("Sacola esvaziada.");
+    }, 0);
+  }, [notify]);
+
+  // Stable view details handler optimized with non-blocking startTransition (INP optimization)
+  const handleViewDetails = useCallback((product: Product, initialView?: 'image' | 'video') => {
+    React.startTransition(() => {
+      setSelectedProduct(product);
+      setSelectedProductViewMode(initialView || 'image');
+    });
+  }, []);
+
+  // Helper for authenticated backend API operations
+  const authFetch = async (url: string, options: RequestInit = {}) => {
+    const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+    const headers = {
+      ...(options.headers || {}),
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
+    
+    const res = await fetch(url, { ...options, headers });
+    
+    if (res.status === 401) {
+      sessionStorage.removeItem('modivah_admin_token');
+      sessionStorage.removeItem('modivah_admin_auth');
+      localStorage.removeItem('modivah_admin_token');
+      localStorage.removeItem('modivah_admin_auth');
+      setIsAdminMode(false);
+      throw new Error("Sessão administrativa expirada ou inválida. Por favor, faça login novamente.");
+    }
+    
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Erro de rede: Código ${res.status}`);
+    }
+    
+    return res.json();
   };
 
   // PRODUCT / CATALOG HANDLERS
   const handleAddProduct = async (newProduct: Product) => {
     try {
-      await setDoc(doc(db, 'products', newProduct.id), newProduct);
-      notify(`Nova peça "${newProduct.title}" cadastrada com sucesso!`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `products/${newProduct.id}`);
+      const cleanProduct = Object.fromEntries(
+        Object.entries(newProduct).filter(([_, v]) => v !== undefined)
+      ) as Product;
+
+      // Update local state and disk storage instantaneously so nothing disappears
+      setProducts((prev) => {
+        const updated = [cleanProduct, ...prev.filter(p => p.id !== cleanProduct.id)];
+        try {
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+        } catch (err) {
+          console.warn('Erro ao salvar no localStorage:', err);
+        }
+        return updated;
+      });
+
+      // 1. Direct write to Firestore from the client-side
+      const docRef = doc(db, 'products', cleanProduct.id);
+      await setDoc(docRef, cleanProduct);
+
+      // 2. Safe secondary backend proxy write
+      try {
+        await authFetch('/api/admin/add-product', {
+          method: 'POST',
+          body: JSON.stringify(cleanProduct)
+        });
+      } catch (be) {
+        console.warn('Erro secundário de sincronização no backend (ignorado pois já salvo no Firestore):', be);
+      }
+
+      notify(`Nova peça "${cleanProduct.title}" cadastrada com sucesso!`);
+    } catch (error: any) {
+      console.warn('Erro ao salvar no Firestore:', error);
+      notify(`Erro ao salvar: ${error.message}`);
+      // Revert if error occurs so local state is consistent
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) setProducts(JSON.parse(cached));
+      } catch (e) {}
     }
     setIsAdminMode(true);
   };
 
   const handleUpdateProductStatus = async (productId: string, status: 'available' | 'reserved' | 'sold') => {
     try {
-      await updateDoc(doc(db, 'products', productId), { status });
+      // Synchronous optimistic update to local state and localStorage cache
+      setProducts((prev) => {
+        const updated = prev.map(p => p.id === productId ? { ...p, status } : p);
+        try {
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+        } catch (err) {
+          console.warn(err);
+        }
+        return updated;
+      });
+
+      // 1. Direct update to Firestore from the client-side
+      const docRef = doc(db, 'products', productId);
+      await updateDoc(docRef, { status });
+
+      // 2. Safe secondary backend proxy update
+      try {
+        await authFetch('/api/admin/update-status', {
+          method: 'POST',
+          body: JSON.stringify({ productId, status })
+        });
+      } catch (be) {
+        console.warn('Erro secundário ao atualizar status no backend:', be);
+      }
+
       notify("Status da peça atualizado.");
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `products/${productId}`);
+    } catch (error: any) {
+      console.warn('Erro ao salvar status no Firestore, revertendo:', error);
+      notify(`Erro: ${error.message}`);
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) setProducts(JSON.parse(cached));
+      } catch (e) {}
     }
   };
 
   const handleUpdateProductPrice = async (productId: string, price: number) => {
     try {
-      await updateDoc(doc(db, 'products', productId), { price });
+      // Synchronous optimistic update to local state and localStorage cache
+      setProducts((prev) => {
+        const updated = prev.map(p => p.id === productId ? { ...p, price } : p);
+        try {
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+        } catch (err) {
+          console.warn(err);
+        }
+        return updated;
+      });
+
+      // 1. Direct update to Firestore from the client-side
+      const docRef = doc(db, 'products', productId);
+      await updateDoc(docRef, { price });
+
+      // 2. Safe secondary backend proxy update
+      try {
+        await authFetch('/api/admin/update-price', {
+          method: 'POST',
+          body: JSON.stringify({ productId, price })
+        });
+      } catch (be) {
+        console.warn('Erro secundário ao atualizar preço no backend:', be);
+      }
+
       notify("Valor da peça atualizado.");
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `products/${productId}`);
+    } catch (error: any) {
+      console.warn('Erro ao salvar valor do produto no Firestore, revertendo:', error);
+      notify(`Erro: ${error.message}`);
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) setProducts(JSON.parse(cached));
+      } catch (e) {}
     }
   };
 
   const handleUpdateProduct = async (updatedProduct: Product) => {
     try {
-      await setDoc(doc(db, 'products', updatedProduct.id), updatedProduct);
-      if (selectedProduct && selectedProduct.id === updatedProduct.id) {
-        setSelectedProduct(updatedProduct);
+      const cleanProduct = Object.fromEntries(
+        Object.entries(updatedProduct).filter(([_, v]) => v !== undefined)
+      ) as Product;
+
+      // Synchronous optimistic update to local state and localStorage cache
+      setProducts((prev) => {
+        const updated = prev.map(p => p.id === cleanProduct.id ? cleanProduct : p);
+        try {
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+        } catch (err) {
+          console.warn(err);
+        }
+        return updated;
+      });
+
+      // 1. Direct write to Firestore from the client-side
+      const docRef = doc(db, 'products', cleanProduct.id);
+      await setDoc(docRef, cleanProduct);
+
+      // 2. Safe secondary backend proxy update
+      try {
+        await authFetch('/api/admin/update-product', {
+          method: 'POST',
+          body: JSON.stringify(cleanProduct)
+        });
+      } catch (be) {
+        console.warn('Erro secundário ao atualizar produto no backend:', be);
       }
-      notify(`Anúncio "${updatedProduct.title}" atualizado!`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `products/${updatedProduct.id}`);
+      
+      if (selectedProduct && selectedProduct.id === cleanProduct.id) {
+        setSelectedProduct(cleanProduct);
+      }
+      notify(`Anúncio "${cleanProduct.title}" atualizado!`);
+    } catch (error: any) {
+      console.warn('Erro ao atualizar produto no Firestore, revertendo:', error);
+      notify(`Erro: ${error.message}`);
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) setProducts(JSON.parse(cached));
+      } catch (e) {}
     }
   };
 
   const handleDeleteProduct = async (productId: string) => {
     if (confirm("Deseja realmente remover esta peça única do catálogo do brechó?")) {
       try {
-        await deleteDoc(doc(db, 'products', productId));
+        // Synchronous optimistic update to local state and localStorage cache
+        setProducts((prev) => {
+          const updated = prev.filter(p => p.id !== productId);
+          try {
+            localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+          } catch (err) {
+            console.warn(err);
+          }
+          return updated;
+        });
+
+        // 1. Direct delete from Firestore on the client-side
+        const docRef = doc(db, 'products', productId);
+        await deleteDoc(docRef);
+
+        // 2. Safe secondary backend delete
+        try {
+          await authFetch('/api/admin/delete-product', {
+            method: 'POST',
+            body: JSON.stringify({ productId })
+          });
+        } catch (be) {
+          console.warn('Erro secundário ao excluir produto no backend:', be);
+        }
+
         notify("Peça removida do estoque.");
-      } catch (error) {
-        handleFirestoreError(error, OperationType.DELETE, `products/${productId}`);
+      } catch (error: any) {
+        console.warn('Erro ao remover produto no Firestore, revertendo:', error);
+        notify(`Erro: ${error.message}`);
+        try {
+          const cached = localStorage.getItem('modivah_products_cache');
+          if (cached) setProducts(JSON.parse(cached));
+        } catch (e) {}
       }
     }
   };
@@ -214,18 +560,22 @@ export default function App() {
   const handleResetDatabase = async () => {
     if (confirm("Deseja realmente restaurar as configurações de fábrica e recarregar todo o estoque original no Firebase?")) {
       try {
-        const batch = writeBatch(db);
-        products.forEach((p) => {
-          batch.delete(doc(db, 'products', p.id));
-        });
-        await batch.commit();
+        // Limpa cache local primeiro
+        try {
+          localStorage.removeItem('modivah_products_cache');
+        } catch (e) {}
 
-        await seedDatabase();
+        await authFetch('/api/admin/reset-database', {
+          method: 'POST'
+        });
+        
         setCart([]);
         localStorage.removeItem('modivah_cart');
         setIsAdminMode(true);
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, 'products');
+        notify("Banco de dados restaurado e semeado com sucesso!");
+      } catch (error: any) {
+        console.warn('Erro ao resetar banco no backend:', error);
+        notify(`Erro: ${error.message}`);
       }
     }
   };
@@ -235,6 +585,9 @@ export default function App() {
   const sizes = ['Todos', 'P', 'M', 'G', 'GG', '36', '38', '40', 'Único'];
 
   const filteredProducts = products.filter(p => {
+    // 0. Favorites filter
+    if (isFavoritesOnly && !favorites.includes(p.id)) return false;
+
     // 1. Category comparison
     const matchesCategory = selectedCategory === 'Tudo' || p.category.toLowerCase() === selectedCategory.toLowerCase();
     
@@ -307,7 +660,7 @@ export default function App() {
       {/* Dynamic Products Carousel Showcase (Velocidade ideal com fotos em formato de tamanho celular perfeitamente otimizado) */}
       <ProductCarousel 
         products={products}
-        onViewDetails={(product) => setSelectedProduct(product)}
+        onViewDetails={handleViewDetails}
         onAddToCart={handleAddToCart}
       />
 
@@ -440,7 +793,7 @@ export default function App() {
                 <ProductCard 
                   key={p.id}
                   product={p}
-                  onViewDetails={(product) => setSelectedProduct(product)}
+                  onViewDetails={handleViewDetails}
                   onAddToCart={handleAddToCart}
                 />
               ))}
@@ -478,6 +831,7 @@ export default function App() {
         product={selectedProduct}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={handleAddToCart}
+        initialViewMode={selectedProductViewMode}
       />
 
       {/* SHOPPING BAG DRAWER */}
@@ -496,7 +850,7 @@ export default function App() {
         onClose={() => setIsStylistOpen(false)}
         products={products}
         onViewProduct={(p) => {
-          setSelectedProduct(p);
+          handleViewDetails(p);
           setIsStylistOpen(false);
         }}
         onAddToCart={(p) => {
@@ -541,6 +895,8 @@ export default function App() {
           <Sparkles className="h-5.5 w-5.5 text-black animate-spin-slow" />
         </button>
       </div>
+
+
 
     </div>
   );
