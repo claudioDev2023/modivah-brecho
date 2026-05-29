@@ -11,6 +11,17 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import admin from "firebase-admin";
 import { INITIAL_PRODUCTS } from "./src/data/initialProducts";
+import type { Product } from "./src/types";
+import {
+  loadCatalogFromDisk,
+  saveCatalogToDisk,
+  mergeProductLists,
+  upsertProductOnDisk,
+  removeProductFromDisk,
+  replaceCatalogOnDisk,
+  productForFirestore,
+  sortProductsByDate,
+} from "./catalogStore";
 
 async function startServer() {
   const app = express();
@@ -186,6 +197,73 @@ async function startServer() {
     console.error("[Firebase Admin Initialization failure]", error);
   }
 
+  async function fetchProductsFromFirestore(): Promise<Product[]> {
+    if (!adminDb) return [];
+    try {
+      const snapshot = await adminDb.collection("products").get();
+      const items: Product[] = [];
+      snapshot.forEach((docSnap) => {
+        items.push(docSnap.data() as Product);
+      });
+      return sortProductsByDate(items);
+    } catch (e) {
+      console.error("[Catalog] Falha ao ler Firestore:", e);
+      return [];
+    }
+  }
+
+  async function syncProductToFirestore(product: Product): Promise<boolean> {
+    if (!adminDb) return false;
+    try {
+      await adminDb
+        .collection("products")
+        .doc(product.id)
+        .set(productForFirestore(product), { merge: true });
+      return true;
+    } catch (e) {
+      console.warn("[Catalog] Falha ao sincronizar produto no Firestore:", product.id, e);
+      return false;
+    }
+  }
+
+  async function loadMergedCatalog(): Promise<Product[]> {
+    const disk = loadCatalogFromDisk();
+    const remote = await fetchProductsFromFirestore();
+    return mergeProductLists(remote, disk);
+  }
+
+  async function bootstrapCatalogOnStartup(): Promise<void> {
+    try {
+      const disk = loadCatalogFromDisk();
+      const remote = await fetchProductsFromFirestore();
+
+      if (remote.length === 0 && disk.length === 0) {
+        replaceCatalogOnDisk(INITIAL_PRODUCTS);
+        for (const p of INITIAL_PRODUCTS) {
+          await syncProductToFirestore(p);
+        }
+        console.log("[Catalog] Estoque inicial semeado (disco + Firestore).");
+        return;
+      }
+
+      const merged = mergeProductLists(remote, disk);
+      saveCatalogToDisk(merged);
+
+      if (remote.length === 0 && disk.length > 0) {
+        for (const p of merged) {
+          await syncProductToFirestore(p);
+        }
+        console.log("[Catalog] Catálogo do disco sincronizado para o Firestore.");
+      } else if (remote.length > 0 && disk.length === 0) {
+        console.log("[Catalog] Catálogo do Firestore copiado para disco.");
+      }
+    } catch (e) {
+      console.error("[Catalog] Erro na sincronização inicial:", e);
+    }
+  }
+
+  void bootstrapCatalogOnStartup();
+
   // 7. JWT VALIDATOR MIDDLEWARE
   function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization;
@@ -234,6 +312,37 @@ async function startServer() {
   // Health check API
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", service: "Modivah Brechó Secure Core API" });
+  });
+
+  // Catálogo público (persistência em disco + Firestore)
+  app.get("/api/products", async (_req, res) => {
+    try {
+      const products = await loadMergedCatalog();
+      if (products.length === 0) {
+        replaceCatalogOnDisk(INITIAL_PRODUCTS);
+        for (const p of INITIAL_PRODUCTS) {
+          await syncProductToFirestore(p);
+        }
+        return res.json({
+          products: INITIAL_PRODUCTS,
+          source: "seed",
+          count: INITIAL_PRODUCTS.length,
+        });
+      }
+      return res.json({
+        products,
+        source: "merged",
+        count: products.length,
+      });
+    } catch (e: any) {
+      console.error("[Catalog] GET /api/products falhou:", e);
+      const disk = loadCatalogFromDisk();
+      return res.json({
+        products: disk.length > 0 ? disk : INITIAL_PRODUCTS,
+        source: "disk-fallback",
+        count: disk.length,
+      });
+    }
   });
 
   // JWT ADMIN AUTHENTICATION LOGIN ROUTE
@@ -389,9 +498,6 @@ async function startServer() {
   // ADD PRODUCT ENDPOINT
   app.post("/api/admin/add-product", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
 
     const val = validateProductPayload(req.body);
     if (!val.isValid) {
@@ -399,7 +505,7 @@ async function startServer() {
     }
 
     try {
-      const cleanProduct = {
+      const cleanProduct: Product = {
         id: req.body.id || `prod-${Date.now()}`,
         title: sanitizeString(req.body.title),
         description: sanitizeString(req.body.description || `Peça curada premium do brechó Modivah.`),
@@ -408,31 +514,37 @@ async function startServer() {
         category: sanitizeString(req.body.category),
         size: sanitizeString(req.body.size || "M"),
         brand: sanitizeString(req.body.brand),
-        condition: sanitizeString(req.body.condition || "Excelente"),
+        condition: sanitizeString(req.body.condition || "Excelente") as Product["condition"],
         material: sanitizeString(req.body.material || "Tecido Nobre"),
-        image: req.body.image, // sanitized reference url
+        image: req.body.image,
         images: Array.isArray(req.body.images) ? req.body.images : [],
         video: req.body.video ? String(req.body.video) : undefined,
-        status: sanitizeString(req.body.status || "available"),
+        status: (sanitizeString(req.body.status || "available") || "available") as Product["status"],
         stock: isNaN(parseInt(req.body.stock)) ? 1 : Math.max(0, parseInt(req.body.stock)),
         tag: req.body.tag ? sanitizeString(req.body.tag) : undefined,
         sku: req.body.sku ? sanitizeString(req.body.sku) : `M-${Math.floor(1000 + Math.random() * 9000)}`,
-        createdAt: new Date().toISOString()
+        createdAt: req.body.createdAt || new Date().toISOString(),
       };
 
-      await adminDb.collection("products").doc(cleanProduct.id).set(cleanProduct);
+      upsertProductOnDisk(cleanProduct);
+      const firestoreSynced = await syncProductToFirestore(cleanProduct);
+
       auditLog("CADASTRO_PRODUTO", ip, `Produto Cadastrado: ${cleanProduct.title} (ID: ${cleanProduct.id})`);
-      return res.json({ success: true, product: cleanProduct });
+      return res.json({
+        success: true,
+        product: cleanProduct,
+        persisted: true,
+        firestoreSynced,
+      });
     } catch (e: any) {
       console.error("[Admin API Create Fail]", e);
-      return res.status(500).json({ error: "Erro interno ao cadastrar produto no Firestore.", details: e.message });
+      return res.status(500).json({ error: "Erro interno ao cadastrar produto.", details: e.message });
     }
   });
 
   // UPDATE PRODUCT DETAILS ENDPOINT
   app.post("/api/admin/update-product", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) return res.status(503).json({ error: "Serviço de banco de dados inacessível." });
 
     const val = validateProductPayload(req.body);
     if (!val.isValid) return res.status(400).json({ error: val.error });
@@ -441,36 +553,33 @@ async function startServer() {
     if (!id) return res.status(400).json({ error: "ID do produto ausente." });
 
     try {
-      const cleanProduct: any = {
-        id: id,
+      const existing = loadCatalogFromDisk().find((p) => p.id === id);
+      const cleanProduct: Product = {
+        id,
         title: sanitizeString(req.body.title),
         description: sanitizeString(req.body.description),
         price: Math.abs(parseFloat(req.body.price)),
-        originalPrice: req.body.originalPrice ? Math.abs(parseFloat(req.body.originalPrice)) : null,
+        originalPrice: req.body.originalPrice ? Math.abs(parseFloat(req.body.originalPrice)) : undefined,
         category: sanitizeString(req.body.category),
         size: sanitizeString(req.body.size || "M"),
         brand: sanitizeString(req.body.brand),
-        condition: sanitizeString(req.body.condition || "Excelente"),
+        condition: sanitizeString(req.body.condition || "Excelente") as Product["condition"],
         material: sanitizeString(req.body.material || "Tecido Nobre"),
         image: req.body.image,
         images: Array.isArray(req.body.images) ? req.body.images : [],
-        video: req.body.video ? String(req.body.video) : null,
-        status: sanitizeString(req.body.status || "available"),
+        video: req.body.video ? String(req.body.video) : undefined,
+        status: (sanitizeString(req.body.status || "available") || "available") as Product["status"],
         stock: isNaN(parseInt(req.body.stock)) ? 1 : Math.max(0, parseInt(req.body.stock)),
-        tag: req.body.tag ? sanitizeString(req.body.tag) : null,
-        sku: req.body.sku ? sanitizeString(req.body.sku) : ""
+        tag: req.body.tag ? sanitizeString(req.body.tag) : undefined,
+        sku: req.body.sku ? sanitizeString(req.body.sku) : existing?.sku || "",
+        createdAt: req.body.createdAt || existing?.createdAt || new Date().toISOString(),
       };
 
-      // Filter out null / empty fields
-      Object.keys(cleanProduct).forEach(key => {
-        if (cleanProduct[key] === null || cleanProduct[key] === undefined) {
-          delete cleanProduct[key];
-        }
-      });
+      upsertProductOnDisk(cleanProduct);
+      const firestoreSynced = await syncProductToFirestore(cleanProduct);
 
-      await adminDb.collection("products").doc(id).set(cleanProduct, { merge: true });
       auditLog("ATUALIZACAO_PRODUTO", ip, `Produto Editado: ${cleanProduct.title} (ID: ${cleanProduct.id})`);
-      return res.json({ success: true, product: cleanProduct });
+      return res.json({ success: true, product: cleanProduct, persisted: true, firestoreSynced });
     } catch (e: any) {
       console.error("[Admin API Update Fail]", e);
       return res.status(500).json({ error: "Erro interno ao atualizar os dados do produto.", details: e.message });
@@ -490,12 +599,18 @@ async function startServer() {
       return res.status(400).json({ error: "Status inválido." });
     }
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
-
     try {
-      await adminDb.collection("products").doc(productId).update({ status });
+      const catalog = loadCatalogFromDisk();
+      const existing = catalog.find((p) => p.id === productId);
+      if (!existing) {
+        return res.status(404).json({ error: "Produto não encontrado no catálogo." });
+      }
+      const updated: Product = { ...existing, status: status as Product["status"] };
+      upsertProductOnDisk(updated);
+      const firestoreSynced = await syncProductToFirestore(updated);
+
       auditLog("STATUS_PRODUTO_ATUALIZADO", ip, `ID: ${productId} -> Novo Status: ${status}`);
-      return res.json({ success: true });
+      return res.json({ success: true, product: updated, persisted: true, firestoreSynced });
     } catch (e: any) {
       return res.status(500).json({ error: "Não foi possível alterar o status do produto.", details: e.message });
     }
@@ -514,12 +629,18 @@ async function startServer() {
       return res.status(400).json({ error: "Valor numérico inválido." });
     }
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
-
     try {
-      await adminDb.collection("products").doc(productId).update({ price: parsedPrice });
+      const catalog = loadCatalogFromDisk();
+      const existing = catalog.find((p) => p.id === productId);
+      if (!existing) {
+        return res.status(404).json({ error: "Produto não encontrado no catálogo." });
+      }
+      const updated: Product = { ...existing, price: parsedPrice };
+      upsertProductOnDisk(updated);
+      const firestoreSynced = await syncProductToFirestore(updated);
+
       auditLog("PRECO_PRODUTO_ATUALIZADO", ip, `ID: ${productId} -> Novo Preço: R$ ${parsedPrice}`);
-      return res.json({ success: true });
+      return res.json({ success: true, product: updated, persisted: true, firestoreSynced });
     } catch (e: any) {
       return res.status(500).json({ error: "Erro ao atualizar valor.", details: e.message });
     }
@@ -531,12 +652,19 @@ async function startServer() {
     const { productId } = req.body;
     if (!productId) return res.status(400).json({ error: "ID do produto obrigatório." });
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
-
     try {
-      await adminDb.collection("products").doc(productId).delete();
+      removeProductFromDisk(productId);
+
+      if (adminDb) {
+        try {
+          await adminDb.collection("products").doc(productId).delete();
+        } catch (e) {
+          console.warn("[Catalog] Falha ao remover do Firestore:", productId, e);
+        }
+      }
+
       auditLog("DELECAO_PRODUTO", ip, `Produto Deletado: ID ${productId}`);
-      return res.json({ success: true });
+      return res.json({ success: true, persisted: true });
     } catch (e: any) {
       return res.status(500).json({ error: "Não foi possível remover o produto.", details: e.message });
     }
@@ -545,27 +673,32 @@ async function startServer() {
   // FACTORY RESET INTEGRATED API ROUTE
   app.post("/api/admin/reset-database", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) return res.status(503).json({ error: "Banco offline." });
 
     try {
-      // 1. Fetch current list to clean up
-      const currentProducts = await adminDb.collection("products").get();
-      const batchClear = adminDb.batch();
-      currentProducts.forEach(doc => {
-        batchClear.delete(doc.ref);
-      });
-      await batchClear.commit();
+      replaceCatalogOnDisk(INITIAL_PRODUCTS);
 
-      // 2. Load clean initial static dataset
-      const batchSeed = adminDb.batch();
-      INITIAL_PRODUCTS.forEach(p => {
-        const docRef = adminDb!.collection("products").doc(p.id);
-        batchSeed.set(docRef, p);
-      });
-      await batchSeed.commit();
+      if (adminDb) {
+        const currentProducts = await adminDb.collection("products").get();
+        const batchClear = adminDb.batch();
+        currentProducts.forEach((docSnap) => {
+          batchClear.delete(docSnap.ref);
+        });
+        await batchClear.commit();
+
+        const batchSeed = adminDb.batch();
+        INITIAL_PRODUCTS.forEach((p) => {
+          const docRef = adminDb!.collection("products").doc(p.id);
+          batchSeed.set(docRef, productForFirestore(p));
+        });
+        await batchSeed.commit();
+      }
 
       auditLog("RESTAURO_TOTAL_ESTOQUE", ip, "Configuração de fábrica do brechó restaurada.");
-      return res.json({ success: true, message: "Banco de dados restaurado e semeado com sucesso." });
+      return res.json({
+        success: true,
+        message: "Banco de dados restaurado e semeado com sucesso.",
+        products: INITIAL_PRODUCTS,
+      });
     } catch (e: any) {
       console.error("[Factory Reset Failure]", e);
       return res.status(500).json({ error: "Não foi possível redefinir o banco de dados.", details: e.message });
@@ -654,7 +787,25 @@ async function startServer() {
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
-  app.use("/uploads", express.static(uploadsDir));
+  app.use(
+    "/uploads",
+    express.static(uploadsDir, {
+      setHeaders(res, filePath) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === ".mp4") {
+          res.setHeader("Content-Type", "video/mp4");
+          res.setHeader("Accept-Ranges", "bytes");
+        } else if (ext === ".webm") {
+          res.setHeader("Content-Type", "video/webm");
+          res.setHeader("Accept-Ranges", "bytes");
+        } else if (ext === ".mov") {
+          res.setHeader("Content-Type", "video/quicktime");
+          res.setHeader("Accept-Ranges", "bytes");
+        }
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      },
+    })
+  );
 
   // POST endpoint for AI Stylist interaction
   app.post("/api/chat-stylist", async (req, res) => {
