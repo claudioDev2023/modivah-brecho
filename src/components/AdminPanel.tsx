@@ -1,6 +1,15 @@
-import React, { useState, useRef } from 'react';
-import { X, Plus, Trash2, Edit2, Sliders, RefreshCw, Sparkles, Check, Archive, ArrowLeft, Video, BookOpen, AlertCircle, Database, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  X, Plus, Trash2, Edit2, Sliders, RefreshCw, Sparkles, Check, Archive, ArrowLeft, 
+  Video, BookOpen, AlertCircle, Database, Image as ImageIcon, Users, BarChart3, 
+  LineChart, TrendingUp, DollarSign, ShoppingBag, Clock, Heart, Eye, ArrowUpRight, 
+  MessageSquare, Calendar, Shield, Share2, Clipboard, Smartphone
+} from 'lucide-react';
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Product } from '../types';
+import AnalyticsDashboard from './AnalyticsDashboard';
+import ReportsClientsDashboard from './ReportsClientsDashboard';
 
 const IMAGE_DATABASE = [
   { name: 'Vestido Midi Floral Rio (Farm)', url: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=800&auto=format&fit=crop&q=80', category: 'Vestidos' },
@@ -632,6 +641,78 @@ export default function AdminPanel({
     );
   }
 
+  // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
+  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports'>('inventory');
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [recoveriesList, setRecoveriesList] = useState<any[]>([]);
+  const [activitiesList, setActivitiesList] = useState<any[]>([]);
+  const [stockMovementsList, setStockMovementsList] = useState<any[]>([]);
+
+  // Filtering trackers
+  const [searchClientQuery, setSearchClientQuery] = useState('');
+  const [searchOrderQuery, setSearchOrderQuery] = useState('');
+  const [searchRecoveryQuery, setSearchRecoveryQuery] = useState('');
+  const [activeRecoveryPreview, setActiveRecoveryPreview] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      setClientsList(list);
+    }, (err) => console.warn("Clients stream error:", err));
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrdersList(list);
+    }, (err) => console.warn("Orders stream error:", err));
+
+    const unsubRecoveries = onSnapshot(collection(db, 'cart_recovery'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRecoveriesList(list);
+    }, (err) => console.warn("Recoveries stream error:", err));
+
+    const unsubActivities = onSnapshot(collection(db, 'activities'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => {
+        try {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+      setActivitiesList(list);
+    }, (err) => console.warn("Activities stream error:", err));
+
+    const unsubMovements = onSnapshot(collection(db, 'stock_movements'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => {
+        try {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+      setStockMovementsList(list);
+    }, (err) => console.warn("Movements stream error:", err));
+
+    return () => {
+      unsubClients();
+      unsubOrders();
+      unsubRecoveries();
+      unsubActivities();
+      unsubMovements();
+    };
+  }, [isAuthenticated]);
+
   // 🔓 SCREEN 2: AUTHENTICATED ADMIN PANEL DRAWER
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" id="admin-drawer-container">
@@ -688,9 +769,237 @@ export default function AdminPanel({
             </button>
           </div>
 
+          {/* 🗃️ TABS NAVIGATION BAR */}
+          <div className="bg-neutral-900 border-b border-white/10 flex items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className={`flex-1 min-w-[110px] py-3 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'inventory'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+            >
+              📦 Estoque
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'analytics'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+            >
+              🧠 Inteligência
+            </button>
+            <button
+              onClick={() => setActiveTab('reports')}
+              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'reports'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+            >
+              📊 Clientes &amp; Relatórios
+            </button>
+          </div>
+
           <div className="flex-grow overflow-y-auto p-6 space-y-8" id="admin-form-anchor">
             
-            {/* Quick action section */}
+            {activeTab === 'inventory' && (
+              <>
+                {/* Real-time Administrative Low Stock Alertas */}
+                {products.some((p) => p.stock > 0 && p.stock <= 2) && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex gap-3 animate-pulse">
+                    <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold text-red-300 uppercase tracking-wider">
+                        ⚠️ ALERTA ADMINISTRATIVO: Produto com estoque baixo.
+                      </h4>
+                      <p className="text-[11px] text-red-400/80 leading-relaxed mt-1">
+                        Os seguintes itens do acervo atingiram o limite mínimo crítico de estoque (2 unidades ou menos). Providencie reposição e controle:
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {products
+                          .filter((p) => p.stock > 0 && p.stock <= 2)
+                          .map((p) => (
+                            <span
+                              key={`low-alert-${p.id}`}
+                              className="bg-black/60 border border-red-500/20 text-red-300 text-[10px] font-mono px-2 py-0.5 rounded font-semibold"
+                            >
+                              {p.title} ({p.stock} un. restante{p.stock > 1 ? "s" : ""})
+                            </span>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Stock Dashboard Bento Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Card 1: Estoque Atual */}
+                  <div className="bg-neutral-900/40 border border-white/5 p-4 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider font-mono">
+                        Estoque Atual
+                      </span>
+                      <Archive className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xl font-black text-white font-mono">
+                        {products.reduce((sum, p) => sum + p.stock, 0)}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">peças ativas no acervo</p>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Produtos Vendidos */}
+                  <div className="bg-neutral-900/40 border border-white/5 p-4 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider font-mono">
+                        Peças Vendidas
+                      </span>
+                      <TrendingUp className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xl font-black text-emerald-400 font-mono">
+                        {ordersList.reduce(
+                          (sum, ord) =>
+                            sum +
+                            (ord.products?.reduce(
+                              (subSum: number, prod: any) => subSum + (prod.quantity || 1),
+                              0
+                            ) || 0),
+                          0
+                        )}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">unidades adquiridas via PIX</p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Produtos Esgotados */}
+                  <div className="bg-neutral-900/40 border border-white/5 p-4 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider font-mono">
+                        Produtos Esgotados
+                      </span>
+                      <X className="h-4 w-4 text-red-500" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xl font-black text-red-400 font-mono">
+                        {products.filter((p) => p.stock <= 0).length}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">zerados na base de dados</p>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Alertas Estoque Baixo */}
+                  <div className="bg-neutral-900/40 border border-white/5 p-4 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider font-mono">
+                        Estoque Baixo
+                      </span>
+                      <AlertCircle className="h-4 w-4 text-yellow-500" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-xl font-black text-yellow-500 font-mono">
+                        {products.filter((p) => p.stock > 0 && p.stock <= 2).length}
+                      </p>
+                      <p className="text-[9px] text-neutral-500">com 2 un. ou menos</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Histórico de Movimentação de Estoque */}
+                <section className="bg-neutral-900/30 border border-white/5 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs uppercase tracking-widest text-[#ffe4a0] font-semibold flex items-center gap-2 font-mono">
+                      <Database className="h-4 w-4 text-amber-500 animate-pulse" />
+                      <span>Histórico de Movimentação de Estoque</span>
+                    </h3>
+                    <span className="text-[9px] text-neutral-500 font-mono bg-white/5 px-2 py-0.5 rounded">
+                      Sincronizado em tempo real
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-neutral-400 font-light">
+                    Abaixo estão registradas todas as entradas e saídas de unidades do acervo de luxo de forma auditável e transparente:
+                  </p>
+
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin scrollbar-thumb-white/10" id="admin-movements-feed">
+                    {stockMovementsList.length === 0 ? (
+                      <div className="text-center py-6 border border-dashed border-white/5 rounded-lg">
+                        <p className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">
+                          Nenhuma movimentação de estoque registrada ainda
+                        </p>
+                      </div>
+                    ) : (
+                      stockMovementsList.slice(0, 50).map((mov: any) => {
+                        const isEntrada = mov.type === "entrada";
+                        const dateFormatted = new Date(mov.createdAt).toLocaleDateString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+
+                        let reasonLabel = "Ajuste Curadora";
+                        if (mov.reason === "venda_cliente") reasonLabel = "Venda Cliente";
+                        if (mov.reason === "criacao_produto") reasonLabel = "Peça Nova";
+
+                        return (
+                          <div
+                            key={mov.id}
+                            className="flex items-center justify-between p-2.5 bg-black/40 border border-white/[0.03] rounded-lg text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className={`h-6 w-6 rounded flex items-center justify-center font-mono text-[10px] font-bold shrink-0 ${
+                                  isEntrada
+                                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                                    : "bg-red-500/10 border border-red-500/20 text-red-400"
+                                }`}
+                              >
+                                {isEntrada ? `+${mov.quantity}` : `-${mov.quantity}`}
+                              </span>
+
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-white truncate">
+                                  {mov.productTitle}
+                                </p>
+                                <div className="flex items-center gap-2 text-[9px] text-neutral-500 font-mono mt-0.5">
+                                  <span
+                                    className={`px-1 rounded text-[8px] font-bold uppercase ${
+                                      mov.reason === "venda_cliente"
+                                        ? "bg-emerald-950/40 text-emerald-400 border border-emerald-800/25"
+                                        : mov.reason === "criacao_produto"
+                                        ? "bg-amber-950/40 text-amber-400 border border-amber-800/25"
+                                        : "bg-blue-950/40 text-blue-400 border border-blue-800/25"
+                                    }`}
+                                  >
+                                    {reasonLabel}
+                                  </span>
+                                  <span>
+                                    por{" "}
+                                    <strong className="text-neutral-400 font-sans">
+                                      {mov.operator || "Admin"}
+                                    </strong>
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right font-mono text-[9px] text-neutral-500 shrink-0 select-none">
+                              <p>{dateFormatted}</p>
+                              <p className="mt-0.5 text-[8px]">Novo Estoque: {mov.newStock} un.</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+
+                {/* Quick action section */}
             <section className="bg-amber-950/25 border border-amber-950 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <h3 className="text-xs font-semibold text-amber-200 uppercase tracking-wider">Ações de Curadora</h3>
@@ -1537,6 +1846,25 @@ export default function AdminPanel({
                 )}
               </div>
             </section>
+            </>
+            )}
+
+            {activeTab === 'analytics' && (
+              <AnalyticsDashboard 
+                clientsList={clientsList} 
+                ordersList={ordersList} 
+                recoveriesList={recoveriesList} 
+                activitiesList={activitiesList} 
+              />
+            )}
+
+            {activeTab === 'reports' && (
+              <ReportsClientsDashboard 
+                clientsList={clientsList} 
+                ordersList={ordersList} 
+                recoveriesList={recoveriesList} 
+              />
+            )}
 
             {/* VOLTAR PROMINENTE NO RODAPÉ */}
             <div className="pt-4 border-t border-white/5">

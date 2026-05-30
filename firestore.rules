@@ -6,6 +6,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(clientId) {
+      return isSignedIn() && request.auth.uid == clientId;
+    }
+
     function isValidProduct(data) {
       return data.id is string && data.id.size() <= 128
         && data.title is string && data.title.size() <= 200
@@ -25,6 +33,32 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isValidProduct(request.resource.data);
       allow delete: if true;
+    }
+
+    match /stock_movements/{movId} {
+      allow read, write: if true;
+    }
+
+    match /clients/{clientId} {
+      allow read, write: if true;
+    }
+
+    match /orders/{orderId} {
+      allow read, create: if true;
+      allow update, delete: if true;
+    }
+
+    match /cart_recovery/{recoveryId} {
+      allow read, create, update: if true;
+      allow delete: if true;
+    }
+
+    match /activities/{activityId} {
+      allow read, write: if true;
+    }
+
+    match /comments/{commentId} {
+      allow read, write: if true;
     }
   }
 }

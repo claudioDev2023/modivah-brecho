@@ -10,9 +10,9 @@ interface ProductCardProps {
 }
 
 const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
-  const isSold = product.status === 'sold' || product.stock <= 0;
+  const isSold = product.stock <= 0;
   const isReserved = product.status === 'reserved' && !isSold;
-  const isAvailable = product.status === 'available' && product.stock > 0;
+  const isAvailable = product.stock > 0 && !isReserved;
 
   // Condition Badge Color Helper
   const getConditionColor = (cond: string) => {
@@ -41,7 +41,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           src={product.image}
           alt={product.title}
           referrerPolicy="no-referrer"
-          className="w-full h-full object-contain bg-black transition-transform duration-700 group-hover/img:scale-105"
+          className="w-full h-full object-cover bg-black transition-transform duration-700 group-hover/img:scale-105"
           onError={(e) => {
             // Fallback generic clothing image URL if standard fails to load
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
@@ -52,7 +52,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         {isSold && (
           <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-[2.5px] flex items-center justify-center p-0 overflow-hidden">
             <div className="w-full bg-red-600 text-white text-[11px] sm:text-xs font-black uppercase tracking-wider py-3 border-y border-red-500 shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
-              poxa, você perdeu essa, já foi vendido. 💔
+              POXA, VOCÊ PERDEU ESSA, JÁ FOI VENDIDO. 💔
             </div>
           </div>
         )}
@@ -74,20 +74,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           </span>
         )}
 
-        {/* Floating pulse indicator to highlight video availability inside the app */}
-        {product.video && product.video.trim() !== '' && isAvailable && (
-          <span 
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewDetails(product, 'video');
-            }}
-            className="absolute top-3 right-3 z-30 px-2 py-0.5 bg-[#39ff14]/90 backdrop-blur-md text-black text-[9px] uppercase tracking-widest font-black rounded border border-[#39ff14]/20 shadow-md flex items-center gap-1 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-            title="Clique para assistir o vídeo deste look no próprio app!"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-red-650 animate-pulse bg-red-600" />
-            VÍDEO 🎬
-          </span>
-        )}
+        {/* Floating video indicator removed */}
 
         {/* Size Floating Badge */}
         {isAvailable && (
@@ -111,7 +98,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
       <div className="p-4 flex flex-col flex-grow">
         {/* Brand & Condition Line */}
         <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-[10px] text-white/50 uppercase tracking-widest truncate font-medium">
+          <span className="text-[10px] text-amber-400 uppercase tracking-wider truncate font-semibold">
             {product.brand}
           </span>
           <span className={`text-[9px] px-1.5 py-0.5 rounded border ${getConditionColor(product.condition)}`}>
@@ -142,7 +129,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         </div>
 
         {/* Details snippet */}
-        <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed mb-4 font-light text-justify">
+        <p className="text-xs text-zinc-200 line-clamp-2 leading-relaxed mb-4 font-normal text-justify">
           {product.description}
         </p>
 
@@ -151,10 +138,10 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           {/* Prices line */}
           <div className="flex items-center justify-between gap-2">
             <div>
-              <span className="text-[9px] uppercase tracking-widest text-neutral-500 block font-light">
+              <span className="text-[9px] uppercase tracking-widest text-[#f59e0b] block font-medium">
                 De (Grife)
               </span>
-              <span className="text-xs text-neutral-500 line-through font-mono">
+              <span className="text-xs text-neutral-400 line-through font-mono">
                 R$ {(Number(product.originalPrice) || (Math.round((Number(product.price) * 2.5) / 10) * 10)).toFixed(2)}
               </span>
             </div>
@@ -181,7 +168,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
               <button
                 id={`add-to-cart-btn-${product.id}`}
                 onClick={() => onAddToCart(product)}
-                className="col-span-3 py-2.5 px-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl cursor-pointer hover:scale-[1.02] active:scale-95 duration-200 transition-all font-black text-[11px] uppercase tracking-wider shadow-[0_0_12px_rgba(57,255,20,0.25)] hover:shadow-[0_0_16px_rgba(57,255,20,0.45)] flex items-center justify-center gap-1.5"
+                className="col-span-3 py-2.5 px-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl cursor-pointer hover:scale-[1.02] active:scale-95 duration-200 transition-all font-black text-[11px] uppercase tracking-wider animate-pulse-scale flex items-center justify-center gap-1.5"
                 title="Comprar agora"
               >
                 <ShoppingBag className="h-3.5 w-3.5 stroke-[2.5]" />

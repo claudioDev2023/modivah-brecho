@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { X, Trash2, ShoppingBag, ArrowRight, MessageSquare, Plus, Minus, CreditCard, Copy, Check, Upload, Image, CheckCircle } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, MessageSquare, Plus, Minus, CreditCard, Copy, Check, Upload, Image, CheckCircle, RefreshCw } from 'lucide-react';
 import { CartItem, Product } from '../types';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 // Helper to compute standard CRC16 CCITT checksum for PIX payload validation
 function computeCrc16(data: string): string {
@@ -58,6 +60,7 @@ interface CartDrawerProps {
   onUpdateQuantity: (productId: string, delta: number) => void;
   onRemoveItem: (productId: string) => void;
   onClearCart: () => void;
+  currentClient?: any;
 }
 
 export default function CartDrawer({
@@ -66,13 +69,26 @@ export default function CartDrawer({
   cart,
   onUpdateQuantity,
   onRemoveItem,
-  onClearCart
+  onClearCart,
+  currentClient
 }: CartDrawerProps) {
   if (!isOpen) return null;
 
-  const [clientName, setClientName] = useState(() => localStorage.getItem('modivah_client_name') || 'CLAUDIO SILVA');
-  const [clientPhone, setClientPhone] = useState(() => localStorage.getItem('modivah_client_phone') || '27988226654');
-  const [address, setAddress] = useState(() => localStorage.getItem('modivah_client_address') || 'RUA DA VITORIA, 914, PRESIDENTE MEDICE, CARIACICA-ES');
+  const [clientName, setClientName] = useState(() => {
+    if (currentClient && currentClient.name) return currentClient.name;
+    return localStorage.getItem('modivah_client_name') || '';
+  });
+  const [clientPhone, setClientPhone] = useState(() => {
+    if (currentClient) return currentClient.whatsapp || currentClient.phone || '';
+    return localStorage.getItem('modivah_client_phone') || '';
+  });
+  const [address, setAddress] = useState(() => {
+    if (currentClient && currentClient.city) {
+      const defaultAddr = `RUA PRINCIPAL, CENTRO, ${currentClient.city.toUpperCase()}-${currentClient.state.toUpperCase()}`;
+      return localStorage.getItem('modivah_client_address') || defaultAddr;
+    }
+    return localStorage.getItem('modivah_client_address') || '';
+  });
   const [paymentMethod, setPaymentMethod] = useState('PIX');
 
   // Multi-step PIX parameters
@@ -84,6 +100,10 @@ export default function CartDrawer({
 
   const totalCost = cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
   const finalTotal = totalCost;
+
+  // Real-time stock transaction states
+  const [isCheckingStock, setIsCheckingStock] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // Pre-validate coordinates and step into Step 2: PIX Transfer Instruction
   const handleCheckoutWhatsApp = () => {
@@ -140,7 +160,133 @@ export default function CartDrawer({
     text += `Estou enviando em anexo os dados da minha sacola e o arquivo do comprovante em seguida. Por favor, confirme o recebimento do pedido!`;
 
     const encodedText = encodeURIComponent(text);
-    window.open(`https://wa.me/5527988226654?text=${encodedText}`, '_blank');
+
+    // Commit the order permanently in live Firestore database for Intel & reporting!
+    const commitOrderToFirestore = async () => {
+      setIsCheckingStock(true);
+      setCheckoutError(null);
+      try {
+        const orderId = `ord-${Date.now()}-${Math.floor(1000 + Math.random() * 9500)}`;
+        const orderRef = doc(db, 'orders', orderId);
+        
+        const orderProducts = cart.map(item => ({
+          productId: item.product.id,
+          title: item.product.title,
+          price: item.product.price,
+          quantity: item.quantity,
+          sku: item.product.sku || 'M-GEN'
+        }));
+
+        const { runTransaction } = await import('firebase/firestore');
+
+        await runTransaction(db, async (transaction) => {
+          const productLogSnaps = [];
+
+          // 1. Core Stock read validations
+          for (const item of cart) {
+            const prodRef = doc(db, 'products', item.product.id);
+            const sn = await transaction.get(prodRef);
+            if (!sn.exists()) {
+              throw new Error(`Produto "${item.product.title}" não encontrado no acervo.`);
+            }
+            const data = sn.data();
+            const currentStock = typeof data.stock === 'number' ? data.stock : 0;
+            
+            if (currentStock < item.quantity) {
+              throw new Error(`Produto indisponível. Esta peça já foi vendida.`);
+            }
+
+            productLogSnaps.push({ 
+              ref: prodRef, 
+              id: item.product.id, 
+              title: item.product.title, 
+              previousStock: currentStock, 
+              newStock: currentStock - item.quantity, 
+              quantity: item.quantity 
+            });
+          }
+
+          // 2. Perform ACID updates in transaction context
+          for (const ps of productLogSnaps) {
+            transaction.update(ps.ref, {
+              stock: ps.newStock,
+              status: ps.newStock <= 0 ? 'sold' : 'available'
+            });
+
+            // Audit Log direct transaction record entry for real-time reporting
+            const movementId = `mov-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+            const movementRef = doc(db, 'stock_movements', movementId);
+            transaction.set(movementRef, {
+              id: movementId,
+              productId: ps.id,
+              productTitle: ps.title,
+              type: 'saida',
+              quantity: ps.quantity,
+              reason: 'venda_cliente',
+              previousStock: ps.previousStock,
+              newStock: ps.newStock,
+              operator: clientName.trim(),
+              createdAt: new Date().toISOString()
+            });
+          }
+
+          // 3. Complete order details insertion
+          transaction.set(orderRef, {
+            id: orderId,
+            clientId: currentClient ? currentClient.id : 'anonymous_client',
+            clientName: clientName.trim(),
+            clientPhone: clientPhone.trim(),
+            address: address.trim(),
+            products: orderProducts,
+            total: finalTotal,
+            paymentMethod: 'PIX',
+            createdAt: new Date().toISOString()
+          });
+        });
+
+        // Track purchase behavioral activity in background database
+        try {
+          const activityId = `act-${Date.now()}`;
+          const activityRef = doc(db, 'activities', activityId);
+          await setDoc(activityRef, {
+            id: activityId,
+            clientId: currentClient ? currentClient.id : 'anonymous',
+            clientName: clientName.trim(),
+            type: 'purchase',
+            productId: cart[0]?.product.id || null,
+            productTitle: cart.map(item => item.product.title).join(', '),
+            price: finalTotal,
+            createdAt: new Date().toISOString()
+          });
+        } catch {}
+
+        // Clean recoveries for these items
+        if (currentClient) {
+          for (const item of cart) {
+            try {
+              const recDocId = `rec-${currentClient.id}-${item.product.id}`;
+              const recRef = doc(db, 'cart_recovery', recDocId);
+              await setDoc(recRef, { 
+                isRecovered: true, 
+                recoveredAt: new Date().toISOString() 
+              }, { merge: true });
+            } catch {}
+          }
+        }
+
+        // Empty client cart and finalize
+        onClearCart();
+        setIsCheckingStock(false);
+        window.open(`https://wa.me/5527988226654?text=${encodedText}`, '_blank');
+        onClose();
+      } catch (err: any) {
+        console.error("Atomic transaction failed of checkout:", err);
+        setCheckoutError(err.message || "Produto indisponível. Esta peça já foi vendida.");
+        setIsCheckingStock(false);
+      }
+    };
+
+    commitOrderToFirestore();
   };
 
   return (
@@ -387,13 +533,29 @@ export default function CartDrawer({
               </div>
 
               {/* Final submit button */}
-              <div className="pt-2">
+              <div className="pt-2 space-y-3">
+                {checkoutError && (
+                  <div className="p-3 bg-red-950/40 border border-red-500 rounded-lg text-xs text-red-300 font-bold text-center leading-relaxed">
+                    😞 {checkoutError}
+                  </div>
+                )}
+
                 <button
                   onClick={handleSendFinalReceiptWhatsApp}
-                  className="w-full py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/15 active:scale-95 duration-200"
+                  disabled={isCheckingStock}
+                  className="w-full py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/15 active:scale-95 duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <MessageSquare className="h-4 w-4 stroke-[2.5]" />
-                  <span>Enviar por WhatsApp</span>
+                  {isCheckingStock ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin text-black" />
+                      <span>Verificando estoque...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="h-4 w-4 stroke-[2.5]" />
+                      <span>Enviar por WhatsApp</span>
+                    </>
+                  )}
                 </button>
                 <div className="text-center mt-2.5">
                   <p className="text-[9px] text-neutral-500 leading-normal text-justify">

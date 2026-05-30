@@ -14,12 +14,15 @@ import CartDrawer from './components/CartDrawer';
 import StylistChat from './components/StylistChat';
 import AdminPanel from './components/AdminPanel';
 import ProductCarousel from './components/ProductCarousel';
+import ClientAuth from './components/ClientAuth';
+import CommentsSection from './components/CommentsSection';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 // @ts-ignore
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
 // @ts-ignore
 import mascotImg from './assets/images/modivah_official_mascot_1780072687232.png';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from './firebase';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
 export default function App() {
   // Products list from localStorage or INITIAL_PRODUCTS fallback
@@ -65,6 +68,102 @@ export default function App() {
 
   // Admin session flag
   const [isAdminMode, setIsAdminMode] = useState(false);
+
+  const [currentClient, setCurrentClient] = useState<any | null>(() => {
+    try {
+      const cached = localStorage.getItem('modivah_client_data');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isClientAuthLoading, setIsClientAuthLoading] = useState(true);
+
+  // Subscribe to core Authentication states
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
+      setIsClientAuthLoading(true);
+      if (authUser) {
+        try {
+          // Fetch client profile from Firestore Database
+          const docRef = doc(db, 'clients', authUser.uid);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const clientData = snap.data();
+            setCurrentClient(clientData);
+            localStorage.setItem('modivah_client_data', JSON.stringify(clientData));
+          } else {
+            // Profile backup fallback
+            const backupProfile = {
+              id: authUser.uid,
+              name: authUser.displayName || 'Cliente Modivah Oficial',
+              email: authUser.email || '',
+              phone: '',
+              whatsapp: '',
+              city: 'Cariacica',
+              state: 'ES',
+              createdAt: new Date().toISOString()
+            };
+            setCurrentClient(backupProfile);
+            localStorage.setItem('modivah_client_data', JSON.stringify(backupProfile));
+          }
+        } catch (err) {
+          console.warn("Error resolving client profile snapshot:", err);
+        }
+      } else {
+        setCurrentClient(null);
+        localStorage.removeItem('modivah_client_data');
+      }
+      setIsClientAuthLoading(false);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Track product activities in Firestore behavioral database
+  const trackActivity = useCallback(async (actionType: string, product?: Product) => {
+    if (!currentClient) return;
+    try {
+      const activityId = `act-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const activityRef = doc(db, 'activities', activityId);
+      await setDoc(activityRef, {
+        id: activityId,
+        clientId: currentClient.id,
+        clientName: currentClient.name,
+        type: actionType,
+        productId: product ? product.id : null,
+        productTitle: product ? product.title : 'Navegando acervo',
+        price: product ? product.price : 0,
+        createdAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Background behavioral tracking issue:", e);
+    }
+  }, [currentClient]);
+
+  // Live Cart recovery trigger session
+  const registerCartRecovery = useCallback(async (product: Product) => {
+    if (!currentClient) return;
+    try {
+      const recoveryId = `rec-${currentClient.id}-${product.id}`;
+      const recRef = doc(db, 'cart_recovery', recoveryId);
+      await setDoc(recRef, {
+        id: recoveryId,
+        clientId: currentClient.id,
+        clientName: currentClient.name,
+        clientPhone: currentClient.whatsapp || currentClient.phone || '',
+        productId: product.id,
+        productTitle: product.title,
+        productImage: product.image,
+        price: product.price,
+        isRecovered: false,
+        recoveryMessageSent: false,
+        createdAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Abandoned cart logging issue:", err);
+    }
+  }, [currentClient]);
 
   // Notification banners
   const [notification, setNotification] = useState<string | null>(null);
@@ -194,6 +293,10 @@ export default function App() {
   }, []);
 
   const toggleFavorite = useCallback((productId: string) => {
+    const prod = products.find(p => p.id === productId);
+    if (prod) {
+      trackActivity('favorite', prod);
+    }
     setFavorites((prev) => {
       const isFav = prev.includes(productId);
       const updated = isFav ? prev.filter((id) => id !== productId) : [...prev, productId];
@@ -207,10 +310,12 @@ export default function App() {
       notify(isFav ? 'Removido dos favoritos 🖤' : 'Adicionado aos favoritos! ❤️');
       return updated;
     });
-  }, [notify]);
+  }, [notify, products, trackActivity]);
 
   // CART HANDLERS - Optimized for maximum performance and touch latency reduction (PWA/Mobile INP)
   const handleAddToCart = useCallback((product: Product) => {
+    trackActivity('cart_add', product);
+    registerCartRecovery(product);
     setCart((prevCart) => {
       const existing = prevCart.find(item => item.product.id === product.id);
       const currentQty = existing ? existing.quantity : 0;
@@ -255,7 +360,7 @@ export default function App() {
 
       return updated;
     });
-  }, [notify]);
+  }, [notify, trackActivity, registerCartRecovery]);
 
   const handleUpdateCartQuantity = useCallback((productId: string, delta: number) => {
     setCart((prevCart) => {
@@ -317,11 +422,12 @@ export default function App() {
 
   // Stable view details handler optimized with non-blocking startTransition (INP optimization)
   const handleViewDetails = useCallback((product: Product, initialView?: 'image' | 'video') => {
+    trackActivity('view', product);
     React.startTransition(() => {
       setSelectedProduct(product);
       setSelectedProductViewMode(initialView || 'image');
     });
-  }, []);
+  }, [trackActivity]);
 
   // Helper for authenticated backend API operations
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -351,6 +457,38 @@ export default function App() {
     return res.json();
   };
 
+  // Helper to persist stock entry/exit history logs for administrators
+  const logStockMovement = useCallback(async (
+    productId: string,
+    productTitle: string,
+    type: 'entrada' | 'saida',
+    quantity: number,
+    reason: 'venda_cliente' | 'ajuste_adm' | 'criacao_produto',
+    previousStock: number,
+    newStock: number,
+    operator: string
+  ) => {
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const movementId = `mov-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const movementRef = doc(db, 'stock_movements', movementId);
+      await setDoc(movementRef, {
+        id: movementId,
+        productId,
+        productTitle,
+        type,
+        quantity,
+        reason,
+        previousStock,
+        newStock,
+        operator,
+        createdAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Falha ao registrar histórico de movimentação do estoque:", err);
+    }
+  }, []);
+
   // PRODUCT / CATALOG HANDLERS
   const handleAddProduct = async (newProduct: Product) => {
     try {
@@ -372,6 +510,18 @@ export default function App() {
       // 1. Direct write to Firestore from the client-side
       const docRef = doc(db, 'products', cleanProduct.id);
       await setDoc(docRef, cleanProduct);
+
+      // Audit Log stock movement with creation event entry
+      await logStockMovement(
+        cleanProduct.id,
+        cleanProduct.title,
+        'entrada',
+        cleanProduct.stock,
+        'criacao_produto',
+        0,
+        cleanProduct.stock,
+        'admin'
+      );
 
       // 2. Safe secondary backend proxy write
       try {
@@ -478,6 +628,9 @@ export default function App() {
         Object.entries(updatedProduct).filter(([_, v]) => v !== undefined)
       ) as Product;
 
+      const oldProduct = products.find(p => p.id === cleanProduct.id);
+      const previousStock = oldProduct ? oldProduct.stock : 0;
+
       // Synchronous optimistic update to local state and localStorage cache
       setProducts((prev) => {
         const updated = prev.map(p => p.id === cleanProduct.id ? cleanProduct : p);
@@ -492,6 +645,22 @@ export default function App() {
       // 1. Direct write to Firestore from the client-side
       const docRef = doc(db, 'products', cleanProduct.id);
       await setDoc(docRef, cleanProduct);
+
+      // Log stock movement audit records if stock levels altered by curadora
+      if (cleanProduct.stock !== previousStock) {
+        const type = cleanProduct.stock > previousStock ? 'entrada' : 'saida';
+        const quantity = Math.abs(cleanProduct.stock - previousStock);
+        await logStockMovement(
+          cleanProduct.id,
+          cleanProduct.title,
+          type,
+          quantity,
+          'ajuste_adm',
+          previousStock,
+          cleanProduct.stock,
+          'admin'
+        );
+      }
 
       // 2. Safe secondary backend proxy update
       try {
@@ -607,6 +776,66 @@ export default function App() {
     return matchesCategory && matchesSize && matchesSearch;
   });
 
+  if (isClientAuthLoading) {
+    return (
+      <div className="min-h-screen bg-[#070707] flex items-center justify-center font-mono text-xs text-amber-200">
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-amber-400 border-zinc-700 mx-auto" />
+          <span>Carregando Acervo Seguro Modivah...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Mandatory Client Registration / Login wall
+  if (!currentClient && !isAdminOpen && !isAdminMode) {
+    return (
+      <div className="min-h-screen bg-[#070707] text-white flex flex-col justify-between" id="client-auth-screen-wall">
+        <header className="border-b border-white/5 py-4 px-4 bg-black/40">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="text-xs font-bold tracking-[0.25em] text-white">MODIVAH BRECHÓ</span>
+            <button 
+              onClick={() => {
+                setIsAdminOpen(true);
+                setIsAdminMode(true);
+              }}
+              className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition"
+            >
+              Painel Admin
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-grow flex items-center justify-center">
+          <ClientAuth 
+            onAuthSuccess={(uid, clientData) => {
+              setCurrentClient(clientData);
+              localStorage.setItem('modivah_client_data', JSON.stringify(clientData));
+              notify("Bem-vinda de volta ao Acervo Premium Modivah! ✨");
+            }} 
+          />
+        </main>
+
+        <footer className="py-6 border-t border-white/5 text-center text-[10px] text-zinc-600">
+          <p>© 2026 MODIVAH BRECHÓ — Curadoria de Moda Circular Sustentável de Alto Padrão.</p>
+        </footer>
+
+        {/* Support admin drawer routing bypasses on the wall with appropriate authentication credentials checks */}
+        <AdminPanel
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+          products={products}
+          onAddProduct={handleAddProduct}
+          onUpdateProduct={handleUpdateProduct}
+          onUpdateProductStatus={handleUpdateProductStatus}
+          onUpdateProductPrice={handleUpdateProductPrice}
+          onDeleteProduct={handleDeleteProduct}
+          onResetDatabase={handleResetDatabase}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[#0f0f0f] text-white/90 selection:bg-amber-500 selection:text-black font-sans flex flex-col antialiased">
       
@@ -665,7 +894,7 @@ export default function App() {
       />
 
       {/* Main product showcase and category filter tabs section */}
-      <main className="max-w-7xl mx-auto px-4 py-12 flex-1 w-full flex flex-col md:flex-row gap-8" id="storefront-main-grid">
+      <main className="max-w-7xl mx-auto px-4 py-12 w-full flex flex-col md:flex-row gap-8 grow shrink-0 min-h-0" id="storefront-main-grid">
         
         {/* Dynamic Left sidebar panel for screens filter inputs */}
         <aside className="w-full md:w-64 shrink-0 space-y-6">
@@ -752,7 +981,7 @@ export default function App() {
         </aside>
 
         {/* Right Product Grid Area */}
-        <section className="flex-1 space-y-6">
+        <section className="flex-1 min-w-0 space-y-6">
           <div className="flex items-baseline justify-between gap-4 border-b border-white/5 pb-4">
             <div>
               <span className="text-xs text-neutral-400 block font-light leading-snug">Exibindo peças únicas selecionadas</span>
@@ -803,6 +1032,9 @@ export default function App() {
 
       </main>
 
+      {/* Space for customer reviews and star evaluations */}
+      <CommentsSection />
+
       {/* Exquisite Footer signature */}
       <footer className="bg-black/60 border-t border-white/10 mt-28 py-12 text-center text-xs text-white/50 space-y-4">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -842,6 +1074,7 @@ export default function App() {
         onUpdateQuantity={handleUpdateCartQuantity}
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
+        currentClient={currentClient}
       />
 
       {/* AI PERSONAL STYLIST DRAWER CHAT */}
