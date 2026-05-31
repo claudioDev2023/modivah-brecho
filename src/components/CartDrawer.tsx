@@ -131,42 +131,28 @@ export default function CartDrawer({
     setShowPaymentScreen(true);
   };
 
-  // Prepares complete cart log text plus redirect to Claudio's store phone endpoint 27 988226654
+  const [orderCompletedData, setOrderCompletedData] = useState<{ id: string, name: string, total: number, date: string, waText: string } | null>(null);
+
+  // Prepares complete cart log text plus redirect to Claudio's store phone endpoint 27 988084694
   const handleSendFinalReceiptWhatsApp = () => {
-    let text = `===================================\n`;
-    text += `   🧾 REGISTRO DE PEDIDO - MODIVAH BRECHÓ\n`;
-    text += `===================================\n\n`;
-    text += `CLIENTE       : ${clientName.trim().toUpperCase()}\n`;
-    text += `TELEFONE      : ${clientPhone.trim()}\n`;
-    text += `ENDEREÇO      : ${address.trim().toUpperCase()}\n`;
-    text += `MÉTODO PGTO   : PIX EFETUADO COM SUCESSO\n`;
-    text += `DESTINATÁRIO  : Claudio de Souza Silva (Celular: 27988084694)\n`;
-    text += `-----------------------------------\n\n`;
-    
-    text += `[PEÇAS ADQUIRIDAS]\n`;
-    cart.forEach((item, idx) => {
-      const productSku = item.product.sku || 'M-' + String(item.product.id).replace('prod-', '').toUpperCase().padStart(4, '0');
-      text += `${idx + 1}. ${item.product.title} (SKU: ${productSku}) - Tam: ${item.product.size}\n`;
-      text += `   Marca: ${item.product.brand} | R$ ${Number(item.product.price).toFixed(2)}\n\n`;
-    });
+    if (!receiptFile) {
+      alert("Por favor, anexe o comprovante de pagamento para continuar.");
+      return;
+    }
 
-    text += `-----------------------------------\n`;
-    text += `SUBTOTAL      : R$ ${totalCost.toFixed(2)}\n`;
-    text += `FRETE (ENVIO) : NEGOCIAR FRETE\n`;
-    text += `TOTAL PEÇAS   : R$ ${finalTotal.toFixed(2)}\n`;
-    text += `===================================\n\n`;
-    text += `Olá Claudio! Acabo de transferir R$ ${finalTotal.toFixed(2)} via PIX para o seu nome (Claudio de Souza Silva).\n`;
-    text += `Gostaria de negociar o frete para o meu endereço.\n`;
-    text += `Estou enviando em anexo os dados da minha sacola e o arquivo do comprovante em seguida. Por favor, confirme o recebimento do pedido!`;
+    const orderId = `ord-${Date.now()}-${Math.floor(1000 + Math.random() * 9500)}`;
+    const receiptUrl = `${window.location.origin}/?view_receipt=${orderId}`;
 
-    const encodedText = encodeURIComponent(text);
+    let text = `Olá, segue comprovante referente ao pedido nº ${orderId}.\n\n`;
+    text += `Cliente: ${clientName.trim()}\n`;
+    text += `Valor: R$ ${finalTotal.toFixed(2)}\n\n`;
+    text += `Favor confirmar o recebimento.`;
 
     // Commit the order permanently in live Firestore database for Intel & reporting!
     const commitOrderToFirestore = async () => {
       setIsCheckingStock(true);
       setCheckoutError(null);
       try {
-        const orderId = `ord-${Date.now()}-${Math.floor(1000 + Math.random() * 9500)}`;
         const orderRef = doc(db, 'orders', orderId);
         
         const orderProducts = cart.map(item => ({
@@ -230,7 +216,7 @@ export default function CartDrawer({
             });
           }
 
-          // 3. Complete order details insertion
+          // 3. Complete order details insertion with new custom state parameter
           transaction.set(orderRef, {
             id: orderId,
             clientId: currentClient ? currentClient.id : 'anonymous_client',
@@ -240,6 +226,11 @@ export default function CartDrawer({
             products: orderProducts,
             total: finalTotal,
             paymentMethod: 'PIX',
+            receiptDataUrl: receiptPreview || null,
+            status: 'Comprovante Enviado',
+            validationStatus: 'Aguardando Conferência',
+            dataEnvio: new Date().toLocaleDateString('pt-BR'),
+            horaEnvio: new Date().toLocaleTimeString('pt-BR'),
             createdAt: new Date().toISOString()
           });
         });
@@ -274,11 +265,22 @@ export default function CartDrawer({
           }
         }
 
-        // Empty client cart and finalize
+        // Store orderCompletedData to reveal the dual-WhatsApp prompt screen
+        setOrderCompletedData({
+          id: orderId,
+          name: clientName.trim(),
+          total: finalTotal,
+          date: new Date().toLocaleDateString('pt-BR'),
+          waText: text
+        });
+
+        // Clear client cart & stop loading
         onClearCart();
         setIsCheckingStock(false);
-        window.open(`https://wa.me/5527988226654?text=${encodedText}`, '_blank');
-        onClose();
+
+        // Open WhatsApp automatically for the first number!
+        const encodedText = encodeURIComponent(text);
+        window.open(`https://wa.me/5527988084694?text=${encodedText}`, '_blank');
       } catch (err: any) {
         console.error("Atomic transaction failed of checkout:", err);
         setCheckoutError(err.message || "Produto indisponível. Esta peça já foi vendida.");
@@ -377,7 +379,80 @@ export default function CartDrawer({
             </button>
           </div>
 
-          {showPaymentScreen ? (
+          {orderCompletedData ? (
+            <div className="flex-1 flex flex-col justify-between overflow-y-auto p-6 space-y-6 text-neutral-300" id="order-completed-view">
+              <div className="space-y-6">
+                <div className="text-center space-y-3 pt-6 animate-in zoom-in-95 duration-200">
+                  <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <CheckCircle className="h-7 w-7 stroke-[2.5]" />
+                  </div>
+                  <h3 className="text-sm font-bold tracking-widest uppercase text-white">PEDIDO REALIZADO!</h3>
+                  <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
+                    Obrigado, <span className="text-neutral-200 font-bold">{orderCompletedData.name}</span>. Seu pedido foi processado com sucesso.
+                  </p>
+                </div>
+
+                <div className="bg-white/[0.02] border border-white/5 p-4 rounded-xl space-y-2.5 font-mono text-[11px]">
+                  <div className="flex justify-between items-center py-1 border-b border-white/5">
+                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">ID Pedido</span>
+                    <span className="text-white font-bold">#{orderCompletedData.id}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-white/5">
+                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">Valor Total</span>
+                    <span className="text-[#39ff14]/90 font-bold">R$ {orderCompletedData.total.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">Data da Compra</span>
+                    <span className="text-neutral-300">{orderCompletedData.date}</span>
+                  </div>
+                </div>
+
+                <div className="bg-amber-500/[0.02] border border-amber-500/10 p-4 rounded-xl">
+                  <p className="text-[10.5px] text-amber-300/80 leading-relaxed text-left text-justify">
+                    <strong>Aviso de Comprovante:</strong> O sistema abriu automaticamente o WhatsApp para o primeiro parceiro de atendimento. Envie também no segundo número para agilizar a liberação rápida do seu frete!
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-white/5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const encodedText = encodeURIComponent(orderCompletedData.waText);
+                    window.open(`https://wa.me/5527988084694?text=${encodedText}`, '_blank');
+                  }}
+                  className="w-full py-3.5 bg-[#25d366] hover:bg-[#20ba59] text-black font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg shadow-[#25d366]/10 active:scale-95 duration-150"
+                >
+                  <MessageSquare className="h-4 w-4 stroke-[3]" />
+                  <span>Enviar p/ Suporte 1 (27 98808-4694)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const encodedText = encodeURIComponent(orderCompletedData.waText);
+                    window.open(`https://wa.me/5527988226654?text=${encodedText}`, '_blank');
+                  }}
+                  className="w-full py-3.5 bg-neutral-900 hover:bg-neutral-850 border border-white/10 text-emerald-400 font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg active:scale-95 duration-150"
+                >
+                  <MessageSquare className="h-4 w-4 stroke-[3]" />
+                  <span>Enviar p/ Suporte 2 (27 98822-6654)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderCompletedData(null);
+                    setShowPaymentScreen(false);
+                    onClose();
+                  }}
+                  className="w-full py-3 bg-white text-black font-bold text-xs uppercase tracking-widest rounded-xl cursor-pointer hover:bg-neutral-200 transition text-center block"
+                >
+                  Continuar Navegando
+                </button>
+              </div>
+            </div>
+          ) : showPaymentScreen ? (
             <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-6" id="pix-payment-screen">
               {/* Go Back Header */}
               <div className="flex items-center justify-between border-b border-white/5 pb-2">
@@ -456,80 +531,74 @@ export default function CartDrawer({
                 </div>
               </div>
 
-              {/* Prompt Phrase and Image Upload dropzone area */}
+              {/* Mandatory Image/PDF Upload dropzone area */}
               <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setShowUploadField(true)}
-                  className="w-full text-center p-3 bg-gradient-to-r from-emerald-950/20 to-emerald-900/20 hover:from-emerald-950/40 hover:to-emerald-900/40 border border-emerald-500/20 hover:border-emerald-500/40 rounded-xl transition duration-200 cursor-pointer"
-                >
-                  <span className="text-xs text-emerald-300 font-semibold uppercase tracking-wider block">
-                    👉 favor enviar o comprovande de pagamento por aqui
-                  </span>
-                  <span className="text-[10px] text-neutral-400 font-light block mt-0.5">
-                    Clique aqui para anexar o comprovante na tela
-                  </span>
-                </button>
-
-                {/* Conditionally reveal the local file upload frame */}
-                {showUploadField && (
-                  <div className="bg-neutral-900 border border-white/10 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
-                    <label className="block text-center cursor-pointer border-2 border-dashed border-white/10 hover:border-emerald-500/30 p-5 rounded-lg transition duration-200 bg-black/20">
-                      <input 
-                        type="file" 
-                        accept="image/*,application/pdf" 
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files[0]) {
-                            const file = e.target.files[0];
-                            setReceiptFile(file);
-                            if (file.type.startsWith('image/')) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                      setReceiptPreview(reader.result as string);
-                              };
-                              reader.readAsDataURL(file);
-                            } else {
-                              setReceiptPreview(null);
-                            }
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <div className="flex flex-col items-center justify-center space-y-1">
-                        <Upload className="h-5 w-5 text-neutral-400" />
-                        <span className="text-xs text-white">Anexar imagem do comprovante</span>
-                        <span className="text-[9px] text-neutral-500 font-light">Selecione ou arraste a captura de tela</span>
-                      </div>
-                    </label>
-
-                    {/* If file is attached */}
-                    {receiptFile && (
-                      <div className="bg-white/[0.02] border border-white/5 p-3 rounded-lg flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {receiptPreview ? (
-                            <img src={receiptPreview} alt="Comprovante" className="h-10 w-10 object-cover rounded border border-white/10" />
-                          ) : (
-                            <Image className="h-5 w-5 text-neutral-500" />
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-xs text-white font-medium truncate">{receiptFile.name}</p>
-                            <p className="text-[10px] text-neutral-500 font-mono">{(receiptFile.size / 1024).toFixed(0)} KB</p>
-                          </div>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setReceiptFile(null);
-                            setReceiptPreview(null);
-                          }}
-                          className="text-xs text-neutral-500 hover:text-red-400 font-bold px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
-                        >
-                          Limpar
-                        </button>
-                      </div>
-                    )}
+                <div className="bg-neutral-900 border border-white/10 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
+                  <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest text-center">
+                    📎 Envio de Comprovante Obrigatório
                   </div>
-                )}
+                  <label className="block text-center cursor-pointer border-2 border-dashed border-white/10 hover:border-emerald-500/30 p-5 rounded-lg transition duration-200 bg-black/20">
+                    <input 
+                      type="file" 
+                      accept=".jpg,.jpeg,.png,.pdf,image/png,image/jpeg,image/jpg,application/pdf" 
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          const extension = file.name.split('.').pop()?.toLowerCase();
+                          const allowed = ['jpg', 'jpeg', 'png', 'pdf'];
+                          if (!extension || !allowed.includes(extension)) {
+                            alert('Formato inválido! Somente arquivos JPG, JPEG, PNG e PDF são aceitos.');
+                            return;
+                          }
+                          setReceiptFile(file);
+                          if (file.type.startsWith('image/')) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setReceiptPreview(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          } else {
+                            // Render a nice generic visual template for PDF documents
+                            setReceiptPreview("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/></svg>");
+                          }
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <Upload className="h-5 w-5 text-neutral-400" />
+                      <span className="text-xs text-white">Anexar comprovante de pagamento</span>
+                      <span className="text-[9px] text-neutral-500 font-light">Formatos suportados: JPG, JPEG, PNG, PDF</span>
+                    </div>
+                  </label>
+
+                  {/* If file is attached */}
+                  {receiptFile && (
+                    <div className="bg-white/[0.02] border border-white/5 p-3 rounded-lg flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {receiptPreview ? (
+                          <img src={receiptPreview} alt="Comprovante" className="h-10 w-10 object-cover rounded border border-white/10" />
+                        ) : (
+                          <Image className="h-5 w-5 text-neutral-500" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs text-white font-medium truncate">{receiptFile.name}</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">{(receiptFile.size / 1024).toFixed(0)} KB</p>
+                        </div>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setReceiptFile(null);
+                          setReceiptPreview(null);
+                        }}
+                        className="text-xs text-neutral-500 hover:text-red-400 font-bold px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+                      >
+                        Limpar
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Final submit button */}
@@ -540,10 +609,17 @@ export default function CartDrawer({
                   </div>
                 )}
 
+                {/* Validation Info Alert Message */}
+                {!receiptFile && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-amber-300 text-xs font-semibold animate-pulse font-sans">
+                    ⚠️ Anexe o comprovante de pagamento para continuar.
+                  </div>
+                )}
+
                 <button
                   onClick={handleSendFinalReceiptWhatsApp}
-                  disabled={isCheckingStock}
-                  className="w-full py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/15 active:scale-95 duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isCheckingStock || !receiptFile}
+                  className="w-full py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/15 active:scale-95 duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isCheckingStock ? (
                     <>
@@ -553,13 +629,13 @@ export default function CartDrawer({
                   ) : (
                     <>
                       <MessageSquare className="h-4 w-4 stroke-[2.5]" />
-                      <span>Enviar por WhatsApp</span>
+                      <span>ENVIAR COMPROVANTE</span>
                     </>
                   )}
                 </button>
                 <div className="text-center mt-2.5">
                   <p className="text-[9px] text-neutral-500 leading-normal text-justify">
-                    Ao confirmar, abriremos o seu WhatsApp de suporte do número **27 988226654** com um resumo elegante pronto. Basta colar ou carregar a foto do comprovante que você selecionou!
+                    Após anexar o arquivo válido, o envio será habilitado. Ao clicar, abriremos seu WhatsApp automaticamente enviando o comprovante diretamente para nosso suporte oficial no número **27 98808-4694**!
                   </p>
                 </div>
               </div>

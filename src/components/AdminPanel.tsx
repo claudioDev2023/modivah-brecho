@@ -642,7 +642,10 @@ export default function AdminPanel({
   }
 
   // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
-  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes'>('comprovantes');
+  const [lowStockLimit, setLowStockLimit] = useState<number>(() => {
+    return Number(localStorage.getItem('modivah_low_stock_limit')) || 2;
+  });
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [ordersList, setOrdersList] = useState<any[]>([]);
   const [recoveriesList, setRecoveriesList] = useState<any[]>([]);
@@ -654,6 +657,41 @@ export default function AdminPanel({
   const [searchOrderQuery, setSearchOrderQuery] = useState('');
   const [searchRecoveryQuery, setSearchRecoveryQuery] = useState('');
   const [activeRecoveryPreview, setActiveRecoveryPreview] = useState<any | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [selectedDetailedOrder, setSelectedDetailedOrder] = useState<any | null>(null);
+
+  const handleUpdateDetailedOrderStatus = async (ordId: string, status: string) => {
+    try {
+      const docRef = doc(db, 'orders', ordId);
+      let valStatus = 'Aprovado';
+      let dbStatus = status;
+      if (status === 'Aguardando Pagamento') {
+        valStatus = 'Aguardando Conferência';
+        dbStatus = 'Pendente';
+      } else if (status === 'Comprovante Recebido') {
+        valStatus = 'Aguardando Conferência';
+        dbStatus = 'Comprovante Enviado';
+      } else if (status === 'Pagamento Confirmado') {
+        valStatus = 'Aprovado';
+        dbStatus = 'Pago';
+      }
+
+      await updateDoc(docRef, {
+        status: dbStatus,
+        validationStatus: valStatus
+      });
+
+      // Update local state if the detailed order modal is open to reflect live changes smoothly
+      setSelectedDetailedOrder(prev => prev && prev.id === ordId ? { ...prev, status: dbStatus, validationStatus: valStatus } : prev);
+    } catch (err) {
+      console.warn("Erro ao atualizar status do pedido detalhado:", err);
+    }
+  };
+
+  // Comprovantes tracking states
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
+  const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
+  const [receiptStatusFilter, setReceiptStatusFilter] = useState<'todos' | 'Aguardando Conferência' | 'Aprovado' | 'Rejeitado'>('todos');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -789,7 +827,7 @@ export default function AdminPanel({
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              🧠 Inteligência
+              📈 Dashboard de Vendas
             </button>
             <button
               onClick={() => setActiveTab('reports')}
@@ -801,39 +839,22 @@ export default function AdminPanel({
             >
               📊 Clientes &amp; Relatórios
             </button>
+            <button
+              onClick={() => setActiveTab('comprovantes')}
+              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'comprovantes'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+            >
+              📎 Comprovantes
+            </button>
           </div>
 
           <div className="flex-grow overflow-y-auto p-6 space-y-8" id="admin-form-anchor">
             
             {activeTab === 'inventory' && (
               <>
-                {/* Real-time Administrative Low Stock Alertas */}
-                {products.some((p) => p.stock > 0 && p.stock <= 2) && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex gap-3 animate-pulse">
-                    <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-xs font-bold text-red-300 uppercase tracking-wider">
-                        ⚠️ ALERTA ADMINISTRATIVO: Produto com estoque baixo.
-                      </h4>
-                      <p className="text-[11px] text-red-400/80 leading-relaxed mt-1">
-                        Os seguintes itens do acervo atingiram o limite mínimo crítico de estoque (2 unidades ou menos). Providencie reposição e controle:
-                      </p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {products
-                          .filter((p) => p.stock > 0 && p.stock <= 2)
-                          .map((p) => (
-                            <span
-                              key={`low-alert-${p.id}`}
-                              className="bg-black/60 border border-red-500/20 text-red-300 text-[10px] font-mono px-2 py-0.5 rounded font-semibold"
-                            >
-                              {p.title} ({p.stock} un. restante{p.stock > 1 ? "s" : ""})
-                            </span>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Stock Dashboard Bento Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Card 1: Estoque Atual */}
@@ -902,10 +923,33 @@ export default function AdminPanel({
                     </div>
                     <div className="space-y-0.5">
                       <p className="text-xl font-black text-yellow-500 font-mono">
-                        {products.filter((p) => p.stock > 0 && p.stock <= 2).length}
+                        {products.filter((p) => p.stock > 0 && p.stock <= lowStockLimit).length}
                       </p>
-                      <p className="text-[9px] text-neutral-500">com 2 un. ou menos</p>
+                      <p className="text-[9px] text-neutral-500">com {lowStockLimit} un. ou menos</p>
                     </div>
+                  </div>
+                </div>
+
+                {/* CONFIGURAÇÃO DE CONTROLE DE LIMITES */}
+                <div className="bg-neutral-950/40 border border-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h5 className="text-xs font-bold text-neutral-300 uppercase font-mono">🔧 Configurar Limite de Alerta de Estoque Baixo</h5>
+                    <p className="text-[10px] text-neutral-500 font-sans mt-0.5">Defina quando receber os alertas visuais de aviso em todo o painel de vendas e estoque.</p>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="10" 
+                      value={lowStockLimit}
+                      onChange={(e) => {
+                        const val = Math.max(1, Number(e.target.value));
+                        setLowStockLimit(val);
+                        localStorage.setItem('modivah_low_stock_limit', String(val));
+                      }}
+                      className="w-16 bg-neutral-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-center text-white focus:outline-none focus:border-amber-400 font-mono font-bold"
+                    />
+                    <span className="text-xs text-neutral-400 uppercase font-mono font-medium">unidades ou menos</span>
                   </div>
                 </div>
 
@@ -1767,16 +1811,56 @@ export default function AdminPanel({
 
             {/* List and controls for active products */}
             <section className="space-y-4">
-              <h3 className="text-xs uppercase tracking-widest text-neutral-400 font-semibold flex items-center gap-2">
-                <Archive className="h-4 w-4 text-amber-500" />
-                <span>Controle Geral do Estoque ({products.length} peças)</span>
-              </h3>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-2">
+                <h3 className="text-xs uppercase tracking-widest text-neutral-400 font-semibold flex items-center gap-2">
+                  <Archive className="h-4 w-4 text-amber-500" />
+                  <span>Controle Geral do Estoque ({products.length} peças)</span>
+                </h3>
+                
+                {/* PESQUISA AVANÇADA EM TEMPO REAL */}
+                <div className="relative max-w-md w-full">
+                  <input
+                    type="text"
+                    placeholder="🔎 SKU, Nome, Código Interno, Categoria, Marca..."
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-500 font-mono focus:outline-none focus:border-amber-400 transition"
+                  />
+                  {productSearchQuery && (
+                    <button
+                      onClick={() => setProductSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -with-offset -translate-y-1/2 text-[9px] bg-white/5 hover:bg-white/10 px-1.5 py-0.5 rounded text-neutral-400 hover:text-white font-mono"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
 
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1 border border-white/5 rounded-xl p-2 bg-white/[0.01]">
-                {products.length === 0 ? (
-                  <p className="text-xs text-neutral-500 text-center py-6">Estoque zerado. Cadastre novas peças acima!</p>
-                ) : (
-                  products.map((p) => (
+                {(() => {
+                  const filtered = products.filter((p) => {
+                    if (!productSearchQuery) return true;
+                    const query = productSearchQuery.toLowerCase();
+                    return (
+                      (p.sku && p.sku.toLowerCase().includes(query)) ||
+                      (p.title && p.title.toLowerCase().includes(query)) ||
+                      (p.id && p.id.toLowerCase().includes(query)) ||
+                      (p.category && p.category.toLowerCase().includes(query)) ||
+                      (p.brand && p.brand.toLowerCase().includes(query)) ||
+                      ((p as any).internalCode && String((p as any).internalCode).toLowerCase().includes(query))
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-neutral-500 text-center py-6">
+                        Nenhuma peça correspondente à pesquisa: "{productSearchQuery}"
+                      </p>
+                    );
+                  }
+
+                  return filtered.map((p) => (
                     <div 
                       key={p.id}
                       className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-3 bg-neutral-900 rounded-lg border border-white/5 hover:border-white/10 transition"
@@ -1786,18 +1870,19 @@ export default function AdminPanel({
                           src={p.image} 
                           alt={p.title} 
                           referrerPolicy="no-referrer"
-                          className="h-10 w-8 object-contain rounded shrink-0 bg-neutral-950 border border-white/5"
+                          className="h-10 w-8 object-cover rounded shrink-0 bg-neutral-950 border border-white/5"
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] uppercase text-amber-300 font-semibold">{p.brand}</span>
                             <span className="text-[9px] text-neutral-500 font-mono">({p.size})</span>
+                            <span className="text-[9px] text-zinc-500 font-mono tracking-wider ml-1 uppercase">SKU: <b className="text-zinc-300">{p.sku || 'M-GEN'}</b></span>
                             {p.video && (
                               <span className="text-[8px] bg-red-500/10 text-red-400 border border-red-500/20 px-1 py-0.2 rounded uppercase font-mono">Vídeo</span>
                             )}
                           </div>
                           <h4 className="text-xs text-white font-normal line-clamp-1">{p.title}</h4>
-                          <div className="flex items-center gap-2 text-xs font-mono">
+                          <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
                             <span className="text-neutral-400">R$ {p.price.toFixed(2)}</span>
                             <span className="text-neutral-500">|</span>
                             <span className={p.stock <= 0 ? 'text-red-400 font-bold' : 'text-amber-200'}>
@@ -1842,8 +1927,8 @@ export default function AdminPanel({
                         </button>
                       </div>
                     </div>
-                  ))
-                )}
+                  ));
+                })()}
               </div>
             </section>
             </>
@@ -1855,6 +1940,7 @@ export default function AdminPanel({
                 ordersList={ordersList} 
                 recoveriesList={recoveriesList} 
                 activitiesList={activitiesList} 
+                products={products}
               />
             )}
 
@@ -1863,8 +1949,256 @@ export default function AdminPanel({
                 clientsList={clientsList} 
                 ordersList={ordersList} 
                 recoveriesList={recoveriesList} 
+                products={products}
               />
             )}
+
+            {activeTab === 'comprovantes' && (() => {
+              const countPending = ordersList.filter(ord => (ord.receiptDataUrl || ord.status === 'Comprovante Enviado') && (ord.validationStatus === 'Aguardando Conferência' || !ord.validationStatus)).length;
+              const countApproved = ordersList.filter(ord => ord.validationStatus === 'Aprovado').length;
+              const countRejected = ordersList.filter(ord => ord.validationStatus === 'Rejeitado').length;
+
+              const receiptOrders = ordersList.filter(ord => {
+                const hasReceipt = !!ord.receiptDataUrl || ord.status === 'Comprovante Enviado' || !!ord.validationStatus;
+                if (!hasReceipt) return false;
+
+                if (receiptStatusFilter !== 'todos') {
+                  const currentValStatus = ord.validationStatus || 'Aguardando Conferência';
+                  if (currentValStatus !== receiptStatusFilter) return false;
+                }
+
+                if (searchOrderQuery.trim()) {
+                  const q = searchOrderQuery.toLowerCase().trim();
+                  const matchName = String(ord.clientName || '').toLowerCase().includes(q);
+                  const matchId = String(ord.id || '').toLowerCase().includes(q);
+                  return matchName || matchId;
+                }
+
+                return true;
+              });
+
+              return (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Section Title and Brief */}
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">📎 Comprovantes Recebidos</h3>
+                    <p className="text-[11px] text-neutral-400 font-sans mt-1 leading-relaxed">
+                      Painel para consultar os arquivos dos comprovantes de pagamento PIX anexados pelos compradores e atualizar o status da conferência administrativa.
+                    </p>
+                  </div>
+
+                  {/* Micro Statistics Dashboard */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <button 
+                      onClick={() => setReceiptStatusFilter('todos')}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        receiptStatusFilter === 'todos' 
+                          ? 'bg-amber-400/[0.04] border-amber-400/30' 
+                          : 'bg-neutral-900/40 border-white/5 hover:border-white/10'
+                      }`}
+                    >
+                      <span className="text-[9px] text-neutral-500 block uppercase font-mono font-bold">Todos</span>
+                      <span className="text-base font-black text-white font-mono">
+                        {ordersList.filter(ord => ord.receiptDataUrl || ord.status === 'Comprovante Enviado' || ord.validationStatus).length}
+                      </span>
+                    </button>
+
+                    <button 
+                      onClick={() => setReceiptStatusFilter('Aguardando Conferência')}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        receiptStatusFilter === 'Aguardando Conferência' 
+                          ? 'bg-yellow-500/10 border-yellow-500/40' 
+                          : 'bg-neutral-900/40 border-white/5 hover:border-white/10'
+                      }`}
+                    >
+                      <span className="text-[9px] text-yellow-500/85 block uppercase font-mono font-bold animate-pulse">⏳ Pendentes</span>
+                      <span className="text-base font-black text-yellow-400 font-mono">{countPending}</span>
+                    </button>
+
+                    <button 
+                      onClick={() => setReceiptStatusFilter('Aprovado')}
+                      className={`p-3 rounded-xl border text-left transition ${
+                        receiptStatusFilter === 'Aprovado' 
+                          ? 'bg-emerald-500/10 border-emerald-500/40' 
+                          : 'bg-neutral-900/40 border-white/5 hover:border-white/10'
+                      }`}
+                    >
+                      <span className="text-[9px] text-emerald-500/85 block uppercase font-mono font-bold">✅ Aprovados</span>
+                      <span className="text-base font-black text-emerald-400 font-mono">{countApproved}</span>
+                    </button>
+                  </div>
+
+                  {/* Filter and Search controls */}
+                  <div className="flex flex-col sm:flex-row items-stretch gap-3">
+                    <div className="relative flex-1">
+                      <input 
+                        type="text"
+                        value={searchOrderQuery}
+                        onChange={(e) => setSearchOrderQuery(e.target.value)}
+                        placeholder="Buscar por cliente ou nº de pedido..."
+                        className="w-full bg-neutral-900 border border-white/15 rounded-xl py-2 px-3.5 pl-9 text-xs text-white focus:outline-none focus:border-amber-400 font-mono font-medium"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs text-neutral-500">🔍</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-neutral-900 border border-white/10 rounded-xl p-0.5 overflow-x-auto">
+                      {(['todos', 'Aguardando Conferência', 'Aprovado', 'Rejeitado'] as const).map((filterOpt) => (
+                        <button
+                          key={filterOpt}
+                          onClick={() => setReceiptStatusFilter(filterOpt)}
+                          className={`px-3 py-1 text-[9px] uppercase tracking-wider font-mono font-black transition whitespace-nowrap rounded ${
+                            receiptStatusFilter === filterOpt 
+                              ? 'bg-amber-400 text-black' 
+                              : 'text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          {filterOpt === 'todos' ? 'Todos' : filterOpt.split(' ')[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Recebidos listings */}
+                  <div className="space-y-3">
+                    {receiptOrders.length === 0 ? (
+                      <div className="text-center py-12 border border-dashed border-white/5 rounded-2xl bg-black/10">
+                        <p className="text-xs text-neutral-500 font-mono">Nenhum comprovante para esta seleção.</p>
+                      </div>
+                    ) : (
+                      receiptOrders.map((ord) => {
+                        const currentValStatus = ord.validationStatus || 'Aguardando Conferência';
+                        const formattedTotal = Number(ord.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        const dEnvio = ord.dataEnvio || (ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('pt-BR') : '');
+                        const hEnvio = ord.horaEnvio || (ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+
+                        return (
+                          <div 
+                            key={`receipt-card-${ord.id}`}
+                            className="bg-neutral-905 border border-white/5 rounded-xl p-4 flex flex-col gap-4 hover:border-white/10 transition duration-150"
+                          >
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-white">{ord.clientName}</span>
+                                  <span className="text-[10px] bg-white/5 text-neutral-400 px-1.5 py-0.5 rounded font-mono font-semibold">
+                                    #{ord.id}
+                                  </span>
+                                </div>
+                                <p className="text-[9px] text-neutral-500 font-mono mt-0.5">
+                                  Enviado em {dEnvio} às {hEnvio}
+                                </p>
+                              </div>
+                              <span className="text-xs font-mono font-black text-amber-300">
+                                {formattedTotal}
+                              </span>
+                            </div>
+
+                            {/* Identificação listada dos itens do acervo comprados */}
+                            <div className="space-y-2">
+                              {Array.isArray(ord.products) && ord.products.map((item: any, i: number) => {
+                                const matchProd = products.find(p => p.id === item.productId || p.id === item.id);
+                                const imgUrl = matchProd?.image || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=120';
+                                const skuStr = matchProd?.sku || item.sku || 'M-GEN';
+                                return (
+                                  <div key={i} className="flex items-center gap-3 bg-black/30 p-2.5 rounded-lg border border-white/5">
+                                    <img 
+                                      src={imgUrl} 
+                                      alt={item.title} 
+                                      referrerPolicy="no-referrer"
+                                      className="h-12 w-10 object-cover rounded bg-neutral-950 border border-white/10 shrink-0"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <h5 className="text-[11px] font-bold text-zinc-150 truncate">{item.title}</h5>
+                                        <span className="text-[9px] bg-[#39ff14]/10 text-[#39ff14] border border-[#39ff14]/10 px-1 rounded font-semibold whitespace-nowrap">
+                                          R$ {Number(item.price || 0).toFixed(2)}
+                                        </span>
+                                      </div>
+                                      <p className="text-[9.5px] text-neutral-400 font-mono mt-0.5">SKU: <span className="text-amber-300 font-semibold">{skuStr}</span></p>
+                                      <div className="flex items-center justify-between mt-0.5">
+                                        <span className="text-[9.5px] text-zinc-500 font-medium">Quantidade: <b className="text-zinc-300 font-mono font-bold">{item.quantity} un.</b></span>
+                                        <span className="text-[9px] text-[#ffe490] font-semibold bg-neutral-900 border border-white/5 rounded px-1.5 py-0.2 uppercase">
+                                          {matchProd?.category || 'Curadoria'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                              {/* Visualizer triggers */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  onClick={() => setSelectedDetailedOrder(ord)}
+                                  className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 border border-white/10 rounded-lg text-[10px] font-mono font-bold uppercase text-neutral-200 transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span>🔍 Detalhes do Pedido</span>
+                                </button>
+
+                                {ord.receiptDataUrl ? (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedReceiptUrl(ord.receiptDataUrl);
+                                      setSelectedReceiptOrder(ord);
+                                    }}
+                                    className="px-3 py-1.5 bg-gradient-to-r from-amber-500/10 to-amber-600/15 hover:from-amber-500/20 hover:to-amber-600/25 border border-amber-500/20 rounded-lg text-[10px] font-mono font-bold uppercase text-amber-300 transition flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <span>👁️ Ver Comprovante</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-neutral-500 font-mono">Sem arquivo anexado</span>
+                                )}
+                                
+                                {ord.receiptDataUrl && (
+                                  <a 
+                                    href={ord.receiptDataUrl}
+                                    download={`comprovante-${ord.id}`}
+                                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 border border-white/5 hover:border-white/10 rounded-lg text-[10px] font-mono text-neutral-300 transition text-center"
+                                  >
+                                    Baixar
+                                  </a>
+                                )}
+                              </div>
+
+                              {/* Interactive switch actions */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {(['Aguardando Conferência', 'Aprovado', 'Rejeitado'] as const).map((st) => {
+                                  let badgeColorClass = "text-neutral-400 bg-white/5 hover:bg-white/10 border-white/5";
+                                  if (currentValStatus === st) {
+                                    if (st === 'Aguardando Conferência') badgeColorClass = "bg-yellow-500/20 border-yellow-500/50 text-yellow-300 font-bold";
+                                    if (st === 'Aprovado') badgeColorClass = "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold";
+                                    if (st === 'Rejeitado') badgeColorClass = "bg-rose-500/20 border-rose-500/50 text-rose-300 font-bold";
+                                  }
+
+                                  return (
+                                    <button
+                                      key={`st-btn-${ord.id}-${st}`}
+                                      onClick={async () => {
+                                        try {
+                                          const docRef = doc(db, 'orders', ord.id);
+                                          await updateDoc(docRef, { validationStatus: st });
+                                        } catch (e) {
+                                          console.warn(e);
+                                        }
+                                      }}
+                                      className={`px-2.5 py-1 rounded border text-[9px] font-mono tracking-wider uppercase transition cursor-pointer ${badgeColorClass}`}
+                                    >
+                                      {st === 'Aguardando Conferência' ? 'Aguardando' : st}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* VOLTAR PROMINENTE NO RODAPÉ */}
             <div className="pt-4 border-t border-white/5">
@@ -1880,6 +2214,326 @@ export default function AdminPanel({
 
         </div>
       </div>
+
+      {/* 👁️ REGISTRATION RECEIPT OVERLAY ZOOM MODAL */}
+      {selectedReceiptUrl && (
+        <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="absolute inset-0 cursor-zoom-out" onClick={() => { setSelectedReceiptUrl(null); setSelectedReceiptOrder(null); }} />
+          <div className="relative bg-neutral-900 border border-white/10 max-w-lg w-full rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-4 bg-black/40 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-white uppercase font-mono">🔍 Comprovante Anexado</h4>
+                {selectedReceiptOrder && (
+                  <p className="text-[10px] text-neutral-400 mt-0.5">
+                    Pedido #{selectedReceiptOrder.id} • {selectedReceiptOrder.clientName}
+                  </p>
+                )}
+              </div>
+              <button 
+                onClick={() => { setSelectedReceiptUrl(null); setSelectedReceiptOrder(null); }}
+                className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-white text-[10px] font-mono font-bold hover:text-rose-400 transition cursor-pointer"
+              >
+                FECHAR [X]
+              </button>
+            </div>
+            
+            <div className="p-4 flex items-center justify-center bg-zinc-950/40 min-h-[250px]">
+              {selectedReceiptUrl.startsWith('data:image/') || selectedReceiptUrl.includes('unsplash') || (selectedReceiptUrl.startsWith('http') && !selectedReceiptUrl.includes('pdf')) ? (
+                <img 
+                  src={selectedReceiptUrl} 
+                  alt="Comprovante de pagamento" 
+                  className="max-h-[60vh] w-auto max-w-full object-contain rounded-lg border border-white/5"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center space-y-3 py-6">
+                  <span className="text-rose-400 text-2xl font-mono">📄 PDF</span>
+                  <p className="text-[11px] text-neutral-300 font-sans text-center max-w-xs">Instruções para visualizar comprovante PDF:</p>
+                  <a 
+                    href={selectedReceiptUrl}
+                    download={`comprovante-${selectedReceiptOrder?.id || 'pedido'}.pdf`}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-mono font-bold rounded-lg uppercase tracking-wider transition"
+                  >
+                    Baixar comprovante PDF
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-black/40 border-t border-white/5 flex justify-between items-center gap-2">
+              <span className="text-[9px] text-neutral-500 font-mono uppercase">Resolução Otimizada</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedReceiptUrl}
+                  download={`comprovante-${selectedReceiptOrder?.id || 'pedido'}`}
+                  className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-750 text-neutral-200 hover:text-white rounded text-[10px] font-mono tracking-wider uppercase transition text-center"
+                >
+                  Baixar Original
+                </a>
+                <button
+                  onClick={() => { setSelectedReceiptUrl(null); setSelectedReceiptOrder(null); }}
+                  className="px-3 py-1.5 bg-white hover:bg-neutral-200 text-black rounded text-[10px] font-mono tracking-wider uppercase transition cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 📋 DETALHAMENTO COMPLETO DO PEDIDO MODAL */}
+      {selectedDetailedOrder && (() => {
+        const ord = selectedDetailedOrder;
+        const currentValStatus = ord.validationStatus || 'Aguardando Conferência';
+        const currentStatus = ord.status || 'Pendente';
+        const formattedTotal = Number(ord.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const dEnvio = ord.dataEnvio || (ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('pt-BR') : '');
+        const hEnvio = ord.horaEnvio || (ord.createdAt ? new Date(ord.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+
+        return (
+          <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div className="absolute inset-0 cursor-zoom-out" onClick={() => setSelectedDetailedOrder(null)} />
+            <div className="relative bg-neutral-900 border border-white/10 max-w-2xl w-full rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95 duration-200 my-8">
+              {/* Header */}
+              <div className="p-5 bg-black/40 border-b border-white/10 flex items-center justify-between">
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider text-amber-400 font-mono font-bold px-1.5 py-0.5 bg-amber-400/10 border border-amber-400/25 rounded">DETALHAMENTO DO PEDIDO</span>
+                  <h4 className="text-sm font-bold text-white mt-1.5 font-mono">Pedido #{ord.id}</h4>
+                </div>
+                <button 
+                  onClick={() => setSelectedDetailedOrder(null)}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-mono transition cursor-pointer"
+                >
+                  Fechar [X]
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto pr-2 scrollbar-thin">
+                {/* DADOS DO CLIENTE */}
+                <div className="space-y-2.5">
+                  <h5 className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono border-b border-white/5 pb-1">👥 Dados do Cliente</h5>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-black/20 p-3.5 rounded-xl border border-white/5">
+                    <div>
+                      <span className="text-[9px] text-zinc-500 uppercase font-mono block">Nome Completo</span>
+                      <p className="text-xs font-bold text-white mt-0.5">{ord.clientName}</p>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-zinc-500 uppercase font-mono block">Telefone / WhatsApp</span>
+                      <p className="text-xs font-mono text-emerald-400 mt-0.5">
+                        <a 
+                          href={`https://wa.me/${String(ord.clientPhone || '').replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline flex items-center gap-1 font-bold"
+                        >
+                          <span>📱 {ord.clientPhone || '—'}</span>
+                        </a>
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-zinc-500 uppercase font-mono block">E-mail</span>
+                      <p className="text-xs font-mono text-zinc-300 mt-0.5 truncate">{ord.clientEmail || 'visitante@modivah.com.br'}</p>
+                    </div>
+                  </div>
+                  {ord.address && (
+                    <div className="bg-black/20 p-3.5 rounded-xl border border-white/5">
+                      <span className="text-[9px] text-zinc-500 uppercase font-mono block">Endereço de Entrega</span>
+                      <p className="text-xs text-zinc-300 mt-0.5 leading-relaxed">{ord.address}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* PRODUTO(S) COMPRADO(S) */}
+                <div className="space-y-3">
+                  <h5 className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono border-b border-white/5 pb-1">👚 Artigos do Pedido</h5>
+                  <div className="space-y-3">
+                    {Array.isArray(ord.products) && ord.products.map((item: any, i: number) => {
+                      const matchProd = products.find(p => p.id === item.productId || p.id === item.id);
+                      const imgUrl = matchProd?.image || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=120';
+                      const skuStr = matchProd?.sku || item.sku || 'M-GEN';
+                      const catStr = matchProd?.category || 'Curadoria';
+                      return (
+                        <div key={i} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-black/20 p-4 rounded-xl border border-white/5 hover:border-white/10 transition">
+                          <div className="flex items-center gap-3.5">
+                            <img 
+                              src={imgUrl} 
+                              alt={item.title} 
+                              referrerPolicy="no-referrer"
+                              className="h-20 w-16 object-cover rounded-lg bg-neutral-950 border border-white/10 shrink-0"
+                            />
+                            <div>
+                              <p className="text-[9px] uppercase tracking-wider text-amber-400 font-mono font-bold bg-amber-400/10 border border-amber-400/20 px-1.5 py-0.2 rounded w-fit">{catStr}</p>
+                              <h4 className="text-xs text-white font-bold mt-1.5 leading-relaxed max-w-sm line-clamp-2">{item.title}</h4>
+                              <p className="text-[9px] text-zinc-500 font-mono mt-1">SKU: <span className="text-neutral-300 font-semibold">{skuStr}</span></p>
+                            </div>
+                          </div>
+                          <div className="sm:text-right flex sm:flex-col justify-between sm:justify-start items-center sm:items-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
+                            <span className="text-[10px] text-zinc-500 font-mono">Preço unitário/Qtd</span>
+                            <p className="text-xs font-mono font-bold text-white mt-0.5">R$ {(item.price || 0).toFixed(2)} x {item.quantity}</p>
+                            <p className="text-[11px] font-mono text-[#39ff14] font-black mt-1">R$ {((item.price || 0) * (item.quantity || 1)).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* PAGAMENTO & COMPROVANTE */}
+                <div className="space-y-4">
+                  <h5 className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono border-b border-white/5 pb-1">💰 Pagamento & Comprovante PIX</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Payment Specs */}
+                    <div className="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col justify-between gap-3">
+                      <div className="space-y-1.5">
+                        <span className="text-[9px] text-zinc-500 uppercase font-mono block">Valor Consolidado</span>
+                        <p className="text-lg font-mono font-black text-amber-300">{formattedTotal}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-zinc-500 uppercase font-mono block">Data/Hora da Transação</span>
+                        <p className="text-xs text-neutral-300 font-mono">Enviado em {dEnvio} às {hEnvio}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[9px] text-zinc-500 uppercase font-mono block">Método de Captura</span>
+                        <p className="text-[10px] font-mono uppercase bg-white/5 text-neutral-300 border border-white/5 rounded px-2 py-0.5 w-fit">PIX DIRETO (QR CODE)</p>
+                      </div>
+                    </div>
+
+                    {/* Receipt visualizer / download link */}
+                    <div className="bg-black/20 p-4 rounded-xl border border-white/5 flex flex-col items-center justify-center text-center space-y-3 min-h-[140px]">
+                      {ord.receiptDataUrl ? (
+                        <>
+                          <div className="relative group cursor-pointer border border-white/10 rounded-lg overflow-hidden max-h-32 w-28 bg-neutral-950 flex items-center justify-center">
+                            {ord.receiptDataUrl.startsWith('data:image/') || ord.receiptDataUrl.includes('unsplash') || (ord.receiptDataUrl.startsWith('http') && !ord.receiptDataUrl.includes('pdf')) ? (
+                              <img 
+                                src={ord.receiptDataUrl} 
+                                alt="Comprovante" 
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <span className="text-rose-400 text-lg font-mono">📄 PDF</span>
+                            )}
+                            <div 
+                              onClick={() => {
+                                setSelectedReceiptUrl(ord.receiptDataUrl);
+                                setSelectedReceiptOrder(ord);
+                              }}
+                              className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
+                            >
+                              <span className="text-[9px] text-white font-semibold font-mono tracking-wider">EXPANDIR</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedReceiptUrl(ord.receiptDataUrl);
+                                setSelectedReceiptOrder(ord);
+                              }}
+                              className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-neutral-300 text-[10px] font-mono border border-white/5 rounded transition"
+                            >
+                              Expandir Comprovante
+                            </button>
+                            <a 
+                              href={ord.receiptDataUrl}
+                              download={`comprovante-${ord.id}`}
+                              className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[10px] font-mono border border-amber-500/20 rounded transition"
+                            >
+                              Baixar
+                            </a>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="py-4">
+                          <span className="text-2xl">⚠️</span>
+                          <p className="text-xs text-neutral-500 mt-2 font-mono">Nenhum comprovante de pagamento PIX foi anexado a este pedido.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* STATUS FLOW MANAGER */}
+                <div className="space-y-3">
+                  <h5 className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono border-b border-white/5 pb-1">⚡- Status do Pedido (Atualização)</h5>
+                  
+                  {/* Current Status Badge view */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[10px] text-zinc-500 font-mono">Status Atual do Pedido:</span>
+                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-mono uppercase font-black ${
+                      currentStatus === 'Pago' || currentStatus === 'pago' || ord.status === 'Pago'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : currentStatus === 'Em Separação'
+                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                        : currentStatus === 'Enviado' || currentStatus === 'enviado'
+                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        : currentStatus === 'Entregue' || currentStatus === 'entregue'
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                        : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                    }`}>
+                      {currentStatus}
+                    </span>
+                    <span className="text-zinc-600 font-mono">|</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Status Financeiro:</span>
+                    <span className={`px-2.5 py-0.5 rounded text-[10px] font-mono uppercase font-black ${
+                      currentValStatus === 'Aprovado' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : currentValStatus === 'Rejeitado'
+                        ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                    }`}>
+                      {currentValStatus}
+                    </span>
+                  </div>
+
+                  {/* Status update steps */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { label: "Aguardando Pagamento", status: "Aguardando Pagamento", style: "border-yellow-500/20 hover:bg-yellow-500/5 text-yellow-400" },
+                      { label: "Comprovante Recebido", status: "Comprovante Recebido", style: "border-orange-500/20 hover:bg-orange-500/5 text-orange-400" },
+                      { label: "Pagamento Confirmado", status: "Pagamento Confirmado", style: "border-emerald-500/20 hover:bg-emerald-500/5 text-emerald-400" },
+                      { label: "Em Separação", status: "Em Separação", style: "border-purple-500/20 hover:bg-purple-500/5 text-purple-400" },
+                      { label: "Enviado", status: "Enviado", style: "border-blue-500/20 hover:bg-blue-500/5 text-blue-400" },
+                      { label: "Entregue", status: "Entregue", style: "border-green-500/20 hover:bg-green-500/5 text-green-400" }
+                    ].map((stItem) => {
+                      // Normalize active check
+                      let isActive = false;
+                      if (stItem.status === 'Aguardando Pagamento' && (currentStatus === 'Aguardando Pagamento' || currentStatus === 'Pendente')) isActive = true;
+                      else if (stItem.status === 'Comprovante Recebido' && currentStatus === 'Comprovante Enviado') isActive = true;
+                      else if (stItem.status === 'Pagamento Confirmado' && (currentStatus === 'Pago' || currentStatus === 'Pagamento Confirmado' || currentStatus === 'pago')) isActive = true;
+                      else if (stItem.status === currentStatus) isActive = true;
+
+                      return (
+                        <button
+                          key={stItem.status}
+                          onClick={() => handleUpdateDetailedOrderStatus(ord.id, stItem.status)}
+                          className={`px-3 py-2.5 rounded-lg border text-left text-[10px] font-mono transition font-bold uppercase tracking-wide cursor-pointer flex flex-col justify-between ${
+                            isActive 
+                              ? 'bg-white text-black border-white font-black'
+                              : `bg-neutral-900 border-white/5 ${stItem.style}`
+                          }`}
+                        >
+                          <span>{stItem.label}</span>
+                          {isActive && <span className="text-[8px] bg-neutral-900 text-white border border-white/10 px-1 py-0.2 rounded mt-1 font-mono uppercase">Ativo</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-black/40 border-t border-white/10 flex justify-end gap-2 text-xs">
+                <button
+                  onClick={() => setSelectedDetailedOrder(null)}
+                  className="px-4 py-2 bg-white hover:bg-neutral-200 text-black rounded-lg font-mono font-bold uppercase cursor-pointer"
+                >
+                  Concluir Visualização
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }

@@ -10,12 +10,14 @@ interface ReportsClientsDashboardProps {
   clientsList: any[];
   ordersList: any[];
   recoveriesList: any[];
+  products: any[];
 }
 
 export default function ReportsClientsDashboard({
   clientsList,
   ordersList,
-  recoveriesList
+  recoveriesList,
+  products
 }: ReportsClientsDashboardProps) {
 
   // Search states
@@ -276,10 +278,30 @@ export default function ReportsClientsDashboard({
                     <p className="font-bold text-white text-[12px]">{o.clientName || 'Visitante Anônimo'}</p>
                     <p className="text-[10px] text-zinc-500 font-mono">{o.clientPhone || '—'}</p>
                   </td>
-                  <td className="p-3 font-mono text-zinc-400">
-                    <span className="text-[11px] truncate max-w-[200px] block">
-                      {Array.isArray(o.products) ? o.products.map((pi: any) => pi.title || pi.productTitle).join(', ') : 'Peça Espacial'}
-                    </span>
+                  <td className="p-3 text-zinc-400">
+                    <div className="flex flex-col gap-1.5 max-w-[240px]">
+                      {Array.isArray(o.products) ? o.products.map((pi: any, pIdx: number) => {
+                        const matchProd = products.find(p => p.id === pi.productId || p.id === pi.id);
+                        const imgUrl = matchProd?.image || 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=120';
+                        const skuStr = matchProd?.sku || pi.sku || 'M-GEN';
+                        return (
+                          <div key={pIdx} className="flex items-center gap-2 bg-black/45 p-1 rounded border border-white/5">
+                            <img 
+                              src={imgUrl} 
+                              alt={pi.title || pi.productTitle} 
+                              referrerPolicy="no-referrer"
+                              className="h-8 w-6 object-cover rounded bg-neutral-950 border border-white/10 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-sans font-bold text-neutral-200 truncate">{pi.title || pi.productTitle}</p>
+                              <p className="text-[8px] font-mono text-neutral-500">SKU: {skuStr} • Qtd: {pi.quantity || 1}</p>
+                            </div>
+                          </div>
+                        );
+                      }) : (
+                        <span className="text-[11px] font-mono text-neutral-500">Peça Espacial</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-3 font-mono">
                     <p className="text-neutral-400 text-[10px] uppercase">{o.paymentMethod || 'PIX'}</p>

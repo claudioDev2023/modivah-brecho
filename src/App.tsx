@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Filter, RotateCcw, HelpCircle, Check, Search, Calendar, Heart, ArrowRight, Sparkles,
-  Shirt, Footprints, Briefcase, Gem, Award, Lock, Truck, Home, Grid, Plus, User, Eye, ShoppingBag
+  Shirt, Footprints, Briefcase, Gem, Award, Lock, Truck, Home, Grid, Plus, User, Eye, ShoppingBag,
+  X, RefreshCw, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
 import { Product, CartItem } from './types';
 import { INITIAL_PRODUCTS } from './data/initialProducts';
@@ -179,6 +180,30 @@ export default function App() {
 
   // Notification banners
   const [notification, setNotification] = useState<string | null>(null);
+
+  // States for viewing/auditing payment receipt via URL parameters
+  const [receiptViewId, setReceiptViewId] = useState<string | null>(null);
+  const [receiptOrderData, setReceiptOrderData] = useState<any | null>(null);
+  const [loadingReceipt, setLoadingReceipt] = useState(false);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewId = urlParams.get('view_receipt') || urlParams.get('receipt_id');
+    if (viewId) {
+      setReceiptViewId(viewId);
+      setLoadingReceipt(true);
+      
+      getDoc(doc(db, 'orders', viewId)).then((snap) => {
+        if (snap.exists()) {
+          setReceiptOrderData(snap.data());
+        }
+        setLoadingReceipt(false);
+      }).catch((err) => {
+        console.error("Error fetching payment receipt document from Firestore:", err);
+        setLoadingReceipt(false);
+      });
+    }
+  }, []);
 
   // Seed the Firestore database with initial products if it is empty
   const seedDatabase = async () => {
@@ -1170,7 +1195,92 @@ export default function App() {
         </button>
       </div>
 
+      {/* 🧾 LIGHTBOX MODAL DE COMPROVANTE (VIEW_RECEIPT) */}
+      {receiptViewId && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-lg p-6 relative shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => {
+                setReceiptViewId(null);
+                setReceiptOrderData(null);
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }}
+              className="absolute top-4 right-4 p-2 hover:bg-white/15 text-neutral-400 hover:text-white rounded-lg cursor-pointer transition"
+            >
+              <X className="h-5 w-5" />
+            </button>
 
+            <div className="text-center space-y-1 pb-2 border-b border-white/5">
+              <span className="text-[10px] text-amber-300 font-mono font-bold uppercase tracking-widest bg-amber-500/10 border border-amber-500/10 px-2 py-0.5 rounded">
+                COMPROVANTE DE PAGAMENTO PIX
+              </span>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-2">Pedido #{receiptViewId}</h3>
+            </div>
+
+            {loadingReceipt ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <RefreshCw className="h-8 w-8 animate-spin text-amber-400" />
+                <p className="text-xs text-neutral-400 font-mono">Buscando comprovante seguro...</p>
+              </div>
+            ) : receiptOrderData ? (
+              <div className="space-y-4">
+                {/* Meta details */}
+                <div className="grid grid-cols-2 gap-3 bg-white/[0.02] border border-white/5 p-3 rounded-xl text-xs font-mono">
+                  <div>
+                    <span className="text-neutral-500 text-[9px] block uppercase">Cliente</span>
+                    <span className="text-neutral-200 font-bold font-sans">{receiptOrderData.clientName || 'Anônimo'}</span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 text-[9px] block uppercase">Valor Pago</span>
+                    <span className="text-[#39ff14]/90 font-bold font-sans">R$ {(Number(receiptOrderData.total) || 0).toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 text-[9px] block uppercase">Contato Celular</span>
+                    <span className="text-neutral-300">{receiptOrderData.clientPhone || 'Não informado'}</span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 text-[9px] block uppercase">Registrado em</span>
+                    <span className="text-neutral-300">{receiptOrderData.createdAt ? new Date(receiptOrderData.createdAt).toLocaleDateString() : '—'}</span>
+                  </div>
+                </div>
+
+                {/* Receipt Image Visualizer */}
+                <div className="border border-white/10 rounded-xl overflow-hidden bg-black/60 flex items-center justify-center max-h-[350px]">
+                  {receiptOrderData.receiptDataUrl ? (
+                    <img
+                      src={receiptOrderData.receiptDataUrl}
+                      alt="Comprovante Pix Anexo"
+                      className="max-h-[350px] w-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="py-20 flex flex-col items-center gap-2">
+                      <ImageIcon className="h-10 w-10 text-neutral-700" />
+                      <p className="text-xs text-neutral-500 font-light text-center">Nenhuma imagem de comprovante anexada neste pedido.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-xs text-neutral-400 space-y-2">
+                <AlertCircle className="h-8 w-8 text-red-400 mx-auto" />
+                <p className="text-xs">Comprovante ou pedido não encontrado ou expirado.</p>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setReceiptViewId(null);
+                setReceiptOrderData(null);
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }}
+              className="w-full py-2.5 bg-neutral-950 border border-white/15 hover:bg-neutral-900 text-neutral-300 font-bold hover:text-white text-xs uppercase tracking-widest cursor-pointer transition"
+            >
+              Fechar Visualização
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
