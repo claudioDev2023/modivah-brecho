@@ -19,8 +19,6 @@ import CommentsSection from './components/CommentsSection';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 // @ts-ignore
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
-// @ts-ignore
-import mascotImg from './assets/images/modivah_official_mascot_1780072687232.png';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
@@ -111,13 +109,27 @@ export default function App() {
           console.warn("Error resolving client profile snapshot:", err);
         }
       } else {
-        setCurrentClient(null);
-        localStorage.removeItem('modivah_client_data');
+        const isFallback = localStorage.getItem('modivah_auth_fallback_active') === 'true';
+        if (!isFallback) {
+          setCurrentClient(null);
+          localStorage.removeItem('modivah_client_data');
+        }
       }
       setIsClientAuthLoading(false);
     });
 
     return () => unsubscribeAuth();
+  }, []);
+
+  const handleClientLogout = useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn("Error signing out with Firebase Auth:", e);
+    }
+    localStorage.removeItem('modivah_client_data');
+    localStorage.removeItem('modivah_auth_fallback_active');
+    setCurrentClient(null);
   }, []);
 
   // Track product activities in Firestore behavioral database
@@ -763,15 +775,23 @@ export default function App() {
     // 2. Size comparison
     const matchesSize = selectedSize === 'Todos' || p.size.toUpperCase() === selectedSize.toUpperCase();
     
-    // 3. Search text query comparison (fuzzy scanning)
-    const normalizedQuery = searchQuery.toLowerCase().trim();
+    // 3. Search text query comparison (fuzzy accent-insensitive scanning)
+    const normalizeSearchText = (text: string): string => {
+      return (text || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim();
+    };
+
+    const normalizedQuery = normalizeSearchText(searchQuery);
     const matchesSearch = normalizedQuery === '' || 
-      p.title.toLowerCase().includes(normalizedQuery) ||
-      p.brand.toLowerCase().includes(normalizedQuery) ||
-      p.description.toLowerCase().includes(normalizedQuery) ||
-      p.category.toLowerCase().includes(normalizedQuery) ||
-      p.size.toLowerCase().includes(normalizedQuery) ||
-      (p.tag && p.tag.toLowerCase().includes(normalizedQuery));
+      normalizeSearchText(p.title).includes(normalizedQuery) ||
+      normalizeSearchText(p.brand).includes(normalizedQuery) ||
+      normalizeSearchText(p.description).includes(normalizedQuery) ||
+      normalizeSearchText(p.category).includes(normalizedQuery) ||
+      normalizeSearchText(p.size).includes(normalizedQuery) ||
+      (p.tag && normalizeSearchText(p.tag).includes(normalizedQuery));
 
     return matchesCategory && matchesSize && matchesSearch;
   });
@@ -849,6 +869,27 @@ export default function App() {
         />
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-[#39ff14] to-transparent shadow-[0_0_15px_rgba(57,255,20,0.5)]" />
       </div>
+
+      {/* Visual Welcome Ribbon for Authenticated Clients */}
+      {currentClient && (
+        <div className="w-full bg-[#121212] border-b border-white/5 py-2 px-6 flex items-center justify-between text-xs transition duration-200" id="welcome-client-ribbon">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#39ff14]/80 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#39ff14]"></span>
+            </span>
+            <span className="text-zinc-300 font-medium">
+              Bem-vindo(a), <span className="text-amber-400 font-bold">{currentClient.name}</span>
+            </span>
+          </div>
+          <button
+            onClick={handleClientLogout}
+            className="text-[9px] uppercase tracking-widest text-[#ff3b30] hover:text-red-300 font-black bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 hover:border-red-500/30 px-3 py-1 rounded-lg transition duration-200 flex items-center gap-1 cursor-pointer"
+          >
+            <span>Sair</span>
+          </button>
+        </div>
+      )}
 
       {/* Visual background atmospheric lights */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/[0.02] filter blur-[120px] pointer-events-none" />

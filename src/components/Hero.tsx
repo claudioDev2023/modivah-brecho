@@ -2,7 +2,7 @@ import React from 'react';
 import { Eye, ShieldCheck, Heart } from 'lucide-react';
 import { motion } from 'motion/react';
 // @ts-ignore
-import mascotImg from '../assets/images/modivah_official_mascot_1780072687232.png';
+import heroBannerImg from '../assets/images/modivah_hero_banner_1780235216289.png';
 
 interface HeroProps {
   onOpenStylist: () => void;
@@ -26,9 +26,9 @@ export default function Hero({ onOpenStylist }: HeroProps) {
         </div>
 
         {/* 1. ORIGINAL IMAGE EMBEDDED PRECISELY AS REQUESTED */}
-        <div className="relative w-full max-w-[700px] mx-auto mb-8 sm:mb-10 group">
+        <div className="relative w-full max-w-[850px] mx-auto mb-8 sm:mb-10 group animate-fadeIn">
           {/* Subtle surrounding light halo for premium contrast */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/5 to-transparent filter blur-[20px] pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/10 to-transparent filter blur-[25px] pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity duration-500" />
           
           <motion.div 
             initial={{ opacity: 0, y: 15 }}
@@ -37,21 +37,21 @@ export default function Hero({ onOpenStylist }: HeroProps) {
             className="relative"
           >
             <img
-              src={mascotImg}
-              alt="Mascote MODIVAH BRECHÓ"
+              src={heroBannerImg}
+              alt="MODIVAH BRECHÓ Premium Banner"
               referrerPolicy="no-referrer"
               style={{
                 width: '100%',
-                maxWidth: '700px',
+                maxWidth: '850px',
                 height: 'auto',
-                objectFit: 'contain',
+                objectFit: 'cover',
                 display: 'block',
                 margin: 'auto',
-                borderRadius: '20px',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(245, 158, 11, 0.15)',
+                borderRadius: '24px',
+                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.65)',
+                border: '1px solid rgba(245, 158, 11, 0.2)',
               }}
-              className="select-none transition-all duration-300 group-hover:border-amber-500/30 group-hover:shadow-[0_25px_60px_rgba(0,0,0,0.55)]"
+              className="select-none transition-all duration-500 group-hover:border-amber-400/40 group-hover:shadow-[0_30px_70px_rgba(245,158,11,0.15)]"
             />
           </motion.div>
         </div>

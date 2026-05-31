@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Sparkles, Send, Bot, User, RefreshCw, ShoppingCart, Eye } from 'lucide-react';
 import { Product, StylistMessage } from '../types';
+// @ts-ignore
+import moIaImg from '../assets/images/modivah_avatar_perfect_1780249727394.png';
 
 interface StylistChatProps {
   isOpen: boolean;
@@ -159,13 +161,21 @@ export default function StylistChat({
               <span>← Voltar</span>
             </button>
 
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-amber-500/10 rounded-full border border-amber-500/20">
-                <Sparkles className="h-5 w-5 text-amber-400 animate-spin-slow" />
+            <div className="flex items-center gap-3">
+              <div className="relative h-11 w-11 rounded-full overflow-hidden border-2 border-amber-400 bg-neutral-900 shadow-lg shrink-0">
+                <img 
+                  src={moIaImg} 
+                  alt="Mo IA" 
+                  className="h-full w-full object-cover scale-110 object-top"
+                  referrerPolicy="no-referrer"
+                />
+                <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-neutral-950 animate-pulse" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white tracking-widest uppercase">Mo IA</h2>
-                <span className="text-[10px] text-neutral-400 block font-light leading-none mt-1">Sua Consultora de Moda AI</span>
+                <h2 className="text-sm font-bold text-white tracking-widest uppercase flex items-center gap-1.5">
+                  Mo IA <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                </h2>
+                <span className="text-[10px] text-zinc-400 block font-light leading-none mt-1">Sua Consultora de Moda AI</span>
               </div>
             </div>
             
@@ -205,8 +215,13 @@ export default function StylistChat({
                 <div key={msg.id} className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
                   {/* Chatbot logo bubble prefix */}
                   {!isUser && (
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-center text-black shrink-0 border border-amber-400/20">
-                      <Bot className="h-4.5 w-4.5" />
+                    <div className="h-8 w-8 rounded-full overflow-hidden shrink-0 border border-amber-500/25 bg-neutral-900 shadow-md">
+                      <img 
+                        src={moIaImg} 
+                        alt="Mo IA" 
+                        className="h-full w-full object-cover scale-110 object-top"
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
                   )}
 

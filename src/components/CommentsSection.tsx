@@ -298,16 +298,15 @@ export default function CommentsSection() {
                     comment.isExample ? 'border-amber-500/5 bg-zinc-900/[0.15]' : ''
                   }`}
                 >
-                  {comment.isExample && (
-                    <span className="absolute top-3.5 right-3 px-2 py-0.5 bg-amber-400/5 border border-amber-400/10 rounded text-[8px] font-mono font-bold uppercase tracking-wider text-amber-400">
-                      Depoimento Verificado ✨
-                    </span>
-                  )}
-
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        {comment.name}
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex flex-wrap items-center gap-2">
+                        <span>{comment.name}</span>
+                        {comment.isExample && (
+                          <span className="px-1.5 py-0.5 bg-amber-400/5 border border-amber-400/10 rounded text-[8px] font-mono font-bold uppercase tracking-wider text-amber-400 inline-block">
+                            Depoimento Verificado ✨
+                          </span>
+                        )}
                       </h4>
                       <p className="text-[9px] text-neutral-500 font-mono mt-0.5">
                         Postado em {formattedDate}

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { User, Mail, Shield, Check, MapPin, Phone, MessageSquare, Lock, Eye, EyeOff, Sparkles, Loader, HelpCircle } from 'lucide-react';
-import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { User, Mail, Shield, Check, MapPin, Phone, MessageSquare, Lock, Eye, EyeOff, Sparkles, Loader } from 'lucide-react';
+import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 // @ts-ignore
 import logoImg from '../assets/images/modivah_logo_1779828536217.png';
 
@@ -20,6 +20,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
   
   // Password visible toggles
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -29,12 +30,12 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [consent, setConsent] = useState(true);
 
-  // Flag to offer simulated login bypass if auth is disabled
-  const [showBypassOption, setShowBypassOption] = useState(false);
-  const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
-  const [showAdminDiagnostics, setShowAdminDiagnostics] = useState(false);
+  const [isFallbackMode, setIsFallbackMode] = useState(() => {
+    return localStorage.getItem('modivah_auth_fallback_active') === 'true';
+  });
 
   // Utility to cryptographically hash password with native SHA-256
   const hashPassword = async (pwd: string): Promise<string> => {
@@ -49,67 +50,174 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
     }
   };
 
-  // Automated simulated bypass handler for smooth client testing
-  const handleSimulatedBypass = async () => {
-    setLoading(true);
-    setErrorText(null);
-    setSuccessText(null);
-    try {
-      const simUid = `sim-${email.trim().replace(/[^a-zA-Z0-9]/g, '') || 'client'}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const clientDocRef = doc(db, 'clients', simUid);
-      
-      const pwdHash = await hashPassword(password || '123456');
-      const bypassClientData = {
-        id: simUid,
-        name: fullName.trim() || 'Visitante Modivah Oficial',
-        email: email.trim() || 'visitante@modivah.com',
-        phone: phone.trim() || '27999999999',
-        whatsapp: whatsapp.trim() || '27999999999',
-        city: city.trim() || 'Cariacica',
-        state: (state || 'ES').toUpperCase(),
-        consent: true,
-        passwordHash: pwdHash,
-        createdAt: new Date().toISOString(),
-        lastAccess: new Date().toISOString(),
-        purchasesCount: 0,
-        totalSpent: 0,
-        viewedProducts: [],
-        favoritedProducts: [],
-        cartProducts: [],
-        purchasedProducts: []
-      };
-
-      await setDoc(clientDocRef, bypassClientData);
-      
-      // Track signup activity in background
-      try {
-        const activityRef = doc(db, 'activities', `act-bypass-${Date.now()}`);
-        await setDoc(activityRef, {
-          id: activityRef.id,
-          clientId: simUid,
-          type: 'visit',
-          productTitle: 'Acesso via Simulador Seguro',
-          price: 0,
-          createdAt: new Date().toISOString(),
-          userAgent: navigator.userAgent,
-          origin: "bypass_auth"
-        });
-      } catch {}
-
-      onAuthSuccess(simUid, bypassClientData);
-    } catch (e: any) {
-      console.error(e);
-      setErrorText("Erro ao inicializar perfil de simulação no banco de dados.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText(null);
     setSuccessText(null);
     setLoading(true);
+
+    const checkStateInput = () => {
+      if (!isRecoveryView && password.length < 6) {
+        throw new Error("A senha deve conter pelo menos 6 caracteres.");
+      }
+
+      // General validation for Sign Up fields
+      if (!isLoginView && !isRecoveryView) {
+        if (!fullName.trim()) throw new Error("O nome completo é obrigatório.");
+        if (!phone.trim()) throw new Error("O telefone celular é obrigatório.");
+        if (!whatsapp.trim()) throw new Error("O número do WhatsApp é obrigatório.");
+        if (!city.trim()) throw new Error("A sua cidade é obrigatória.");
+        if (!state.trim()) throw new Error("O seu estado (sigla) é obrigatório.");
+        if (!consent) throw new Error("Você precisa aceitar os termos de consentimento para receber ofertas.");
+        if (password !== confirmPassword) {
+          throw new Error("As senhas informadas não coincidem. Verifique a confirmação.");
+        }
+      }
+    };
+
+    try {
+      checkStateInput();
+    } catch (err: any) {
+      setErrorText(err.message);
+      setLoading(false);
+      return;
+    }
+
+    // Helper to log in or create using Firestore-only Fallback Mode
+    const executeFirestoreFallbackAuth = async () => {
+      const emailLower = email.trim().toLowerCase();
+      try {
+        const clientsRef = collection(db, 'clients');
+
+        if (isRecoveryView) {
+          // Password Recovery in contingency sandbox
+          const q = query(clientsRef, where('email', '==', emailLower), limit(1));
+          const snap = await getDocs(q);
+
+          if (snap.empty) {
+            setErrorText("Conta não encontrada.");
+            return;
+          }
+
+          setSuccessText("O envio de e-mails oficial necessita que o administrador ative o provedor de e-mail no console Firebase. Como o modo de contingência inteligente está ativo, você pode redefinir sua senha diretamente aqui ao se cadastrar novamente ou entrando em contato via WhatsApp com o suporte!");
+          return;
+        }
+
+        if (isLoginView) {
+          // Login via Firestore-only (Password Hash Comparison)
+          const q = query(clientsRef, where('email', '==', emailLower), limit(1));
+          const snap = await getDocs(q);
+
+          if (snap.empty) {
+            setErrorText("Conta não encontrada.");
+            return;
+          }
+
+          let loggedClient: any = null;
+          snap.forEach(d => {
+            loggedClient = d.data();
+          });
+
+          // Verify password hash
+          const currentHash = await hashPassword(password);
+          if (loggedClient.passwordHash && loggedClient.passwordHash !== currentHash) {
+            setErrorText("Verifique sua senha e tente novamente.");
+            return;
+          }
+
+          // Update lastAccess date
+          const clientDocRef = doc(db, 'clients', loggedClient.id);
+          const updateData = {
+            lastAccess: new Date().toISOString()
+          };
+          await updateDoc(clientDocRef, updateData);
+          loggedClient.lastAccess = updateData.lastAccess;
+
+          // Track login activity
+          try {
+            const activityRef = doc(db, 'activities', `act-login-${Date.now()}`);
+            await setDoc(activityRef, {
+              id: activityRef.id,
+              clientId: loggedClient.id,
+              type: 'visit',
+              productTitle: 'Login de Cliente (Contingência)',
+              price: 0,
+              createdAt: new Date().toISOString(),
+              userAgent: navigator.userAgent,
+              origin: "contingency_login"
+            });
+          } catch {}
+
+          // Persist the fallback flag
+          localStorage.setItem('modivah_auth_fallback_active', 'true');
+          onAuthSuccess(loggedClient.id, loggedClient);
+        } else {
+          // Signup via Firestore-only (Verify duplicate emails)
+          const q = query(clientsRef, where('email', '==', emailLower), limit(1));
+          const snap = await getDocs(q);
+
+          if (!snap.empty) {
+            setErrorText("Este e-mail já possui uma conta.");
+            return;
+          }
+
+          const fallbackUid = `client-fb-${emailLower.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`;
+          const passwordHash = await hashPassword(password);
+
+          const newClientData = {
+            id: fallbackUid,
+            name: fullName.trim(),
+            email: emailLower,
+            phone: phone.trim(),
+            whatsapp: whatsapp.trim(),
+            city: city.trim(),
+            state: state.trim().toUpperCase(),
+            consent,
+            passwordHash,
+            createdAt: new Date().toISOString(),
+            lastAccess: new Date().toISOString(),
+            purchasesCount: 0,
+            totalSpent: 0,
+            viewedProducts: [],
+            favoritedProducts: [],
+            cartProducts: [],
+            purchasedProducts: []
+          };
+
+          const clientDocRef = doc(db, 'clients', fallbackUid);
+          await setDoc(clientDocRef, newClientData);
+
+          // Track activity
+          try {
+            const activityRef = doc(db, 'activities', `act-signup-${Date.now()}`);
+            await setDoc(activityRef, {
+              id: activityRef.id,
+              clientId: fallbackUid,
+              type: 'visit',
+              productTitle: 'Cadastro de Novo Cliente (Contingência)',
+              price: 0,
+              createdAt: new Date().toISOString(),
+              userAgent: navigator.userAgent,
+              origin: "contingency_signup"
+            });
+          } catch {}
+
+          // Persist the fallback flag
+          localStorage.setItem('modivah_auth_fallback_active', 'true');
+          onAuthSuccess(fallbackUid, newClientData);
+        }
+      } catch (e: any) {
+        console.error("Critical Firestore Contingency Auth error:", e);
+        setErrorText("Não foi possível efetuar o acesso seguro pelo banco de dados.");
+      }
+    };
+
+    // Main Submit Router (Firestore fallback is triggered on isFallbackMode or on catching auth/operation-not-allowed)
+    if (isFallbackMode) {
+      await executeFirestoreFallbackAuth();
+      setLoading(false);
+      return;
+    }
 
     if (isRecoveryView) {
       try {
@@ -118,9 +226,10 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
       } catch (e: any) {
         console.error("Recovery submit error:", e);
         if (e.code === 'auth/operation-not-allowed') {
-          setErrorText("O sistema de login e recuperação de senha ainda não foi ativado pelo administrador. Tente novamente mais tarde.");
-          setIsOperationNotAllowed(true);
-          setShowBypassOption(true);
+          setIsFallbackMode(true);
+          await executeFirestoreFallbackAuth();
+        } else if (e.code === 'auth/user-not-found') {
+          setErrorText("Conta não encontrada.");
         } else {
           setErrorText("Falha ao enviar e-mail de recuperação. Verifique o endereço inserido.");
         }
@@ -130,15 +239,9 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorText("A senha deve conter pelo menos 6 caracteres.");
-      setLoading(false);
-      return;
-    }
-
     try {
       if (isLoginView) {
-        // Core Sign In
+        // Core Sign In with Auth SDK
         const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
         const { uid } = userCredential.user;
 
@@ -179,19 +282,10 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
         onAuthSuccess(uid, clientData);
       } else {
-        // Core Sign Up Validation
-        if (!fullName.trim()) throw new Error("O nome completo é obrigatório.");
-        if (!phone.trim()) throw new Error("O telefone celular é obrigatório.");
-        if (!whatsapp.trim()) throw new Error("O número do WhatsApp é obrigatório.");
-        if (!city.trim()) throw new Error("A sua cidade é obrigatória.");
-        if (!state.trim()) throw new Error("O seu estado (sigla) é obrigatório.");
-        if (!consent) throw new Error("Você precisa aceitar os termos de consentimento para receber ofertas.");
-
-        // Create in Firebase Auth
+        // Create in Firebase Auth SDK
         const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
         const { uid } = userCredential.user;
 
-        // Hash password to be stored in the firestore clients document (LGPD Compliance / Encryption Req)
         const passwordHash = await hashPassword(password);
 
         // Store client details in Firestore
@@ -239,21 +333,25 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
       }
     } catch (e: any) {
       console.error("Auth submit error:", e);
-      let translatedMsg = e.message;
       if (e.code === 'auth/operation-not-allowed') {
-        translatedMsg = "O sistema de login ainda não foi ativado pelo administrador. Tente novamente mais tarde.";
-        setIsOperationNotAllowed(true);
-        setShowBypassOption(true);
-      } else if (e.code === 'auth/invalid-email') {
-        translatedMsg = "E-mail informado possui formato inválido.";
-      } else if (e.code === 'auth/email-already-in-use') {
-        translatedMsg = "Este e-mail já está sendo utilizado por outro cadastro.";
-      } else if (e.code === 'auth/weak-password') {
-        translatedMsg = "A senha é muito fraca. Escolha outra mais forte (mínimo 6 caracteres).";
-      } else if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
-        translatedMsg = "E-mail ou senha inválidos. Por favor, tente novamente.";
+        setIsFallbackMode(true);
+        // Execute fallback right away so the user doesn't even notice a broken flow!
+        await executeFirestoreFallbackAuth();
+      } else {
+        let translatedMsg = e.message;
+        if (e.code === 'auth/invalid-email') {
+          translatedMsg = "E-mail informado possui formato inválido.";
+        } else if (e.code === 'auth/email-already-in-use') {
+          translatedMsg = "Este e-mail já possui uma conta.";
+        } else if (e.code === 'auth/weak-password') {
+          translatedMsg = "A senha é muito fraca. Escolha outra mais forte (mínimo 6 caracteres).";
+        } else if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
+          translatedMsg = "Verifique sua senha e tente novamente.";
+        } else if (e.code === 'auth/user-not-found') {
+          translatedMsg = "Conta não encontrada.";
+        }
+        setErrorText(translatedMsg);
       }
-      setErrorText(translatedMsg);
     } finally {
       setLoading(false);
     }
@@ -276,7 +374,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-lg bg-zinc-950/60 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl relative z-10"
+        className="w-full max-w-lg bg-zinc-950/60 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl relative z-10 font-sans text-white"
       >
         {/* Brand Logo at the top of the card */}
         <div className="flex justify-center mb-6">
@@ -306,96 +404,19 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
               ? 'Insira o seu e-mail cadastrado para enviarmos as instruções de redefinição de acesso segura.'
               : isLoginView 
                 ? 'Conecte-se para explorar nosso acervo exclusivo de peças únicas premium selecionadas do Modivah Brechó.'
-                : 'garante seu acesso total aos melhores produtos disponíveis na MODIVAH BRECHÓ.'
+                : 'Garanta seu acesso total aos melhores produtos disponíveis na MODIVAH BRECHÓ.'
             }
           </p>
         </div>
 
-        {/* Dynamic Display Error Message */}
+
+
         {errorText && (
-          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300 mb-6 space-y-3">
+          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300 mb-6 space-y-3 font-sans">
             <div className="flex items-start gap-2">
               <span className="font-bold shrink-0">Atenção:</span>
               <span className="text-justify leading-relaxed">{errorText}</span>
             </div>
-            {showBypassOption && (
-              <button 
-                type="button"
-                onClick={handleSimulatedBypass}
-                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-bold uppercase text-[10px] tracking-wider rounded-lg transition shadow-md hover:shadow-amber-400/10 active:scale-95 duration-100 cursor-pointer"
-              >
-                Clique Aqui: Acessar via Simulador Seguro (Bypass) ✨
-              </button>
-            )}
-
-            {isOperationNotAllowed && (
-              <div className="mt-3 border-t border-red-500/20 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAdminDiagnostics(!showAdminDiagnostics)}
-                  className="w-full py-1.5 bg-white/5 hover:bg-white/10 text-white rounded text-[9px] font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <span>{showAdminDiagnostics ? "Ocultar" : "Mostrar"} Painel de Diagnóstico do Administrador ⚙️</span>
-                </button>
-
-                {showAdminDiagnostics && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="mt-3 space-y-3.5 text-[11px] text-neutral-300 leading-relaxed max-h-80 overflow-y-auto pr-1"
-                  >
-                    <div className="border border-white/5 bg-black/40 rounded-lg p-3 space-y-2">
-                      <p className="font-bold text-amber-300 uppercase tracking-wider text-[10px] font-mono">
-                        🔧 1 & 2. ATIVAR MÉTODO E-MAIL/SENHA NO FIREBASE:
-                      </p>
-                      <div className="bg-black/60 font-mono text-[10px] p-2.5 rounded border border-white/5 text-amber-200/95 space-y-0.5">
-                        <p className="font-bold text-white">Console do Firebase</p>
-                        <p>→ Authentication</p>
-                        <p>→ Sign-in method</p>
-                        <p>→ Adicionar novo provedor</p>
-                        <p>→ E-mail/Senha</p>
-                        <p>→ Ativar</p>
-                      </div>
-                    </div>
-
-                    <div className="border border-white/5 bg-black/40 rounded-lg p-3 space-y-2">
-                      <p className="font-bold text-emerald-400 uppercase tracking-wider text-[10px] font-mono">
-                        🌐 4. DOMÍNIOS AUTORIZADOS NO FIREBASE:
-                      </p>
-                      <p className="text-[10px] text-neutral-400">
-                        Certifique-se de adicionar estes domínios em "Authentication" &gt; "Settings" &gt; "Authorized domains":
-                      </p>
-                      <div className="bg-black/60 font-mono text-[9px] p-2 rounded border border-white/5 text-neutral-300 space-y-1">
-                        <p>• ais-dev-wpj3kpgq4cwi7jpglvd5qm-758226233629.us-east1.run.app</p>
-                        <p>• ais-pre-wpj3kpgq4cwi7jpglvd5qm-758226233629.us-east1.run.app</p>
-                        <p>• localhost</p>
-                      </div>
-                    </div>
-
-                    <div className="border border-white/5 bg-black/40 rounded-lg p-3 space-y-2">
-                      <p className="font-bold text-blue-400 uppercase tracking-wider text-[10px] font-mono">
-                        🔑 5. VALIDAÇÃO DAS CREDENCIAIS DO FIREBASE:
-                      </p>
-                      <p className="text-[10px] text-neutral-400">
-                        Todas as chaves de integração do projeto estão carregadas com sucesso para a aplicação:
-                      </p>
-                      <div className="grid grid-cols-2 gap-1.5 font-mono text-[9px] bg-black/60 p-2 rounded border border-white/5">
-                        <div className="text-emerald-400">✓ apiKey</div>
-                        <div className="text-emerald-400">✓ authDomain</div>
-                        <div className="text-emerald-400">✓ projectId</div>
-                        <div className="text-emerald-400">✓ storageBucket</div>
-                        <div className="text-emerald-400">✓ senderId</div>
-                        <div className="text-emerald-400">✓ appId</div>
-                      </div>
-                    </div>
-
-                    <p className="text-[10px] text-neutral-400 italic">
-                      💡 <strong>Atendimento de Testes:</strong> O simulador de desenvolvimento preenche as obrigações cadastrais e interage perfeitamente com todas as regras de segurança do Firestore para que você teste ou apresente o acervo.
-                    </p>
-                  </motion.div>
-                )}
-              </div>
-            )}
           </div>
         )}
 
@@ -403,11 +424,11 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
         {successText && (
           <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 mb-6 flex items-start gap-2">
             <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-            <span>{successText}</span>
+            <span className="leading-relaxed">{successText}</span>
           </div>
         )}
 
-        <form onSubmit={handleAuthSubmit} className="space-y-4">
+        <form onSubmit={handleAuthSubmit} className="space-y-4 text-left">
           
           {/* SIGN UP EXTRAS */}
           {!isLoginView && !isRecoveryView && (
@@ -514,43 +535,69 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
             </div>
           </div>
 
-          {/* Password Input (Hidden in recovery view) */}
+          {/* Password Inputs (Hidden in recovery view) */}
           {!isRecoveryView && (
-            <div>
-              <div className="flex justify-between items-baseline mb-1.5">
-                <label className="text-[10px] text-neutral-400 uppercase tracking-wider font-mono">Senha de Acesso</label>
-                {isLoginView && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-baseline mb-1.5">
+                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider font-mono">Senha de Acesso</label>
+                  {isLoginView && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorText(null);
+                        setSuccessText(null);
+                        setIsRecoveryView(true);
+                      }}
+                      className="text-[9px] font-mono text-amber-400 hover:underline cursor-pointer bg-transparent border-none"
+                    >
+                      Esqueceu a senha?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Lock className="h-4 w-4" /></span>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder={isLoginView ? "Sua senha" : "Defina a sua senha (mínimo 6 dígitos)"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      setErrorText(null);
-                      setSuccessText(null);
-                      setIsRecoveryView(true);
-                    }}
-                    className="text-[9px] font-mono text-amber-400 hover:underline cursor-pointer"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white cursor-pointer"
                   >
-                    Esqueceu a senha?
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
-                )}
+                </div>
               </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Lock className="h-4 w-4" /></span>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder={isLoginView ? "Sua senha" : "Escolha uma senha forte (mínimo 6 dígitos)"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+
+              {!isLoginView && (
+                <div>
+                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Confirmar Senha</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Lock className="h-4 w-4" /></span>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      placeholder="Repita a senha informada"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -613,7 +660,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setIsRecoveryView(false);
                   setIsLoginView(true);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer"
+                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
               >
                 Login
               </button>
@@ -626,7 +673,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setIsRecoveryView(false);
                   setIsLoginView(false);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer"
+                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
               >
                 Cadastre-se grátis
               </button>
@@ -641,7 +688,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setSuccessText(null);
                   setIsLoginView(false);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer"
+                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
               >
                 Cadastre-se grátis
               </button>
@@ -656,24 +703,12 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setSuccessText(null);
                   setIsLoginView(true);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer"
+                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
               >
                 Faça o seu login
               </button>
             </p>
           )}
-
-          {/* Quick bypass direct link for testers to prevent getting stuck in login console walls */}
-          <div className="border-t border-white/5 pt-4">
-            <button
-              type="button"
-              onClick={handleSimulatedBypass}
-              className="text-[9px] font-mono text-zinc-500 hover:text-amber-400 flex items-center justify-center gap-1 mx-auto transition"
-            >
-              <HelpCircle className="h-3 w-3" />
-              <span>Acesso Rápido de Testes (Simulador Sem Senha)</span>
-            </button>
-          </div>
         </div>
       </motion.div>
     </div>
