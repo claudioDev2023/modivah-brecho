@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, ShoppingBag, ArrowRight, MessageSquare, Plus, Minus, CreditCard, Copy, Check, Upload, Image, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, MessageSquare, Plus, Minus, CreditCard, Copy, Check, Upload, Image, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react';
 import { CartItem, Product } from '../types';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -73,6 +73,36 @@ export default function CartDrawer({
   currentClient
 }: CartDrawerProps) {
   if (!isOpen) return null;
+
+  const [whatsappNotFound, setWhatsAppNotFound] = useState(false);
+
+  const triggerWhatsApp = (phone: string, text: string) => {
+    setWhatsAppNotFound(false);
+    const cleanPhone = String(phone || '').replace(/\D/g, '');
+    const encodedText = encodeURIComponent(text);
+    const deepLink = `whatsapp://send?phone=${cleanPhone}&text=${encodedText}`;
+
+    const start = Date.now();
+    let opened = false;
+
+    const onBlur = () => {
+      opened = true;
+    };
+    window.addEventListener('blur', onBlur);
+
+    // Navigate to local deep link safely
+    window.location.href = deepLink;
+
+    setTimeout(() => {
+      window.removeEventListener('blur', onBlur);
+      if (!opened && document.hasFocus()) {
+        const elapsed = Date.now() - start;
+        if (elapsed < 1900) {
+          setWhatsAppNotFound(true);
+        }
+      }
+    }, 1500);
+  };
 
   const [clientName, setClientName] = useState(() => {
     if (currentClient && currentClient.name) return currentClient.name;
@@ -278,9 +308,8 @@ export default function CartDrawer({
         onClearCart();
         setIsCheckingStock(false);
 
-        // Open WhatsApp automatically for the first number!
-        const encodedText = encodeURIComponent(text);
-        window.open(`https://wa.me/5527988084694?text=${encodedText}`, '_blank');
+        // Open WhatsApp automatically for the first number via Deep Link!
+        triggerWhatsApp('5527988084694', text);
       } catch (err: any) {
         console.error("Atomic transaction failed of checkout:", err);
         setCheckoutError(err.message || "Produto indisponível. Esta peça já foi vendida.");
@@ -418,8 +447,7 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => {
-                    const encodedText = encodeURIComponent(orderCompletedData.waText);
-                    window.open(`https://wa.me/5527988084694?text=${encodedText}`, '_blank');
+                    triggerWhatsApp('5527988084694', orderCompletedData.waText);
                   }}
                   className="w-full py-3.5 bg-[#25d366] hover:bg-[#20ba59] text-black font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg shadow-[#25d366]/10 active:scale-95 duration-150"
                 >
@@ -430,8 +458,7 @@ export default function CartDrawer({
                 <button
                   type="button"
                   onClick={() => {
-                    const encodedText = encodeURIComponent(orderCompletedData.waText);
-                    window.open(`https://wa.me/5527988226654?text=${encodedText}`, '_blank');
+                    triggerWhatsApp('5527988226654', orderCompletedData.waText);
                   }}
                   className="w-full py-3.5 bg-neutral-900 hover:bg-neutral-850 border border-white/10 text-emerald-400 font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg active:scale-95 duration-150"
                 >
@@ -885,6 +912,40 @@ export default function CartDrawer({
 
         </div>
       </div>
+
+      {whatsappNotFound && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full space-y-4 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto w-12 h-12 bg-rose-500/15 border border-rose-500/30 rounded-full flex items-center justify-center text-rose-400">
+              <AlertCircle className="h-6 w-6 stroke-[2.5]" />
+            </div>
+            <div className="space-y-1.5">
+              <h4 className="text-sm font-bold text-white uppercase font-mono tracking-wider">WhatsApp não encontrado</h4>
+              <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
+                Não conseguimos abrir o aplicativo WhatsApp instalado neste celular/computador automaticamente. Por favor, certifique-se de que ele está instalado.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <a 
+                href="https://www.whatsapp.com/download" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full py-2.5 bg-[#25d366] hover:bg-[#20ba59] text-black text-xs font-black uppercase tracking-widest rounded-xl transition text-center block font-mono cursor-pointer"
+              >
+                Instalar WhatsApp
+              </a>
+              <button 
+                type="button"
+                onClick={() => setWhatsAppNotFound(false)}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-neutral-300 text-xs font-semibold hover:text-white transition font-mono uppercase cursor-pointer"
+              >
+                Voltar e Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
