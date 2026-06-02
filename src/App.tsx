@@ -77,6 +77,7 @@ export default function App() {
     }
   });
   const [isClientAuthLoading, setIsClientAuthLoading] = useState(true);
+  const [isInitialLoadingProducts, setIsInitialLoadingProducts] = useState(true);
 
   // Subscribe to core Authentication states
   useEffect(() => {
@@ -260,9 +261,14 @@ export default function App() {
               .then(() => notify("Estoque recuperado e sincronizado com o banco de dados remoto!"))
               .catch((err) => console.error("Erro ao subir cache local para o Firestore:", err));
             setProducts(cached);
+            setIsInitialLoadingProducts(false);
           } else {
             // Empty DB and empty cache: seed with default catalog
-            seedDatabase();
+            seedDatabase().then(() => {
+              setIsInitialLoadingProducts(false);
+            }).catch(() => {
+              setIsInitialLoadingProducts(false);
+            });
           }
         } else {
           // Sort fetched products by creation timestamp descending
@@ -277,6 +283,7 @@ export default function App() {
           } catch (err) {
             console.warn('Erro ao atualizar modivah_products_cache:', err);
           }
+          setIsInitialLoadingProducts(false);
         }
       },
       (error) => {
@@ -293,6 +300,7 @@ export default function App() {
         } catch (e) {
           console.warn('Erro ao ler cache local após falha do Firestore:', e);
         }
+        setIsInitialLoadingProducts(false);
       }
     );
 
@@ -821,13 +829,15 @@ export default function App() {
     return matchesCategory && matchesSize && matchesSearch;
   });
 
-  if (isClientAuthLoading) {
+  if (isClientAuthLoading || isInitialLoadingProducts) {
     return (
-      <div className="min-h-screen bg-[#070707] flex items-center justify-center font-mono text-xs text-amber-200">
-        <div className="flex flex-col items-center gap-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-amber-400 border-zinc-700 mx-auto" />
-          <span>Carregando Acervo Seguro Modivah...</span>
-        </div>
+      <div className="splash-screen" id="app-splash-screen">
+        <img 
+          src={logoImg} 
+          alt="MODIVAH BRECHÓ" 
+          className="logo-splash"
+          referrerPolicy="no-referrer"
+        />
       </div>
     );
   }

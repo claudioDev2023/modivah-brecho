@@ -21,3 +21,33 @@ html, body, #root {
 .animate-pulse-scale {
   animation: pulse-scale 2s infinite ease-in-out;
 }
+
+.splash-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100%;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.logo-splash {
+  width: 70vw; /* Mobile: between 65% and 75% */
+  max-width: 500px;
+  height: auto;
+}
+
+/* Tablet: Logo entre 55% e 65% da largura da tela */
+@media (min-width: 640px) and (max-width: 1024px) {
+  .logo-splash {
+    width: 60vw;
+  }
+}
+
+/* Desktop: Logo entre 40% e 50% da largura da tela */
+@media (min-width: 1025px) {
+  .logo-splash {
+    width: 45vw;
+  }
+}
