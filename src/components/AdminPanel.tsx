@@ -521,6 +521,7 @@ export default function AdminPanel({
                     const data = await response.json();
                     if (response.ok && data.token) {
                       setIsAuthenticated(true);
+                      setActiveTab('inventory');
                       sessionStorage.setItem('modivah_admin_auth', 'true');
                       sessionStorage.setItem('modivah_admin_token', data.token);
                       localStorage.setItem('modivah_admin_auth', 'true');
@@ -532,6 +533,7 @@ export default function AdminPanel({
                     } else if (typedPassword === '77277727') {
                       // Reliable immediate fallback for master recovery key in case of mismatch
                       setIsAuthenticated(true);
+                      setActiveTab('inventory');
                       sessionStorage.setItem('modivah_admin_auth', 'true');
                       sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
                       localStorage.setItem('modivah_admin_auth', 'true');
@@ -555,6 +557,7 @@ export default function AdminPanel({
                     if (typedPassword === '77277727') {
                       // Emergency offline/connection-failure bypass for master recovery key
                       setIsAuthenticated(true);
+                      setActiveTab('inventory');
                       sessionStorage.setItem('modivah_admin_auth', 'true');
                       sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
                       localStorage.setItem('modivah_admin_auth', 'true');
@@ -642,7 +645,8 @@ export default function AdminPanel({
   }
 
   // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
-  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes'>('comprovantes');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes'>('inventory');
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [lowStockLimit, setLowStockLimit] = useState<number>(() => {
     return Number(localStorage.getItem('modivah_low_stock_limit')) || 2;
   });
@@ -953,95 +957,7 @@ export default function AdminPanel({
                   </div>
                 </div>
 
-                {/* Histórico de Movimentação de Estoque */}
-                <section className="bg-neutral-900/30 border border-white/5 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs uppercase tracking-widest text-[#ffe4a0] font-semibold flex items-center gap-2 font-mono">
-                      <Database className="h-4 w-4 text-amber-500 animate-pulse" />
-                      <span>Histórico de Movimentação de Estoque</span>
-                    </h3>
-                    <span className="text-[9px] text-neutral-500 font-mono bg-white/5 px-2 py-0.5 rounded">
-                      Sincronizado em tempo real
-                    </span>
-                  </div>
 
-                  <p className="text-[11px] text-neutral-400 font-light">
-                    Abaixo estão registradas todas as entradas e saídas de unidades do acervo de luxo de forma auditável e transparente:
-                  </p>
-
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1.5 scrollbar-thin scrollbar-thumb-white/10" id="admin-movements-feed">
-                    {stockMovementsList.length === 0 ? (
-                      <div className="text-center py-6 border border-dashed border-white/5 rounded-lg">
-                        <p className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">
-                          Nenhuma movimentação de estoque registrada ainda
-                        </p>
-                      </div>
-                    ) : (
-                      stockMovementsList.slice(0, 50).map((mov: any) => {
-                        const isEntrada = mov.type === "entrada";
-                        const dateFormatted = new Date(mov.createdAt).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-
-                        let reasonLabel = "Ajuste Curadora";
-                        if (mov.reason === "venda_cliente") reasonLabel = "Venda Cliente";
-                        if (mov.reason === "criacao_produto") reasonLabel = "Peça Nova";
-
-                        return (
-                          <div
-                            key={mov.id}
-                            className="flex items-center justify-between p-2.5 bg-black/40 border border-white/[0.03] rounded-lg text-xs"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className={`h-6 w-6 rounded flex items-center justify-center font-mono text-[10px] font-bold shrink-0 ${
-                                  isEntrada
-                                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
-                                    : "bg-red-500/10 border border-red-500/20 text-red-400"
-                                }`}
-                              >
-                                {isEntrada ? `+${mov.quantity}` : `-${mov.quantity}`}
-                              </span>
-
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-bold text-white truncate">
-                                  {mov.productTitle}
-                                </p>
-                                <div className="flex items-center gap-2 text-[9px] text-neutral-500 font-mono mt-0.5">
-                                  <span
-                                    className={`px-1 rounded text-[8px] font-bold uppercase ${
-                                      mov.reason === "venda_cliente"
-                                        ? "bg-emerald-950/40 text-emerald-400 border border-emerald-800/25"
-                                        : mov.reason === "criacao_produto"
-                                        ? "bg-amber-950/40 text-amber-400 border border-amber-800/25"
-                                        : "bg-blue-950/40 text-blue-400 border border-blue-800/25"
-                                    }`}
-                                  >
-                                    {reasonLabel}
-                                  </span>
-                                  <span>
-                                    por{" "}
-                                    <strong className="text-neutral-400 font-sans">
-                                      {mov.operator || "Admin"}
-                                    </strong>
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="text-right font-mono text-[9px] text-neutral-500 shrink-0 select-none">
-                              <p>{dateFormatted}</p>
-                              <p className="mt-0.5 text-[8px]">Novo Estoque: {mov.newStock} un.</p>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </section>
 
                 {/* Quick action section */}
             <section className="bg-amber-950/25 border border-amber-950 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1180,69 +1096,31 @@ export default function AdminPanel({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {/* Name field */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Título da Roupa (Anúncio)</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Título da Roupa (Anúncio)</label>
                     <input
                       type="text"
                       required
                       placeholder="Ex: Blazer de Alfaiataria Creme"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 font-medium placeholder:text-neutral-600"
                     />
-                  </div>
-
-                  {/* Brand field */}
-                  <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Grife (Marca)</label>
-                    <div className="space-y-1.5">
-                      <select
-                        value={brandSelectValue}
-                        onChange={(e) => {
-                          setBrandSelectValue(e.target.value);
-                          if (e.target.value !== 'Outros') {
-                            setBrand(e.target.value);
-                          } else {
-                            setBrand('');
-                          }
-                        }}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                      >
-                        <option className="bg-neutral-900 text-white" value="Zara Premium">Zara Premium</option>
-                        <option className="bg-neutral-900 text-white" value="Farm">Farm</option>
-                        <option className="bg-neutral-900 text-white" value="Schutz">Schutz</option>
-                        <option className="bg-neutral-900 text-white" value="Animale">Animale</option>
-                        <option className="bg-neutral-900 text-white" value="Le Lis Blanc">Le Lis Blanc</option>
-                        <option className="bg-neutral-900 text-white" value="Colcci Alquimia">Colcci Alquimia</option>
-                        <option className="bg-neutral-900 text-white" value="Morena Rosa">Morena Rosa</option>
-                        <option className="bg-neutral-900 text-white" value="Outros">Outros</option>
-                      </select>
-                      {brandSelectValue === 'Outros' && (
-                        <input
-                          type="text"
-                          required
-                          placeholder="Digite o nome da marca/grife"
-                          value={brand}
-                          onChange={(e) => setBrand(e.target.value)}
-                          className="w-full bg-amber-500/5 border border-amber-500/30 rounded-lg px-3 py-2 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400 placeholder:text-neutral-600 animate-in fade-in slide-in-from-top-1 duration-200"
-                        />
-                      )}
-                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-7 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
                   {/* Category */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Categoria</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Categoria</label>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-amber-500 cursor-pointer font-medium"
                     >
-                      <option className="bg-neutral-900 text-white" value="Vestidos">Vestidos</option>
+                      <option className="bg-neutral-900 text-white" value="Vestidos font-medium">Vestidos</option>
                       <option className="bg-neutral-900 text-white" value="Casacos">Casacos</option>
                       <option className="bg-neutral-900 text-white" value="Shortes">Shortes</option>
                       <option className="bg-neutral-900 text-white" value="Roupas Fitness">Roupas Fitness</option>
@@ -1257,20 +1135,20 @@ export default function AdminPanel({
 
                   {/* Size */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Tamanho</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Tamanho</label>
                     <input
                       type="text"
                       required
                       placeholder="Ex: M, P, 38..."
                       value={size}
                       onChange={(e) => setSize(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 font-medium placeholder:text-neutral-600"
                     />
                   </div>
 
                   {/* Price */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Preço Atual (R$)</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Preço Atual (R$)</label>
                     <input
                       type="number"
                       required
@@ -1279,13 +1157,13 @@ export default function AdminPanel({
                       placeholder="e.g. 199.00"
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 font-bold placeholder:text-neutral-600"
                     />
                   </div>
 
                   {/* Preço Anterior */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Preço Antes (R$)</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Preço Antes (R$)</label>
                     <input
                       type="number"
                       min="0"
@@ -1293,13 +1171,13 @@ export default function AdminPanel({
                       placeholder="Semelhante: 499.00"
                       value={originalPrice}
                       onChange={(e) => setOriginalPrice(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-amber-200 focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-amber-200 focus:outline-none focus:border-amber-500 placeholder:text-neutral-600"
                     />
                   </div>
 
                   {/* Stock */}
                   <div>
-                    <label className="text-[10px] text-amber-200 block mb-1 font-semibold">Qtd Estoque</label>
+                    <label className="text-xs text-amber-200 block mb-1 font-bold uppercase tracking-wider">Qtd Estoque</label>
                     <input
                       type="number"
                       required
@@ -1307,75 +1185,52 @@ export default function AdminPanel({
                       placeholder="Ex: 1"
                       value={stock}
                       onChange={(e) => setStock(e.target.value)}
-                      className="w-full bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
-                    />
-                  </div>
-
-                  {/* SKU */}
-                  <div>
-                    <label className="text-[10px] text-amber-300 block mb-1 font-semibold">SKU do Produto</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: M-9823"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-amber-300 focus:outline-none focus:border-amber-500 font-mono font-bold"
+                      className="w-full bg-amber-500/5 border border-amber-500/20 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
                     />
                   </div>
 
                   {/* Tag */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Tag Visual</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Tag Visual</label>
                     <input
                       type="text"
-                      placeholder="Ex: Seda Pura, Raro"
+                      placeholder="Ex: Novo, Exclusivo"
                       value={tag}
                       onChange={(e) => setTag(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 font-medium placeholder:text-neutral-600"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   {/* Condition selector */}
                   <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Conservação</label>
+                    <label className="text-xs text-neutral-400 block mb-1 font-semibold uppercase tracking-wider">Conservação</label>
                     <select
                       value={condition}
                       onChange={(e) => setCondition(e.target.value as any)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 cursor-pointer font-medium"
                     >
                       <option className="bg-neutral-900 text-white" value="Novo com Etiqueta">Novo com Etiqueta</option>
                       <option className="bg-neutral-900 text-white" value="Excelente">Excelente estado</option>
                       <option className="bg-neutral-900 text-white" value="Gentilmente Usado">Gentilmente Usado</option>
                     </select>
                   </div>
-
-                  {/* Material composition */}
-                  <div>
-                    <label className="text-[10px] text-neutral-400 block mb-1">Material de Confecção</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: 100% Algodão Reciclável, Seda"
-                      value={material}
-                      onChange={(e) => setMaterial(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
                 </div>
 
                 {/* Edit Narrative / Description */}
                 <div>
-                  <label className="text-[10px] text-neutral-400 block mb-1 flex items-center gap-1">
-                    <BookOpen className="h-3 w-3 text-neutral-400" />
-                    <span>Descrição do Anúncio (História & Detalhes da Roupa)</span>
+                  <label className="text-xs text-neutral-400 block mb-1.5 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                    <BookOpen className="h-4 w-4 text-neutral-400" />
+                    <span>Descrição do Produto</span>
                   </label>
                   <textarea
-                    placeholder="Descreva a peça única, corte, estado de conservação real, caimento, etc..."
+                    required
+                    placeholder="Escreva manualmente a descrição do produto (ex: caimento, tecidos, detalhes únicos, estado de conservação real)..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 resize-none font-light leading-relaxed"
+                    rows={4}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3.5 py-3 text-base text-white focus:outline-none focus:border-amber-500 resize-none font-normal leading-relaxed placeholder:text-neutral-600"
                   />
                 </div>
 
@@ -1874,11 +1729,9 @@ export default function AdminPanel({
                         />
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] uppercase text-amber-300 font-semibold">{p.brand}</span>
-                            <span className="text-[9px] text-neutral-500 font-mono">({p.size})</span>
-                            <span className="text-[9px] text-zinc-500 font-mono tracking-wider ml-1 uppercase">SKU: <b className="text-zinc-300">{p.sku || 'M-GEN'}</b></span>
+                            <span className="text-[10px] text-neutral-400 font-mono font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded">Tamanho: {p.size}</span>
                             {p.video && (
-                              <span className="text-[8px] bg-red-500/10 text-red-400 border border-red-500/20 px-1 py-0.2 rounded uppercase font-mono">Vídeo</span>
+                              <span className="text-[8px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded uppercase font-mono">Vídeo</span>
                             )}
                           </div>
                           <h4 className="text-xs text-white font-normal line-clamp-1">{p.title}</h4>
@@ -1919,7 +1772,7 @@ export default function AdminPanel({
 
                         {/* Delete logic */}
                         <button
-                          onClick={() => onDeleteProduct(p.id)}
+                          onClick={() => setProductToDelete(p)}
                           className="text-neutral-500 hover:text-red-400 border border-white/5 hover:border-red-500/20 p-1.5 rounded bg-white/5"
                           title="Deletar da loja"
                         >
@@ -2533,6 +2386,70 @@ export default function AdminPanel({
           </div>
         );
       })()}
+
+      {/* ⚠️ DIALOG CONFIRMAÇÃO DE EXCLUSÃO */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" id="custom-delete-confirm-overlay">
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setProductToDelete(null)} />
+          <div className="relative bg-neutral-900 border border-white/10 max-w-sm w-full rounded-2xl overflow-hidden shadow-2xl z-10 p-6 animate-in zoom-in-95 duration-200" id="custom-delete-confirm-box">
+            <div className="text-center space-y-4">
+              <div className="h-12 w-12 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-red-500 uppercase tracking-widest font-mono">ATENÇÃO</h3>
+                <p className="text-xs text-white font-semibold">
+                  Deseja realmente excluir este produto?
+                </p>
+                <p className="text-[10px] text-zinc-500">
+                  Esta ação não poderá ser desfeita.
+                </p>
+              </div>
+
+              {/* Box referencing the specific product to be deleted */}
+              <div className="bg-black/30 p-2.5 rounded-lg border border-white/5 flex items-center gap-3 text-left">
+                <img 
+                  src={productToDelete.image} 
+                  alt={productToDelete.title} 
+                  referrerPolicy="no-referrer"
+                  className="h-10 w-8 object-cover rounded shrink-0 bg-neutral-950 border border-white/5"
+                />
+                <div className="min-w-0">
+                  <h4 className="text-[11px] font-semibold text-white truncate">{productToDelete.title}</h4>
+                  <p className="text-[9px] text-neutral-400 font-mono mt-0.5">Tamanho: {productToDelete.size} • R$ {productToDelete.price.toFixed(2)}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  id="btn-delete-cancel"
+                  onClick={() => setProductToDelete(null)}
+                  className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded-lg text-xs font-bold transition cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  id="btn-delete-confirm"
+                  onClick={async () => {
+                    const pid = productToDelete.id;
+                    setProductToDelete(null);
+                    try {
+                      await onDeleteProduct(pid);
+                    } catch (error) {
+                      console.error("Erro ao deletar produto:", error);
+                    }
+                  }}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition cursor-pointer font-sans"
+                >
+                  Excluir Produto
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

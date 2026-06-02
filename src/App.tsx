@@ -732,42 +732,40 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    if (confirm("Deseja realmente remover esta peça única do catálogo do brechó?")) {
-      try {
-        // Synchronous optimistic update to local state and localStorage cache
-        setProducts((prev) => {
-          const updated = prev.filter(p => p.id !== productId);
-          try {
-            localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
-          } catch (err) {
-            console.warn(err);
-          }
-          return updated;
-        });
-
-        // 1. Direct delete from Firestore on the client-side
-        const docRef = doc(db, 'products', productId);
-        await deleteDoc(docRef);
-
-        // 2. Safe secondary backend delete
+    try {
+      // Synchronous optimistic update to local state and localStorage cache
+      setProducts((prev) => {
+        const updated = prev.filter(p => p.id !== productId);
         try {
-          await authFetch('/api/admin/delete-product', {
-            method: 'POST',
-            body: JSON.stringify({ productId })
-          });
-        } catch (be) {
-          console.warn('Erro secundário ao excluir produto no backend:', be);
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updated));
+        } catch (err) {
+          console.warn(err);
         }
+        return updated;
+      });
 
-        notify("Peça removida do estoque.");
-      } catch (error: any) {
-        console.warn('Erro ao remover produto no Firestore, revertendo:', error);
-        notify(`Erro: ${error.message}`);
-        try {
-          const cached = localStorage.getItem('modivah_products_cache');
-          if (cached) setProducts(JSON.parse(cached));
-        } catch (e) {}
+      // 1. Direct delete from Firestore on the client-side
+      const docRef = doc(db, 'products', productId);
+      await deleteDoc(docRef);
+
+      // 2. Safe secondary backend delete
+      try {
+        await authFetch('/api/admin/delete-product', {
+          method: 'POST',
+          body: JSON.stringify({ productId })
+        });
+      } catch (be) {
+        console.warn('Erro secundário ao excluir produto no backend:', be);
       }
+
+      notify("Peça removida do estoque.");
+    } catch (error: any) {
+      console.error('Erro ao remover produto do sistema:', error);
+      notify("Não foi possível excluir o produto. Tente novamente.");
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) setProducts(JSON.parse(cached));
+      } catch (e) {}
     }
   };
 

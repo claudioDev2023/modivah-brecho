@@ -544,11 +544,47 @@ async function startServer() {
 
     if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
 
+    // Helper to delete associated file
+    const deleteUploadFile = (url: string) => {
+      if (typeof url === 'string' && url.includes('/uploads/')) {
+        try {
+          const parts = url.split('/uploads/');
+          const filename = parts[parts.length - 1];
+          if (filename) {
+            const filePath = path.join(process.cwd(), "uploads", filename);
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log(`[Delete System] Associated upload file deleted successfully: ${filePath}`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`[Delete System Error] Failed to delete file for url ${url}:`, err.message);
+        }
+      }
+    };
+
     try {
+      // Fetch product to find associated images to delete
+      const prodDoc = await adminDb.collection("products").doc(productId).get();
+      if (prodDoc.exists) {
+        const productData = prodDoc.data();
+        if (productData) {
+          // Main image
+          if (productData.image) {
+            deleteUploadFile(productData.image);
+          }
+          // Additional images
+          if (Array.isArray(productData.images)) {
+            productData.images.forEach((imgUrl: any) => deleteUploadFile(imgUrl));
+          }
+        }
+      }
+
       await adminDb.collection("products").doc(productId).delete();
       auditLog("DELECAO_PRODUTO", ip, `Produto Deletado: ID ${productId}`);
       return res.json({ success: true });
     } catch (e: any) {
+      console.error("[Delete Product API Error]", e);
       return res.status(500).json({ error: "Não foi possível remover o produto.", details: e.message });
     }
   });
