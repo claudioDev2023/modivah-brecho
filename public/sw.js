@@ -1,4 +1,4 @@
-const CACHE_NAME = 'modivah-brecho-v2';
+const CACHE_NAME = 'modivah-brecho-v3';
 
 // Active network-first strategy for smooth, seamless updates
 self.addEventListener('install', (event) => {
