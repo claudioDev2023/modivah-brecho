@@ -1,8 +1,17 @@
-const CACHE_NAME = 'modivah-brecho-v4';
+const CACHE_NAME = 'modivah-brecho-cache-v5';
+const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/favicon.ico'
+];
 
-// Active network-first strategy for smooth, seamless updates
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS);
+    }).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -11,36 +20,49 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Clearing old cache');
+            console.log('[Service Worker] Clearing old cache:', cache);
             return caches.delete(cache);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Bypasses chrome extension requests and external API payloads
-  if (!event.request.url.startsWith(self.location.origin)) {
+  // Do not intercept non-GET requests or chrome extension calls or API requests
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // Do not intercept API backend requests
+  if (event.request.url.includes('/api/')) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cache successful requests dynamically
-        if (response.status === 200) {
-          const responseClone = response.clone();
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Fetch real copy in background and update cache (Stale While Revalidate)
+        fetch(event.request).then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, networkResponse);
+            });
+          }
+        }).catch(() => {});
+        return cachedResponse;
+      }
+
+      return fetch(event.request).then((networkResponse) => {
+        if (networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseClone);
           });
         }
-        return response;
-      })
-      .catch(() => {
-        // Local cache fallback when off-line
-        return caches.match(event.request);
-      })
+        return networkResponse;
+      });
+    })
   );
 });

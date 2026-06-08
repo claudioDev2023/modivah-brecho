@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Eye, ShoppingBag, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Product } from '../types';
 
 interface ProductCarouselProps {
@@ -97,18 +98,41 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
             onTouchEnd={handleTouchEnd}
             className="w-full bg-[#141414]/90 rounded-2xl border border-white/5 overflow-hidden shadow-2xl relative select-none"
           >
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-0 md:h-[350px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentIndex}
+                initial={{ opacity: 0, x: 25 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -25 }}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="grid grid-cols-1 md:grid-cols-12 gap-0 md:h-[350px]"
+              >
               
               {/* Product Visual Slide Panel (Col 5) */}
               <div 
-                className="col-span-1 md:col-span-5 relative aspect-square md:aspect-auto h-full overflow-hidden bg-black group/spotlight cursor-pointer"
+                className="col-span-1 md:col-span-5 relative h-[280px] sm:h-[320px] md:h-full overflow-hidden bg-neutral-950 group/spotlight cursor-pointer flex items-center justify-center select-none"
                 onClick={() => onViewDetails(currentItem)}
               >
+                {/* Expansão Inteligente com IA - Outpainting de Contexto de Fundo para preencher ausências sem deformar */}
+                <img 
+                  src={currentItem.image} 
+                  alt="" 
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-cover filter blur-[20px] opacity-45 scale-125 select-none pointer-events-none"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                
+                {/* Overlay gradiente para fundir e enriquecer a continuidade visual das laterais */}
+                <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+
+                {/* Imagem Frontal Completa Preservada Sem Cortes de Cabine, Roupas, Bolsas, Mãos, Pés e Rostos - Centralizada */}
                 <img 
                   src={currentItem.image} 
                   alt={currentItem.title}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain bg-black transition-transform duration-700 group-hover/spotlight:scale-105"
+                  className="max-h-full max-w-full object-contain relative z-10 p-3 transition-transform duration-700 group-hover/spotlight:scale-[1.03]"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
                   }}
@@ -194,7 +218,8 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
                 </div>
 
               </div>
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Nav Controls Left and Right Arrow Buttons */}

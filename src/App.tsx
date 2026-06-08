@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Filter, RotateCcw, HelpCircle, Check, Search, Calendar, Heart, ArrowRight, Sparkles,
@@ -12,8 +12,8 @@ import Hero from './components/Hero';
 import ProductCard from './components/ProductCard';
 import ProductModal from './components/ProductModal';
 import CartDrawer from './components/CartDrawer';
-import StylistChat from './components/StylistChat';
-import AdminPanel from './components/AdminPanel';
+const StylistChat = lazy(() => import('./components/StylistChat'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
 import ProductCarousel from './components/ProductCarousel';
 import ClientAuth from './components/ClientAuth';
 import CommentsSection from './components/CommentsSection';
@@ -78,6 +78,15 @@ export default function App() {
   });
   const [isClientAuthLoading, setIsClientAuthLoading] = useState(true);
   const [isInitialLoadingProducts, setIsInitialLoadingProducts] = useState(true);
+  const [splashActive, setSplashActive] = useState(true);
+
+  // Elegant minimum display timer for the high-end luxury white Brand Splash Screen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSplashActive(false);
+    }, 1700); // 1.7 seconds of pure luxury brand showcase with zoom & shining fade
+    return () => clearTimeout(timer);
+  }, []);
 
   // Subscribe to core Authentication states
   useEffect(() => {
@@ -827,15 +836,26 @@ export default function App() {
     return matchesCategory && matchesSize && matchesSearch;
   });
 
-  if (isClientAuthLoading || isInitialLoadingProducts) {
+  if (splashActive || isClientAuthLoading || isInitialLoadingProducts) {
     return (
-      <div className="splash-screen" id="app-splash-screen">
-        <img 
-          src={logoImg} 
-          alt="MODIVAH BRECHÓ" 
-          className="logo-splash"
-          referrerPolicy="no-referrer"
-        />
+      <div className="splash-screen bg-white" id="app-splash-screen">
+        <div className="splash-aura" />
+        <div className="splash-content text-center">
+          <img 
+            src={logoImg} 
+            alt="MODIVAH BRECHÓ" 
+            className="logo-splash"
+            referrerPolicy="no-referrer"
+          />
+          <div className="mt-6 flex flex-col items-center gap-1.5 animate-pulse duration-1000">
+            <span className="text-[10px] font-sans text-amber-600/60 uppercase tracking-[0.4em] font-medium leading-none">
+              CURADORIA DE LUXO
+            </span>
+            <span className="text-[8px] font-mono text-neutral-400 uppercase tracking-[0.25em]">
+              MODA CIRCULAR
+            </span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -874,17 +894,19 @@ export default function App() {
         </footer>
 
         {/* Support admin drawer routing bypasses on the wall with appropriate authentication credentials checks */}
-        <AdminPanel
-          isOpen={isAdminOpen}
-          onClose={() => setIsAdminOpen(false)}
-          products={products}
-          onAddProduct={handleAddProduct}
-          onUpdateProduct={handleUpdateProduct}
-          onUpdateProductStatus={handleUpdateProductStatus}
-          onUpdateProductPrice={handleUpdateProductPrice}
-          onDeleteProduct={handleDeleteProduct}
-          onResetDatabase={handleResetDatabase}
-        />
+        <Suspense fallback={null}>
+          <AdminPanel
+            isOpen={isAdminOpen}
+            onClose={() => setIsAdminOpen(false)}
+            products={products}
+            onAddProduct={handleAddProduct}
+            onUpdateProduct={handleUpdateProduct}
+            onUpdateProductStatus={handleUpdateProductStatus}
+            onUpdateProductPrice={handleUpdateProductPrice}
+            onDeleteProduct={handleDeleteProduct}
+            onResetDatabase={handleResetDatabase}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -1091,16 +1113,37 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="products-catalog-bento-grid">
+            <motion.div 
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" 
+              id="products-catalog-bento-grid"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.05
+                  }
+                }
+              }}
+            >
               {filteredProducts.map((p) => (
-                <ProductCard 
+                <motion.div
                   key={p.id}
-                  product={p}
-                  onViewDetails={handleViewDetails}
-                  onAddToCart={handleAddToCart}
-                />
+                  variants={{
+                    hidden: { opacity: 0, y: 15 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
+                  }}
+                >
+                  <ProductCard 
+                    product={p}
+                    onViewDetails={handleViewDetails}
+                    onAddToCart={handleAddToCart}
+                  />
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
         </section>
 
@@ -1152,33 +1195,37 @@ export default function App() {
       />
 
       {/* AI PERSONAL STYLIST DRAWER CHAT */}
-      <StylistChat
-        isOpen={isStylistOpen}
-        onClose={() => setIsStylistOpen(false)}
-        products={products}
-        onViewProduct={(p) => {
-          handleViewDetails(p);
-          setIsStylistOpen(false);
-        }}
-        onAddToCart={(p) => {
-          handleAddToCart(p);
-          setIsStylistOpen(false);
-          setIsCartOpen(true);
-        }}
-      />
+      <Suspense fallback={null}>
+        <StylistChat
+          isOpen={isStylistOpen}
+          onClose={() => setIsStylistOpen(false)}
+          products={products}
+          onViewProduct={(p) => {
+            handleViewDetails(p);
+            setIsStylistOpen(false);
+          }}
+          onAddToCart={(p) => {
+            handleAddToCart(p);
+            setIsStylistOpen(false);
+            setIsCartOpen(true);
+          }}
+        />
+      </Suspense>
 
       {/* CONSOLE DATABASE ADMIN DRAWER PANEL */}
-      <AdminPanel
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        products={products}
-        onAddProduct={handleAddProduct}
-        onUpdateProduct={handleUpdateProduct}
-        onUpdateProductStatus={handleUpdateProductStatus}
-        onUpdateProductPrice={handleUpdateProductPrice}
-        onDeleteProduct={handleDeleteProduct}
-        onResetDatabase={handleResetDatabase}
-      />
+      <Suspense fallback={null}>
+        <AdminPanel
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+          products={products}
+          onAddProduct={handleAddProduct}
+          onUpdateProduct={handleUpdateProduct}
+          onUpdateProductStatus={handleUpdateProductStatus}
+          onUpdateProductPrice={handleUpdateProductPrice}
+          onDeleteProduct={handleDeleteProduct}
+          onResetDatabase={handleResetDatabase}
+        />
+      </Suspense>
 
       {/* Float sticky quick CTA for Personal Stylist */}
       <div className="fixed bottom-6 right-6 z-30 flex flex-col gap-3">
@@ -1187,7 +1234,7 @@ export default function App() {
           href="https://wa.me/5527988226654" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="bg-emerald-500 hover:bg-emerald-600 text-white p-3.5 rounded-full shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition flex items-center justify-center cursor-pointer"
+          className="bg-emerald-500 hover:bg-emerald-600 text-white p-3.5 rounded-full shadow-lg shadow-emerald-500/30 active:scale-95 transition flex items-center justify-center cursor-pointer animate-green-pulse"
           title="Falar no WhatsApp"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle shrink-0"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 .099.092 10 10 0 1 0-4.777-4.719"></path></svg>
@@ -1196,7 +1243,7 @@ export default function App() {
         {/* AI stylist bubble */}
         <button
           onClick={() => setIsStylistOpen(true)}
-          className="bg-gradient-to-r from-amber-400 to-amber-500 text-black hover:from-amber-300 hover:to-amber-400 p-3.5 rounded-full shadow-lg shadow-amber-500/40 hover:scale-105 active:scale-95 transition flex items-center justify-center cursor-pointer border border-amber-300/30"
+          className="bg-gradient-to-r from-amber-400 to-amber-500 text-black hover:from-amber-300 hover:to-amber-400 p-3.5 rounded-full shadow-lg shadow-amber-500/40 active:scale-95 transition flex items-center justify-center cursor-pointer border border-amber-300/30 animate-premium-pulse"
           title="Falar com a Mo IA"
         >
           <Sparkles className="h-5.5 w-5.5 text-black animate-spin-slow" />

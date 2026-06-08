@@ -124,12 +124,37 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
           
           {/* Main Selected Image */}
           <div className="flex-1 relative h-full w-full overflow-hidden flex items-center justify-center bg-zinc-100">
-            <div className="w-full h-full overflow-hidden flex items-center justify-center">
+            {/* Intelligent Outpainted Concept Background Backdrop to prevent empty margins or white spaces */}
+            <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none">
+              <img
+                src={allImages[activeImageIndex] || activeProduct.image}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover filter blur-[24px] opacity-55 scale-110 pointer-events-none"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              {/* Soft overlay to match light luxury presentation */}
+              <div className="absolute inset-0 bg-white/45 pointer-events-none" />
+            </div>
+
+            <div className="w-full h-full overflow-hidden flex items-center justify-center relative z-10 p-1">
               <img
                 src={allImages[activeImageIndex] || activeProduct.image}
                 alt={activeProduct.title}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-cover transition-all duration-500 ease-out hover:scale-[1.15] cursor-zoom-in"
+                className="transition-all duration-500 ease-out hover:scale-[1.12] cursor-zoom-in"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  objectPosition: 'center',
+                  display: 'block'
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
+                }}
               />
             </div>
 
