@@ -106,6 +106,20 @@
         "origin": { "type": "string" }
       },
       "required": ["id", "clientId", "type", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Securely stored additional administrator login credential metadata.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["email", "passwordHash", "name", "role", "createdAt"]
     }
   },
   "firestore": {
@@ -128,6 +142,10 @@
     "activities/{activityId}": {
       "schema": "Activity",
       "description": "Analytical activity tracking streams."
+    },
+    "admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Co-administrators with console edit permissions."
     }
   }
 }

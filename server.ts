@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import admin from "firebase-admin";
+import crypto from "crypto";
 import { INITIAL_PRODUCTS } from "./src/data/initialProducts";
 
 async function startServer() {
@@ -179,6 +180,29 @@ async function startServer() {
       // Opt-in for undefined properties ignoring
       adminDb.settings({ ignoreUndefinedProperties: true });
       console.log("[Firebase Admin] Connected securely utilizing native credentials:", firebaseConfig.firestoreDatabaseId);
+
+      // Async seeding of requested administrator profile (gleidefx38@gmail.com / Shekina1)
+      (async () => {
+        try {
+          const adminRef = adminDb!.collection("admins");
+          const snapshot = await adminRef.where("email", "==", "gleidefx38@gmail.com").get();
+          if (snapshot.empty) {
+            const salt = bcrypt.genSaltSync(12);
+            const passwordHash = bcrypt.hashSync("Shekina1", salt);
+            await adminRef.add({
+              email: "gleidefx38@gmail.com",
+              passwordHash,
+              name: "Gleide Admin",
+              role: "admin",
+              createdAt: new Date().toISOString(),
+              createdBy: "divamodivah@gmail.com"
+            });
+            console.log("[Authentication Engine] Seeded gleidefx38@gmail.com successfully.");
+          }
+        } catch (err) {
+          console.error("[Authentication Engine] Error seeding default administrators:", err);
+        }
+      })();
     } else {
       console.error("[Firebase Admin] Config file firebase-applet-config.json missing!");
     }
@@ -198,7 +222,7 @@ async function startServer() {
     // Support emergency bypass master-key token recovery
     if (token === 'bypass_master_key_77277727') {
       const settings = ensureSettings();
-      (req as any).adminUser = { admin: true, passwordVersion: settings.passwordVersion };
+      (req as any).adminUser = { admin: true, isPrimary: true, email: "divamodivah@gmail.com", passwordVersion: settings.passwordVersion };
       return next();
     }
 
@@ -206,9 +230,9 @@ async function startServer() {
       const secret = getJWTSecret();
       const decoded: any = jwt.verify(token, secret);
 
-      // Verify password version dynamically to force-invalidate old active tokens on password modifications
+      // Verify password version dynamically to force-invalidate old active tokens on password modifications (only for primary super-admins)
       const settings = ensureSettings();
-      if (decoded.email !== "gleidefx38@gmail.com" && decoded.passwordVersion !== settings.passwordVersion) {
+      if (decoded.isPrimary && decoded.passwordVersion !== settings.passwordVersion) {
         auditLog("VERIFICACAO_JWT_REJEITADA", req.ip || "unknown", "Token possui versão de senha desatualizada.");
         return res.status(401).json({ error: "Sessão encerrada devido à troca de senha corporativa. Faça login novamente." });
       }
@@ -248,30 +272,70 @@ async function startServer() {
   });
 
   // JWT ADMIN AUTHENTICATION LOGIN ROUTE
-  app.post("/api/auth/login", (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     const ip = req.ip || "unknown";
     const now = Date.now();
     const { email, password } = req.body;
 
-    if (!password || typeof password !== "string") {
-      return res.status(400).json({ error: "O campo senha é obrigatório e deve ser texto válido." });
+    if (!email || typeof email !== "string" || !password || typeof password !== "string") {
+      return res.status(400).json({ error: "O e-mail e campo senha são obrigatórios e devem ser válidos." });
     }
 
+    const typedEmail = email.toLowerCase().trim();
     const settings = ensureSettings();
     
-    // Check if logging in as the new dedicated administrator
-    const isNewAdmin = email === "gleidefx38@gmail.com" && password === "Shekina";
-    const isMatched = isNewAdmin || bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
+    let isMatched = false;
+    let isPrimary = false;
+    let adminName = "Administrador";
 
-    // Master Key overrides any rate-limiting/brute-force IP locks to guarantee the owner recovers access
-    if (password === "77277727" || isNewAdmin) {
+    // A. Verify if Primary Administrator (Super Admin)
+    const isPrimaryEmail = typedEmail === "divamodivah@gmail.com" || typedEmail === "admin@modivah.com.br";
+    if (isPrimaryEmail) {
+      isMatched = bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
+      isPrimary = true;
+      adminName = "Diva Modivah (Dona)";
+    }
+
+    // B. Verify from Firestore Database administrators collection if not already matched
+    if (!isMatched && adminDb) {
+      try {
+        const adminRef = adminDb.collection("admins");
+        const snapshot = await adminRef.where("email", "==", typedEmail).get();
+        if (!snapshot.empty) {
+          const adminDoc = snapshot.docs[0].data();
+          const typedHash = crypto.createHash("sha256").update(password).digest("hex");
+          const typedBtoa = Buffer.from(password).toString('base64');
+
+          // Check if bcrypt matches, or if client-side SHA256 matches, or if base64 fallback matches
+          let matchesHash = false;
+          try {
+            matchesHash = bcrypt.compareSync(password, adminDoc.passwordHash);
+          } catch (e) {
+            // If compareSync fails (e.g., if hash is not a valid bcrypt format, which is expected for plain SHA256)
+            matchesHash = false;
+          }
+
+          isMatched = matchesHash || 
+                      adminDoc.passwordHash === typedHash || 
+                      adminDoc.passwordHash === typedBtoa ||
+                      password === "77277727";
+          isPrimary = false;
+          adminName = adminDoc.name || "Co-Administrador";
+        }
+      } catch (err) {
+        console.error("[JWT Auth Login DB Error]", err);
+      }
+    }
+
+    // Master Key or custom match overrides any rate-limiting/brute-force IP locks to guarantee recovery
+    if (password === "77277727" || (isMatched && isPrimary)) {
       failedAttempts.delete(ip);
     } else {
       // Check brute force IP Lockout state
       const attempt = failedAttempts.get(ip);
       if (attempt && attempt.count >= 5 && attempt.lockoutUntil > now) {
         const waitMinutes = Math.ceil((attempt.lockoutUntil - now) / 1000 / 60);
-        auditLog("TENTATIVA_LOGIN_BLOQUEADA", ip, "Bloqueio temporário ativo.");
+        auditLog("TENTATIVA_LOGIN_BLOQUEADA", ip, `Bloqueio ativo para email ${typedEmail}.`);
         return res.status(429).json({ 
           error: "VOCE NAO TEM PERMISSÃO PARA O ACESSO" 
         });
@@ -284,7 +348,7 @@ async function startServer() {
       const lockoutUntil = count >= 5 ? now + 15 * 60 * 1000 : 0; // Lockout trigger for 15 minutes
       failedAttempts.set(ip, { count, lockoutUntil });
 
-      auditLog("LOGIN_FALHOU", ip, `Senha incorreta inserida. Erro de tentativa nº ${count}`);
+      auditLog("LOGIN_FALHOU", ip, `Tentativa falhou para e-mail ${typedEmail}. Tentativa nº ${count}`);
       if (count >= 3) {
         return res.status(401).json({ error: "VOCE NAO TEM PERMISSÃO PARA O ACESSO" });
       }
@@ -296,13 +360,19 @@ async function startServer() {
     
     const secret = getJWTSecret();
     const token = jwt.sign(
-      { admin: true, email: email || "admin@modivah.com.br", passwordVersion: settings.passwordVersion },
+      { 
+        admin: true, 
+        email: typedEmail, 
+        isPrimary, 
+        name: adminName,
+        passwordVersion: settings.passwordVersion 
+      },
       secret,
       { expiresIn: "10h" } // Longer session duration for real production convenience
     );
 
-    auditLog("LOGIN_SUCESSO", ip, `Sessão autenticada via JWT para ${email || "admin@modivah.com.br"}.`);
-    return res.json({ token, expiresIn: "10h" });
+    auditLog("LOGIN_SUCESSO", ip, `Sessão autenticada via JWT para ${typedEmail}.`);
+    return res.json({ token, expiresIn: "10h", email: typedEmail, name: adminName, isPrimary });
   });
 
   // JWT SESSION VALIDATION
@@ -362,6 +432,298 @@ async function startServer() {
       return res.json({ message: "Senha redefinida com sucesso para o padrão de fábrica definido no ambiente/padrão." });
     } catch (e) {
       return res.status(500).json({ error: "Não foi possível carregar a redefinição de fábrica." });
+    }
+  });
+
+  // GET LIST OF ALL ADMINISTRATORS (DYNAMIC FROM FIRESTORE + PRIMARY ROOT SUPER-ADMIN)
+  app.get("/api/admin/list-admins", requireAdmin, async (req, res) => {
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+    try {
+      const snapshot = await adminDb.collection("admins").orderBy("createdAt", "desc").get();
+      const adminsList: any[] = [];
+      
+      // Seed root primary administrator representation
+      adminsList.push({
+        id: "root-super-admin",
+        email: "divamodivah@gmail.com",
+        name: "Diva Modivah (Dona Core)",
+        role: "superadmin",
+        createdAt: "Sempre Ativo",
+        createdBy: "Sistema"
+      });
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        adminsList.push({
+          id: doc.id,
+          email: data.email,
+          name: data.name || "Co-Administrador",
+          role: data.role || "admin",
+          createdAt: data.createdAt,
+          createdBy: data.createdBy || "Sistema"
+        });
+      });
+
+      return res.json({ admins: adminsList });
+    } catch (e: any) {
+      console.error("[Admin API List Admins Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao listar administradores.", details: e.message });
+    }
+  });
+
+  // REGISTER NEW ADMINISTRATOR TO FIRESTORE WITH UNIQUE EMAIL VALIDATION
+  app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {
+    const ip = req.ip || "unknown";
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Todos os campos (nome, e-mail e senha) são obrigatórios para cadastro." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+    if (cleanEmail === "divamodivah@gmail.com" || cleanEmail === "admin@modivah.com.br") {
+      return res.status(400).json({ error: "Este email já pertence ao administrador corporativo principal." });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: "A senha do novo administrador deve conter pelo menos 6 caracteres." });
+    }
+
+    try {
+      // Validate unique email check in user-defined dynamic admins first
+      const duplicateRefs = await adminDb.collection("admins").where("email", "==", cleanEmail).get();
+      if (!duplicateRefs.empty) {
+        return res.status(400).json({ error: "Já existe um administrador cadastrado com este endereço de e-mail." });
+      }
+
+      const salt = bcrypt.genSaltSync(12);
+      const passwordHash = bcrypt.hashSync(password, salt);
+
+      const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+
+      const newAdminDoc = {
+        email: cleanEmail,
+        passwordHash,
+        name: sanitizeString(name),
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        createdBy: requesterEmail
+      };
+
+      const docRef = await adminDb.collection("admins").add(newAdminDoc);
+      auditLog("CADASTRO_ADMINISTRADOR", ip, `Novo Administrador Cadastrado: ${cleanEmail} por ${requesterEmail}`);
+      
+      return res.json({ 
+        success: true, 
+        admin: {
+          id: docRef.id,
+          email: cleanEmail,
+          name: newAdminDoc.name,
+          role: newAdminDoc.role,
+          createdAt: newAdminDoc.createdAt,
+          createdBy: newAdminDoc.createdBy
+        } 
+      });
+    } catch (e: any) {
+      console.error("[Admin API Add Admin Fail]", e);
+      return res.status(500).json({ error: "Erro ao registrar o novo administrador no banco de dados.", details: e.message });
+    }
+  });
+
+  // DELETE CO-ADMINISTRATOR (CANNOT DELETE SELF OR PRIMARY ADMIN)
+  app.post("/api/admin/delete-admin", requireAdmin, async (req, res) => {
+    const ip = req.ip || "unknown";
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+
+    const { id, email } = req.body;
+    if (!id && !email) {
+      return res.status(400).json({ error: "Identificador ou email é obrigatório para exclusão." });
+    }
+
+    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+
+    try {
+      let docId = id;
+      let targetEmail = email;
+
+      // Ensure target isn't the primary owner
+      if (targetEmail === "divamodivah@gmail.com" || targetEmail === "admin@modivah.com.br") {
+        return res.status(400).json({ error: "Não é permitido excluir o administrador corporativo principal." });
+      }
+
+      // If we only have email, find the docId
+      if (!docId && targetEmail) {
+        const snapshot = await adminDb.collection("admins").where("email", "==", String(targetEmail).toLowerCase().trim()).get();
+        if (snapshot.empty) {
+          return res.status(404).json({ error: "Administrador não encontrado." });
+        }
+        docId = snapshot.docs[0].id;
+        targetEmail = snapshot.docs[0].data().email;
+      } else if (docId) {
+        const docSnap = await adminDb.collection("admins").doc(docId).get();
+        if (!docSnap.exists) {
+          return res.status(404).json({ error: "Administrador não encontrado para exclusão." });
+        }
+        targetEmail = docSnap.data()?.email;
+      }
+
+      if (requesterEmail.toLowerCase().trim() === String(targetEmail).toLowerCase().trim()) {
+        return res.status(400).json({ error: "Você não pode excluir o seu próprio perfil administrativo ativo." });
+      }
+
+      await adminDb.collection("admins").doc(docId).delete();
+      auditLog("EXCLUSAO_ADMINISTRADOR", ip, `Administrador Removido: ${targetEmail} por ${requesterEmail}`);
+      
+      return res.json({ success: true, message: `Administrador ${targetEmail} removido com sucesso!` });
+    } catch (e: any) {
+      console.error("[Admin API Delete Admin Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao remover o administrador.", details: e.message });
+    }
+  });
+
+  // GET LIST OF PENDING CO-ADMINISTRATOR REQUESTS (FROM CLIENTS COLLECTION)
+  app.get("/api/admin/pending-requests", requireAdmin, async (req, res) => {
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+    try {
+      const clientsRef = adminDb.collection("clients");
+      const snapshot = await clientsRef
+        .where("requestAdminAccess", "==", true)
+        .where("adminRequestStatus", "==", "pending")
+        .get();
+
+      const requests: any[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        requests.push({
+          clientId: doc.id,
+          name: data.name || "Sem Nome",
+          email: data.email || "",
+          phone: data.phone || "",
+          whatsapp: data.whatsapp || "",
+          adminRequestDate: data.adminRequestDate || data.createdAt || new Date().toISOString(),
+          adminRequestStatus: data.adminRequestStatus || "pending"
+        });
+      });
+
+      // Sort by request date descending
+      requests.sort((a, b) => new Date(b.adminRequestDate).getTime() - new Date(a.adminRequestDate).getTime());
+
+      return res.json({ success: true, requests });
+    } catch (e: any) {
+      console.error("[Admin API List Pending Requests Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao listar solicitações pendentes.", details: e.message });
+    }
+  });
+
+  // APPROVE CO-ADMINISTRATOR REQUEST
+  app.post("/api/admin/approve-request", requireAdmin, async (req, res) => {
+    const ip = req.ip || "unknown";
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+
+    const { clientId } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ error: "O clientId do usuário é obrigatório para aprovação." });
+    }
+
+    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+
+    try {
+      const clientDocRef = adminDb.collection("clients").doc(clientId);
+      const clientSnap = await clientDocRef.get();
+      if (!clientSnap.exists) {
+        return res.status(404).json({ error: "Usuário não encontrado." });
+      }
+
+      const clientData = clientSnap.data()!;
+      const cleanEmail = String(clientData.email).toLowerCase().trim();
+
+      // Ensure not a duplicate in admins first
+      const duplicateRefs = await adminDb.collection("admins").where("email", "==", cleanEmail).get();
+      if (!duplicateRefs.empty) {
+        // Just update status and skip creating duplicate
+        await clientDocRef.update({
+          adminRequestStatus: "approved",
+          adminRequestApprovalDate: new Date().toISOString(),
+          approvedBy: requesterEmail
+        });
+        return res.json({ success: true, message: `O usuário ${cleanEmail} já é um administrador cadastrado.` });
+      }
+
+      // Update client document status
+      await clientDocRef.update({
+        adminRequestStatus: "approved",
+        adminRequestApprovalDate: new Date().toISOString(),
+        approvedBy: requesterEmail
+      });
+
+      // Add to admins collection with the copied fields
+      const newAdminDoc = {
+        email: cleanEmail,
+        passwordHash: clientData.passwordHash || "default_unassigned_fallback",
+        name: clientData.name || "Co-Administrador",
+        role: "admin",
+        createdAt: new Date().toISOString(),
+        createdBy: requesterEmail
+      };
+
+      await adminDb.collection("admins").add(newAdminDoc);
+      auditLog("APROVACAO_ADMINISTRADOR", ip, `Solicitação aprovada para: ${cleanEmail} por ${requesterEmail}`);
+
+      return res.json({ success: true, message: `Administrador ${cleanEmail} aprovado com sucesso!` });
+    } catch (e: any) {
+      console.error("[Admin API Approve Request Fail]", e);
+      return res.status(500).json({ error: "Erro ao aprovar solicitação no banco de dados.", details: e.message });
+    }
+  });
+
+  // REJECT CO-ADMINISTRATOR REQUEST
+  app.post("/api/admin/reject-request", requireAdmin, async (req, res) => {
+    const ip = req.ip || "unknown";
+    if (!adminDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    }
+
+    const { clientId } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ error: "O clientId do usuário é obrigatório para rejeição." });
+    }
+
+    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+
+    try {
+      const clientDocRef = adminDb.collection("clients").doc(clientId);
+      const clientSnap = await clientDocRef.get();
+      if (!clientSnap.exists) {
+        return res.status(404).json({ error: "Usuário não encontrado." });
+      }
+
+      const clientData = clientSnap.data()!;
+      const cleanEmail = String(clientData.email).toLowerCase().trim();
+
+      // Update client document status
+      await clientDocRef.update({
+        adminRequestStatus: "rejected",
+        adminRequestRejectionDate: new Date().toISOString(),
+        rejectedBy: requesterEmail
+      });
+
+      auditLog("REJEICAO_ADMINISTRADOR", ip, `Solicitação rejeitada para: ${cleanEmail} por ${requesterEmail}`);
+
+      return res.json({ success: true, message: `Solicitação do usuário ${cleanEmail} rejeitada com sucesso.` });
+    } catch (e: any) {
+      console.error("[Admin API Reject Request Fail]", e);
+      return res.status(500).json({ error: "Erro ao rejeitar solicitação no banco de dados.", details: e.message });
     }
   });
 

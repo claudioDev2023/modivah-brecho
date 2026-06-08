@@ -820,13 +820,210 @@ export default function AdminPanel({
   }
 
   // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
-  const [activeTab, setActiveTab] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes'>('inventory');
+  const [activeTab, setActiveTab ] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes' | 'admins'>('inventory');
+  
+  // Administrators Management States
+  const [adminsList, setAdminsList] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminNameInput, setAdminNameInput] = useState('');
+  const [adminActionError, setAdminActionError] = useState<string | null>(null);
+  const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
+
+  const fetchAdmins = async () => {
+    setLoadingAdmins(true);
+    setAdminActionError(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/list-admins', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAdminsList(data.admins || []);
+      } else {
+        setAdminActionError(data.error || 'Erro ao listar administradores.');
+      }
+    } catch (err) {
+      setAdminActionError('Falha na comunicação com o servidor.');
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  // Pending Administrator Requests States & APIs
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const fetchPendingRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/pending-requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPendingRequests(data.requests || []);
+      }
+    } catch (err) {
+      console.error("Error fetching pending requests:", err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveRequest = async (clientId: string) => {
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/approve-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ clientId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminActionSuccess(data.message || "Solicitação de administrador aprovada com sucesso!");
+        fetchPendingRequests();
+        fetchAdmins();
+      } else {
+        setAdminActionError(data.error || "Erro ao aprovar solicitação.");
+      }
+    } catch (err: any) {
+      setAdminActionError(err.message || 'Erro ao aprovar solicitação.');
+    }
+  };
+
+  const handleRejectRequest = async (clientId: string) => {
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/reject-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ clientId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminActionSuccess(data.message || "Solicitação rejeitada com sucesso.");
+        fetchPendingRequests();
+      } else {
+        setAdminActionError(data.error || "Erro ao rejeitar solicitação.");
+      }
+    } catch (err: any) {
+      setAdminActionError(err.message || 'Erro ao rejeitar solicitação.');
+    }
+  };
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+
+    const emailTrimmed = adminEmailInput.trim().toLowerCase();
+    const nameTrimmed = adminNameInput.trim();
+    const passTrimmed = adminPasswordInput;
+
+    if (!emailTrimmed || !nameTrimmed || !passTrimmed) {
+      setAdminActionError('Todos os campos são obrigatórios.');
+      return;
+    }
+
+    if (passTrimmed.length < 6) {
+      setAdminActionError('A senha do novo administrador deve conter pelo menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/add-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: emailTrimmed,
+          password: passTrimmed,
+          name: nameTrimmed
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAdminActionSuccess(`Administrador(a) ${nameTrimmed} cadastrado com sucesso!`);
+        setAdminEmailInput('');
+        setAdminPasswordInput('');
+        setAdminNameInput('');
+        fetchAdmins();
+      } else {
+        setAdminActionError(data.error || 'Erro ao cadastrar administrador.');
+      }
+    } catch (err) {
+      setAdminActionError('Aconteceu uma falha ao registrar o co-administrador.');
+    }
+  };
+
+  const handleDeleteAdmin = async (id: string, email: string) => {
+    if (!window.confirm(`Tem certeza que deseja revogar definitivamente o acesso de ${email}?`)) {
+      return;
+    }
+
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/delete-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id, email })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
+        fetchAdmins();
+      } else {
+        setAdminActionError(data.error || 'Erro ao revogar acesso administrativo.');
+      }
+    } catch (err) {
+      setAdminActionError('Ocorreu uma falha ao tentar excluir o administrador.');
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'admins') {
+      fetchAdmins();
+      fetchPendingRequests();
+    }
+  }, [activeTab, isAuthenticated]);
+
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [lowStockLimit, setLowStockLimit] = useState<number>(() => {
     return Number(localStorage.getItem('modivah_low_stock_limit')) || 2;
   });
   const [clientsList, setClientsList] = useState<any[]>([]);
   const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [newOrderToast, setNewOrderToast] = useState<{ id: string; clientName: string; total: number; visible: boolean } | null>(null);
+  const isInitialOrdersLoad = useRef(true);
   const [recoveriesList, setRecoveriesList] = useState<any[]>([]);
   const [activitiesList, setActivitiesList] = useState<any[]>([]);
   const [stockMovementsList, setStockMovementsList] = useState<any[]>([]);
@@ -883,9 +1080,59 @@ export default function AdminPanel({
 
     const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
       const list: any[] = [];
-      snap.forEach(d => list.push(d.data()));
+      let hasNewOrder = false;
+      let newOrderData: any = null;
+
+      snap.forEach(d => {
+        list.push(d.data());
+      });
       list.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      if (!isInitialOrdersLoad.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            hasNewOrder = true;
+            newOrderData = change.doc.data();
+          }
+        });
+      } else {
+        isInitialOrdersLoad.current = false;
+      }
+
       setOrdersList(list);
+
+      if (hasNewOrder && newOrderData) {
+        // Play sweet premium notification chime using Web Audio API
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const playTone = (freq: number, start: number, duration: number, type: 'sine'|'triangle'|'sawtooth'|'square' = 'sine') => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, start);
+            gainNode.gain.setValueAtTime(0.15, start);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+          };
+          const now = audioCtx.currentTime;
+          playTone(523.25, now, 0.4, 'sine'); // C5
+          playTone(659.25, now + 0.12, 0.45, 'sine'); // E5
+          playTone(783.99, now + 0.24, 0.6, 'sine'); // G5
+        } catch (e) {
+          console.warn("Could not play audio notification:", e);
+        }
+
+        // Show a beautiful screen toast
+        setNewOrderToast({
+          id: newOrderData.id || `ord-${Date.now()}`,
+          clientName: newOrderData.clientName || newOrderData.customerName || "Cliente",
+          total: newOrderData.total || newOrderData.amount || 0,
+          visible: true
+        });
+      }
     }, (err) => console.warn("Orders stream error:", err));
 
     const unsubRecoveries = onSnapshot(collection(db, 'cart_recovery'), (snap) => {
@@ -1027,6 +1274,16 @@ export default function AdminPanel({
               }`}
             >
               📎 Comprovantes
+            </button>
+            <button
+              onClick={() => setActiveTab('admins')}
+              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'admins'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+            >
+              🔑 Admins
             </button>
           </div>
 
@@ -2376,6 +2633,231 @@ export default function AdminPanel({
               );
             })()}
 
+            {activeTab === 'admins' && (
+              <div className="space-y-6 animate-in fade-in duration-200" id="admins-management-panel">
+                {/* Header */}
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">🔑 Painel de Administradores</h3>
+                  <p className="text-[11px] text-neutral-400 font-sans mt-1 leading-relaxed">
+                    Gerencie os membros da equipe que possuem privilégios de acesso administrativo. Você pode cadastrar novos co-administradores e revogar o acesso deles a qualquer momento.
+                  </p>
+                </div>
+
+                {/* Status Notifications */}
+                {adminActionError && (
+                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-start gap-3 text-red-400 text-xs" id="admin-error-box">
+                    <span className="text-sm">⚠️</span>
+                    <p className="font-sans leading-relaxed">{adminActionError}</p>
+                  </div>
+                )}
+                {adminActionSuccess && (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex items-start gap-3 text-emerald-400 text-xs" id="admin-success-box">
+                    <span className="text-sm">✅</span>
+                    <p className="font-sans leading-relaxed">{adminActionSuccess}</p>
+                  </div>
+                )}
+
+                {/* Cadastrar Novo Administrador Form Box */}
+                <div className="bg-neutral-900/40 border border-white/5 rounded-xl p-5 space-y-4" id="add-admin-form-container">
+                  <h4 className="text-[11px] font-bold text-white uppercase tracking-widest font-mono border-b border-white/5 pb-2 flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5 text-amber-500" />
+                    <span>Cadastrar Novo Administrador</span>
+                  </h4>
+                  
+                  <form onSubmit={handleAddAdmin} className="space-y-3.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Nome do Administrador</label>
+                        <input
+                          type="text"
+                          required
+                          value={adminNameInput}
+                          onChange={(e) => setAdminNameInput(e.target.value)}
+                          placeholder="Ex: Amanda Silva"
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans"
+                          id="admin-form-name-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">E-mail (Único)</label>
+                        <input
+                          type="email"
+                          required
+                          value={adminEmailInput}
+                          onChange={(e) => setAdminEmailInput(e.target.value)}
+                          placeholder="ex: amanda@gmail.com"
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans"
+                          id="admin-form-email-input"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Senha de Acesso (Mínimo 6 dígitos)</label>
+                      <input
+                        type="password"
+                        required
+                        value={adminPasswordInput}
+                        onChange={(e) => setAdminPasswordInput(e.target.value)}
+                        placeholder="••••••"
+                        className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                        id="admin-form-pass-input"
+                      />
+                    </div>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-black font-semibold rounded-lg text-xs transition cursor-pointer font-sans"
+                        id="admin-form-submit-btn"
+                      >
+                        Salvar Novo Administrador
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Solicitações de Administrador Section */}
+                <div className="bg-neutral-900/40 border border-white/5 rounded-xl p-5 space-y-4" id="admin-requests-panel">
+                  <h4 className="text-[11px] font-bold text-white uppercase tracking-widest font-mono border-b border-white/5 pb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Solicitações de Administrador ({pendingRequests.length})</span>
+                    </div>
+                    {pendingRequests.length > 0 && (
+                      <span className="bg-amber-400 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                        Pendente
+                      </span>
+                    )}
+                  </h4>
+
+                  {loadingRequests ? (
+                    <div className="text-center py-6">
+                      <div className="animate-spin text-amber-400 text-xs inline-block">⏳</div>
+                      <p className="text-[10px] text-neutral-500 font-mono mt-1">Carregando solicitações...</p>
+                    </div>
+                  ) : pendingRequests.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-white/5 rounded-xl bg-black/10">
+                      <p className="text-xs text-neutral-500 font-sans">Nenhuma solicitação de co-administrador pendente no momento.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden border border-white/5 rounded-xl bg-neutral-900/10">
+                      <div className="divide-y divide-white/5">
+                        {pendingRequests.map((req) => {
+                          const requestDate = new Date(req.adminRequestDate).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+
+                          return (
+                            <div key={req.clientId} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.01] transition">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <span className="text-xs font-bold text-white block truncate">{req.name}</span>
+                                <div className="flex flex-col gap-0.5 text-[10px] text-neutral-400">
+                                  <span>E-mail: <strong className="text-neutral-300 font-mono">{req.email}</strong></span>
+                                  {req.phone && <span>Telefone: <strong className="text-neutral-300 font-mono">{req.phone}</strong></span>}
+                                  <span>Solicitação em: <strong className="text-neutral-300 font-mono">{requestDate}</strong></span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 self-end sm:self-auto">
+                                <button
+                                  onClick={() => handleRejectRequest(req.clientId)}
+                                  className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 hover:border-red-500/20 rounded-lg text-xs transition cursor-pointer font-sans"
+                                >
+                                  Rejeitar
+                                </button>
+                                <button
+                                  onClick={() => handleApproveRequest(req.clientId)}
+                                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/20 hover:border-emerald-500/30 rounded-lg text-xs font-semibold transition cursor-pointer font-sans"
+                                >
+                                  Aprovar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Administrators List Table Box */}
+                <div className="space-y-3" id="admins-list-container">
+                  <h4 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest font-mono">
+                    Administradores Cadastrados ({adminsList.length})
+                  </h4>
+
+                  {loadingAdmins ? (
+                    <div className="text-center py-8 border border-white/5 rounded-2xl bg-black/10">
+                      <div className="animate-spin text-amber-400 text-lg">⏳</div>
+                      <p className="text-[10px] text-neutral-500 font-mono mt-2">Carregando lista segura do servidor...</p>
+                    </div>
+                  ) : adminsList.length === 0 ? (
+                    <div className="text-center py-8 border border-dashed border-white/5 rounded-2xl bg-black/10">
+                      <p className="text-xs text-neutral-500 font-mono">Nenhum administrador encontrado.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden border border-white/5 rounded-xl bg-neutral-900/10">
+                      <div className="divide-y divide-white/5">
+                        {adminsList.map((adm) => {
+                          const isSuper = adm.role === 'superadmin';
+                          const isSelf = adm.email.toLowerCase() === (localStorage.getItem('modivah_admin_email') || '').toLowerCase();
+                          const formattedDate = adm.createdAt !== "Sempre Ativo" 
+                            ? new Date(adm.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                            : "Sempre Ativo";
+
+                          return (
+                            <div key={adm.id} className="p-4 flex items-center justify-between gap-4 hover:bg-white/[0.01] transition">
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-white block truncate">{adm.name}</span>
+                                  {isSuper && (
+                                    <span className="text-[8px] bg-amber-400/10 text-amber-300 border border-amber-400/20 px-1.5 py-0.5 rounded font-mono font-bold uppercase">
+                                      Proprietária
+                                    </span>
+                                  )}
+                                  {isSelf && (
+                                    <span className="text-[8px] bg-blue-400/10 text-blue-300 border border-blue-400/20 px-1.5 py-0.5 rounded font-mono font-bold uppercase">
+                                      Você
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-neutral-400 font-sans">
+                                  <span className="font-mono text-neutral-300 truncate">{adm.email}</span>
+                                  <span className="text-neutral-600 hidden sm:inline">•</span>
+                                  <span className="text-[9.5px]">Criado em: <strong className="text-neutral-300 font-mono font-medium">{formattedDate}</strong></span>
+                                  {!isSuper && (
+                                    <>
+                                      <span className="text-neutral-600 hidden sm:inline">•</span>
+                                      <span className="text-[9.5px]">Por: <strong className="text-neutral-300 font-mono font-medium">{adm.createdBy}</strong></span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {!isSuper && !isSelf && (
+                                <button
+                                  onClick={() => handleDeleteAdmin(adm.id, adm.email)}
+                                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 hover:border-red-500/20 rounded-lg transition shrink-0 cursor-pointer"
+                                  title="Revogar Acesso"
+                                  id={`revoke-btn-${adm.id}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* VOLTAR PROMINENTE NO RODAPÉ */}
             <div className="pt-4 border-t border-white/5">
               <button
@@ -2770,6 +3252,32 @@ export default function AdminPanel({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Order Notification Toast */}
+      {newOrderToast && newOrderToast.visible && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-zinc-950 border border-amber-500/40 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 animate-in fade-in slide-in-from-bottom-5 duration-300" id="floating-order-notifier">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400 font-bold shrink-0">
+              🔔
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[9px] font-bold text-amber-400 block uppercase tracking-wider font-mono">Novo Pedido Recebido!</span>
+              <p className="text-xs font-semibold text-white mt-1">
+                {newOrderToast.clientName} realizou um pedido!
+              </p>
+              <span className="text-[10px] font-mono text-neutral-400 block mt-1">
+                Valor total: {newOrderToast.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            </div>
+            <button
+              onClick={() => setNewOrderToast(prev => prev ? { ...prev, visible: false } : null)}
+              className="text-neutral-400 hover:text-white transition text-[10px] font-bold p-1 bg-white/5 rounded cursor-pointer"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}

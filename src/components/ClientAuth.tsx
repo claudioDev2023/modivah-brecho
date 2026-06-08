@@ -32,6 +32,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [consent, setConsent] = useState(true);
+  const [isRequestingAdmin, setIsRequestingAdmin] = useState(false);
 
   const [isFallbackMode, setIsFallbackMode] = useState(() => {
     return localStorage.getItem('modivah_auth_fallback_active') === 'true';
@@ -174,6 +175,9 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
             state: state.trim().toUpperCase(),
             consent,
             passwordHash,
+            requestAdminAccess: isRequestingAdmin,
+            adminRequestStatus: isRequestingAdmin ? 'pending' : null,
+            adminRequestDate: isRequestingAdmin ? new Date().toISOString() : null,
             createdAt: new Date().toISOString(),
             lastAccess: new Date().toISOString(),
             purchasesCount: 0,
@@ -299,6 +303,9 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
           state: state.trim().toUpperCase(),
           consent,
           passwordHash,
+          requestAdminAccess: isRequestingAdmin,
+          adminRequestStatus: isRequestingAdmin ? 'pending' : null,
+          adminRequestDate: isRequestingAdmin ? new Date().toISOString() : null,
           createdAt: new Date().toISOString(),
           lastAccess: new Date().toISOString(),
           purchasesCount: 0,
@@ -603,7 +610,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
           {/* LGPD Safety & Consent Clause Box (Mandatory Checkbox) */}
           {!isLoginView && !isRecoveryView && (
-            <div className="bg-black/40 border border-zinc-800 p-4 rounded-2xl space-y-3 mt-2">
+            <div className="bg-black/40 border border-zinc-800 p-4 rounded-2xl space-y-3 mt-2" id="client-consent-and-admin-req-box">
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
@@ -616,6 +623,26 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   Concordo em receber comunicações, ofertas, avisos de pedidos e recuperação de carrinho através de WhatsApp, e-mail e outros canais.
                 </label>
               </div>
+
+              {/* SOLICITAR PRIVILÉGIOS DE ADMINISTRADOR SELECTION */}
+              <div className="border-t border-white/5 pt-2 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="adminRequestCheckbox"
+                  checked={isRequestingAdmin}
+                  onChange={(e) => setIsRequestingAdmin(e.target.checked)}
+                  className="mt-0.5 rounded text-amber-500 focus:ring-amber-500 bg-zinc-950 cursor-pointer border-white/10"
+                />
+                <div className="flex flex-col">
+                  <label htmlFor="adminRequestCheckbox" className="text-[10.5px] font-bold text-amber-300 cursor-pointer select-none">
+                    🔑 Solicitar Acesso de Co-Administrador
+                  </label>
+                  <p className="text-[9.5px] text-neutral-500 mt-0.5 leading-normal">
+                    Selecione esta opção se você for membro da equipe e precisa de privilégios de acesso administrativo. Sua conta precisará ser aprovada pela proprietária.
+                  </p>
+                </div>
+              </div>
+
               <div className="border-t border-white/5 pt-2 flex items-center gap-2 text-[9px] text-[#39ff14]/90 font-mono">
                 <Shield className="h-3 w-3" />
                 <span>Em plena conformidade legal com a LGPD.</span>
