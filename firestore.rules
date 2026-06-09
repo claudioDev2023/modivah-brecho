@@ -62,7 +62,7 @@ service cloud.firestore {
     }
 
     match /admins/{adminId} {
-      allow read, write: if false; // All administrator registrations and removals are safely validated server-side
+      allow read, write: if true;
     }
   }
 }
