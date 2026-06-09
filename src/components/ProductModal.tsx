@@ -120,7 +120,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
         </button>
 
         {/* Product Image Panel (Top) */}
-        <div className="w-full flex flex-col aspect-square shrink-0 relative bg-zinc-50 overflow-hidden rounded-t-2xl select-none group">
+        <div className="w-full flex flex-col aspect-[4/5] shrink-0 relative bg-zinc-50 overflow-hidden rounded-t-2xl select-none group">
           
           {/* Main Selected Image */}
           <div className="flex-1 relative h-full w-full overflow-hidden flex items-center justify-center bg-zinc-100">

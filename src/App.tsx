@@ -5,7 +5,7 @@ import {
   Shirt, Footprints, Briefcase, Gem, Award, Lock, Truck, Home, Grid, Plus, User, Eye, ShoppingBag,
   X, RefreshCw, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
-import { Product, CartItem } from './types';
+import { Product, CartItem, Category } from './types';
 import { INITIAL_PRODUCTS } from './data/initialProducts';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
@@ -22,6 +22,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { apiFetch } from './utils/apiFetch';
 
 export default function App() {
   // Products list from localStorage or INITIAL_PRODUCTS fallback
@@ -44,6 +45,7 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   
   // Category & Filter states
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Tudo');
   const [selectedSize, setSelectedSize] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -237,6 +239,22 @@ export default function App() {
 
   // Load baseline values on mount and subscribe to Firestore updates
   useEffect(() => {
+    // 0. Subscribe to Real-time Categories list
+    const unsubscribeCategories = onSnapshot(
+      collection(db, 'categories'),
+      (snapshot) => {
+        const fetchedList: Category[] = [];
+        snapshot.forEach((doc) => {
+          fetchedList.push(doc.data() as Category);
+        });
+        fetchedList.sort((a, b) => (a.order || 0) - (b.order || 0));
+        setCategoriesList(fetchedList);
+      },
+      (error) => {
+        console.warn('Erro ao carregar categorias do Firestore:', error);
+      }
+    );
+
     // 1. Subscribe to Real-time Products catalog
     const unsubscribe = onSnapshot(
       collection(db, 'products'),
@@ -323,7 +341,10 @@ export default function App() {
       }
     }
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeCategories();
+    };
   }, []);
 
   // Save cart changes asynchronously to prevent blocking the UI thread (INP optimization)
@@ -492,23 +513,19 @@ export default function App() {
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
     
-    const res = await fetch(url, { ...options, headers });
-    
-    if (res.status === 401) {
-      sessionStorage.removeItem('modivah_admin_token');
-      sessionStorage.removeItem('modivah_admin_auth');
-      localStorage.removeItem('modivah_admin_token');
-      localStorage.removeItem('modivah_admin_auth');
-      setIsAdminMode(false);
-      throw new Error("Sessão administrativa expirada ou inválida. Por favor, faça login novamente.");
+    try {
+      return await apiFetch(url, { ...options, headers });
+    } catch (err: any) {
+      if (err.message.includes("Status 401") || err.message.includes("401")) {
+        sessionStorage.removeItem('modivah_admin_token');
+        sessionStorage.removeItem('modivah_admin_auth');
+        localStorage.removeItem('modivah_admin_token');
+        localStorage.removeItem('modivah_admin_auth');
+        setIsAdminMode(false);
+        throw new Error("Sessão administrativa expirada ou inválida. Por favor, faça login novamente.");
+      }
+      throw err;
     }
-    
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || `Erro de rede: Código ${res.status}`);
-    }
-    
-    return res.json();
   };
 
   // Helper to persist stock entry/exit history logs for administrators
@@ -802,7 +819,12 @@ export default function App() {
   };
 
   // FILTERS IMPLEMENTATIONS
-  const categories = ['Tudo', 'Acessórios', 'Blusas', 'Calçados', 'Calças', 'Casacos', 'Conjuntos', 'Outros', 'Roupas Fitness', 'Shortes', 'Vestidos'];
+  const categories = [
+    'Tudo',
+    ...(categoriesList && categoriesList.length > 0
+      ? categoriesList.filter(c => c.active).map(c => c.name)
+      : ['Acessórios', 'Blusas', 'Calçados', 'Calças', 'Casacos', 'Conjuntos', 'Outros', 'Roupas Fitness', 'Shortes', 'Vestidos'])
+  ];
   const sizes = ['Todos', 'P', 'M', 'G', 'GG', '36', '38', '40', 'Único'];
 
   const filteredProducts = products.filter(p => {
@@ -895,21 +917,6 @@ export default function App() {
         <footer className="py-6 border-t border-white/5 text-center text-[10px] text-zinc-600">
           <p>© 2026 MODIVAH BRECHÓ — Curadoria de Moda Circular Sustentável de Alto Padrão.</p>
         </footer>
-
-        {/* Support admin drawer routing bypasses on the wall with appropriate authentication credentials checks */}
-        <Suspense fallback={null}>
-          <AdminPanel
-            isOpen={isAdminOpen}
-            onClose={() => setIsAdminOpen(false)}
-            products={products}
-            onAddProduct={handleAddProduct}
-            onUpdateProduct={handleUpdateProduct}
-            onUpdateProductStatus={handleUpdateProductStatus}
-            onUpdateProductPrice={handleUpdateProductPrice}
-            onDeleteProduct={handleDeleteProduct}
-            onResetDatabase={handleResetDatabase}
-          />
-        </Suspense>
       </div>
     );
   }
@@ -1032,13 +1039,18 @@ export default function App() {
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      className={`text-left text-xs px-3 py-1.5 rounded-lg border transition-all duration-300 cursor-pointer ${
+                      className={`text-left text-xs px-3 py-1.5 rounded-lg border transition-all duration-300 cursor-pointer flex items-center justify-between gap-2 ${
                         selectedCategory === cat
                           ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.3)] font-bold'
                           : 'bg-transparent text-neutral-400 border-transparent hover:text-[#00f0ff] hover:bg-[#00f0ff]/10 hover:border-[#00f0ff]/20 hover:shadow-[0_0_10px_rgba(0,240,255,0.15)]'
                       }`}
                     >
-                      {cat}
+                      <span>{cat}</span>
+                      <span className="text-[10px] opacity-75 font-mono">
+                        {cat === 'Tudo' 
+                          ? products.length 
+                          : products.filter(p => (p.category || '').toLowerCase() === cat.toLowerCase()).length}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1224,6 +1236,7 @@ export default function App() {
           isOpen={isAdminOpen}
           onClose={() => setIsAdminOpen(false)}
           products={products}
+          categoriesList={categoriesList}
           onAddProduct={handleAddProduct}
           onUpdateProduct={handleUpdateProduct}
           onUpdateProductStatus={handleUpdateProductStatus}

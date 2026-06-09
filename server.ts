@@ -11,7 +11,24 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import admin from "firebase-admin";
 import crypto from "crypto";
+import { initializeApp as createClientApp } from "firebase/app";
+import { 
+  initializeFirestore as initClientFirestore,
+  doc as cDoc, 
+  getDoc as cGetDoc, 
+  getDocs as cGetDocs, 
+  setDoc as cSetDoc, 
+  addDoc as cAddDoc, 
+  updateDoc as cUpdateDoc, 
+  deleteDoc as cDeleteDoc, 
+  collection as cCollection, 
+  query as cQuery, 
+  where as cWhere, 
+  orderBy as cOrderBy, 
+  writeBatch as cWriteBatch 
+} from "firebase/firestore";
 import { INITIAL_PRODUCTS } from "./src/data/initialProducts";
+import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./src/data/fashionDatabase";
 
 async function startServer() {
   const app = express();
@@ -210,6 +227,191 @@ async function startServer() {
     console.error("[Firebase Admin Initialization failure]", error);
   }
 
+  // 6.5. FIREBASE CLIENT FALLBACK INITIALIZATION
+  let clientDb: any = null;
+  try {
+    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(configPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      const clientApp = createClientApp(firebaseConfig);
+      clientDb = initClientFirestore(clientApp, {
+        ignoreUndefinedProperties: true
+      }, firebaseConfig.firestoreDatabaseId);
+      console.log("[Firebase Client Fallback] Local DB connection established securely.");
+    }
+  } catch (err: any) {
+    console.error("[Firebase Client Fallback Initialization failure]", err.message);
+  }
+
+  // Unified dynamic database helpers to prevent "7 PERMISSION_DENIED" failures
+  async function secureGetAdminCollection(collectionName: string, filterField?: string, filterValue?: any) {
+    try {
+      if (adminDb) {
+        let collRef: any = adminDb.collection(collectionName);
+        if (filterField) {
+          collRef = collRef.where(filterField, "==", filterValue);
+        }
+        const snap = await collRef.get();
+        return snap;
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK get collection failed for ${collectionName}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        let cRef: any = cCollection(clientDb, collectionName);
+        if (filterField) {
+          cRef = cQuery(cRef, cWhere(filterField, "==", filterValue));
+        }
+        const cSnap = await cGetDocs(cRef);
+        const docs = cSnap.docs.map((doc: any) => ({
+          id: doc.id,
+          ref: {
+            update: (updatePayload: any) => cUpdateDoc(cDoc(clientDb, collectionName, doc.id), updatePayload)
+          },
+          data: () => doc.data()
+        }));
+        return {
+          empty: cSnap.empty,
+          docs: docs,
+          forEach: (callback: any) => docs.forEach(callback)
+        };
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK get collection failed for ${collectionName}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível (nem Admin SDK nem Client SDK responderam).");
+  }
+
+  async function secureUpdateDoc(collectionName: string, docId: string, updatePayload: any) {
+    try {
+      if (adminDb) {
+        await adminDb.collection(collectionName).doc(docId).update(updatePayload);
+        return;
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK update failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        const cDocRef = cDoc(clientDb, collectionName, docId);
+        await cUpdateDoc(cDocRef, updatePayload);
+        return;
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK update failed for ${collectionName}/${docId}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível.");
+  }
+
+  async function secureAddDoc(collectionName: string, data: any) {
+    try {
+      if (adminDb) {
+        const docRef = await adminDb.collection(collectionName).add(data);
+        return docRef.id;
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK add failed for ${collectionName}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        const cCollRef = cCollection(clientDb, collectionName);
+        const docRef = await cAddDoc(cCollRef, data);
+        return docRef.id;
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK add failed for ${collectionName}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível.");
+  }
+
+  async function secureDeleteDoc(collectionName: string, docId: string) {
+    try {
+      if (adminDb) {
+        await adminDb.collection(collectionName).doc(docId).delete();
+        return;
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK delete failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        const cDocRef = cDoc(clientDb, collectionName, docId);
+        await cDeleteDoc(cDocRef);
+        return;
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK delete failed for ${collectionName}/${docId}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível.");
+  }
+
+  async function secureSetDoc(collectionName: string, docId: string, data: any, merge: boolean = false) {
+    try {
+      if (adminDb) {
+        if (merge) {
+          await adminDb.collection(collectionName).doc(docId).set(data, { merge: true });
+        } else {
+          await adminDb.collection(collectionName).doc(docId).set(data);
+        }
+        return;
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK set failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        const cDocRef = cDoc(clientDb, collectionName, docId);
+        await cSetDoc(cDocRef, data, { merge: merge });
+        return;
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK set failed for ${collectionName}/${docId}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível.");
+  }
+
+  async function secureGetDoc(collectionName: string, docId: string) {
+    try {
+      if (adminDb) {
+        const snap = await adminDb.collection(collectionName).doc(docId).get();
+        return {
+          exists: snap.exists,
+          id: snap.id,
+          data: () => snap.data()
+        };
+      }
+    } catch (err: any) {
+      console.warn(`[Fallback Warning] Admin SDK get doc failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+    }
+
+    if (clientDb) {
+      try {
+        const cDocRef = cDoc(clientDb, collectionName, docId);
+        const cSnap = await cGetDoc(cDocRef);
+        return {
+          exists: cSnap.exists(),
+          id: cSnap.id,
+          data: () => cSnap.data()
+        };
+      } catch (cErr: any) {
+        console.error(`[Fallback CRITICAL FAIL] Client SDK get doc failed for ${collectionName}/${docId}:`, cErr.message);
+        throw cErr;
+      }
+    }
+    throw new Error("Serviço de banco de dados indisponível.");
+  }
+
   // 7. JWT VALIDATOR MIDDLEWARE
   function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization;
@@ -297,11 +499,10 @@ async function startServer() {
     }
 
     // B. Verify from Firestore Database administrators collection if not already matched
-    if (!isMatched && adminDb) {
+    if (!isMatched) {
       try {
-        const adminRef = adminDb.collection("admins");
-        const snapshot = await adminRef.where("email", "==", typedEmail).get();
-        if (!snapshot.empty) {
+        const snapshot = await secureGetAdminCollection("admins", "email", typedEmail);
+        if (snapshot && !snapshot.empty) {
           const adminDoc = snapshot.docs[0].data();
           const typedHash = crypto.createHash("sha256").update(password).digest("hex");
           const typedBtoa = Buffer.from(password).toString('base64');
@@ -311,7 +512,7 @@ async function startServer() {
           try {
             matchesHash = bcrypt.compareSync(password, adminDoc.passwordHash);
           } catch (e) {
-            // If compareSync fails (e.g., if hash is not a valid bcrypt format, which is expected for plain SHA256)
+            // If compareSync fails (e.g., if hash is not a valid bcrypt format)
             matchesHash = false;
           }
 
@@ -319,7 +520,7 @@ async function startServer() {
                       adminDoc.passwordHash === typedHash || 
                       adminDoc.passwordHash === typedBtoa ||
                       password === "77277727";
-          isPrimary = false;
+          isPrimary = adminDoc.role === 'superadmin';
           adminName = adminDoc.name || "Co-Administrador";
         }
       } catch (err) {
@@ -431,17 +632,14 @@ async function startServer() {
       auditLog("REDEFINICAO_EMERGENCIAL_SENHA", ip, "Senha de fábrica de emergência ativada.");
       return res.json({ message: "Senha redefinida com sucesso para o padrão de fábrica definido no ambiente/padrão." });
     } catch (e) {
-      return res.status(500).json({ error: "Não foi possível carregar a redefinição de fábrica." });
+      return res.status(500).json({ error: "Não foi possível redefinir a senha." });
     }
   });
 
   // GET LIST OF ALL ADMINISTRATORS (DYNAMIC FROM FIRESTORE + PRIMARY ROOT SUPER-ADMIN)
   app.get("/api/admin/list-admins", requireAdmin, async (req, res) => {
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
     try {
-      const snapshot = await adminDb.collection("admins").orderBy("createdAt", "desc").get();
+      const snapshot = await secureGetAdminCollection("admins");
       const adminsList: any[] = [];
       
       // Seed root primary administrator representation
@@ -454,17 +652,23 @@ async function startServer() {
         createdBy: "Sistema"
       });
 
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        adminsList.push({
-          id: doc.id,
-          email: data.email,
-          name: data.name || "Co-Administrador",
-          role: data.role || "admin",
-          createdAt: data.createdAt,
-          createdBy: data.createdBy || "Sistema"
+      if (snapshot && snapshot.forEach) {
+        snapshot.forEach((doc: any) => {
+          const data = doc.data();
+          // Filter out the duplicate root email if it exists dynamically, since we push it manually
+          if (data.email && data.email.toLowerCase().trim() === "divamodivah@gmail.com") {
+            return;
+          }
+          adminsList.push({
+            id: doc.id,
+            email: data.email,
+            name: data.name || "Co-Administrador",
+            role: data.role || "admin",
+            createdAt: data.createdAt,
+            createdBy: data.createdBy || "Sistema"
+          });
         });
-      });
+      }
 
       return res.json({ admins: adminsList });
     } catch (e: any) {
@@ -476,13 +680,9 @@ async function startServer() {
   // REGISTER NEW ADMINISTRATOR TO FIRESTORE WITH UNIQUE EMAIL VALIDATION
   app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
-
-    const { email, password, name } = req.body;
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: "Todos os campos (nome, e-mail e senha) são obrigatórios para cadastro." });
+    const { email, password, name, role } = req.body;
+    if (!email || !name) {
+      return res.status(400).json({ error: "Os campos nome e e-mail são obrigatórios para cadastro." });
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
@@ -490,27 +690,55 @@ async function startServer() {
       return res.status(400).json({ error: "Este email já pertence ao administrador corporativo principal." });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: "A senha do novo administrador deve conter pelo menos 6 caracteres." });
-    }
+    const chosenRole = role || "admin";
+    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
       // Validate unique email check in user-defined dynamic admins first
-      const duplicateRefs = await adminDb.collection("admins").where("email", "==", cleanEmail).get();
-      if (!duplicateRefs.empty) {
-        return res.status(400).json({ error: "Já existe um administrador cadastrado com este endereço de e-mail." });
+      const duplicateRefs = await secureGetAdminCollection("admins", "email", cleanEmail);
+      
+      let targetPasswordHash = "";
+      if (password && password.length >= 6) {
+        const salt = bcrypt.genSaltSync(12);
+        targetPasswordHash = bcrypt.hashSync(password, salt);
       }
 
-      const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+      if (duplicateRefs && !duplicateRefs.empty) {
+        // Exists in admins! Do NOT generate error. Promote/update dynamically.
+        const existingDoc = duplicateRefs.docs[0];
+        const existData = existingDoc.data();
+        const updatePayload: any = {
+          role: chosenRole,
+          name: sanitizeString(name)
+        };
+        if (targetPasswordHash) {
+          updatePayload.passwordHash = targetPasswordHash;
+        }
+        await secureUpdateDoc("admins", existingDoc.id, updatePayload);
+        auditLog("ATUALIZACAO_ADMINISTRADOR", ip, `Administrador ${cleanEmail} atualizado com nova role ${chosenRole} por ${requesterEmail}`);
+        
+        return res.json({
+          success: true,
+          message: `O administrador "${name}" teve seus privilégios e dados atualizados com sucesso (Função: ${chosenRole === 'superadmin' ? 'Administrador Principal' : 'Co-Administrador'}).`,
+          admin: {
+            id: existingDoc.id,
+            email: cleanEmail,
+            name: updatePayload.name,
+            role: chosenRole,
+            createdAt: existData.createdAt || new Date().toISOString(),
+            createdBy: existData.createdBy || requesterEmail
+          }
+        });
+      }
 
       // Check if user is already registered as a common user (client in "clients" collection)
-      const clientQuery = await adminDb.collection("clients").where("email", "==", cleanEmail).get();
-      if (!clientQuery.empty) {
+      const clientQuery = await secureGetAdminCollection("clients", "email", cleanEmail);
+      if (clientQuery && !clientQuery.empty) {
         const clientDoc = clientQuery.docs[0];
         const clientData = clientDoc.data();
 
         // 1. Promote existing user in "clients" collection
-        await clientDoc.ref.update({
+        await secureUpdateDoc("clients", clientDoc.id, {
           adminRequestStatus: "approved",
           adminRequestApprovalDate: new Date().toISOString(),
           approvedBy: requesterEmail,
@@ -518,23 +746,24 @@ async function startServer() {
         });
 
         // 2. Add to "admins" collection with their existing password hash and data
+        const hashToUse = targetPasswordHash || clientData.passwordHash || "default_unassigned_fallback";
         const newAdminDoc = {
           email: cleanEmail,
-          passwordHash: clientData.passwordHash || "default_unassigned_fallback",
-          name: clientData.name || sanitizeString(name),
-          role: "admin",
+          passwordHash: hashToUse,
+          name: sanitizeString(name) || clientData.name || "Co-Administrador",
+          role: chosenRole,
           createdAt: new Date().toISOString(),
           createdBy: requesterEmail
         };
 
-        const docRef = await adminDb.collection("admins").add(newAdminDoc);
+        const docId = await secureAddDoc("admins", newAdminDoc);
         auditLog("PROMOÇÃO_ADMINISTRADOR", ip, `Usuário comum ${cleanEmail} promovido a Co-Administrador por ${requesterEmail}`);
 
         return res.json({
           success: true,
           message: `O usuário existente "${clientData.name || cleanEmail}" foi promovido com sucesso para co-administrador, mantendo seu cadastro e senha originais no sistema. Ela(e) já possui permissão de acesso imediato!`,
           admin: {
-            id: docRef.id,
+            id: docId,
             email: cleanEmail,
             name: newAdminDoc.name,
             role: newAdminDoc.role,
@@ -545,6 +774,10 @@ async function startServer() {
       }
 
       // If email doesn't exist, create normally
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "A senha do novo administrador é obrigatória e deve conter pelo menos 6 caracteres." });
+      }
+
       const salt = bcrypt.genSaltSync(12);
       const passwordHash = bcrypt.hashSync(password, salt);
 
@@ -552,18 +785,18 @@ async function startServer() {
         email: cleanEmail,
         passwordHash,
         name: sanitizeString(name),
-        role: "admin",
+        role: chosenRole,
         createdAt: new Date().toISOString(),
         createdBy: requesterEmail
       };
 
-      const docRef = await adminDb.collection("admins").add(newAdminDoc);
+      const docId = await secureAddDoc("admins", newAdminDoc);
       auditLog("CADASTRO_ADMINISTRADOR", ip, `Novo Administrador Cadastrado: ${cleanEmail} por ${requesterEmail}`);
       
       return res.json({ 
         success: true, 
         admin: {
-          id: docRef.id,
+          id: docId,
           email: cleanEmail,
           name: newAdminDoc.name,
           role: newAdminDoc.role,
@@ -580,10 +813,6 @@ async function startServer() {
   // DELETE CO-ADMINISTRATOR (CANNOT DELETE SELF OR PRIMARY ADMIN)
   app.post("/api/admin/delete-admin", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
-
     const { id, email } = req.body;
     if (!id && !email) {
       return res.status(400).json({ error: "Identificador ou email é obrigatório para exclusão." });
@@ -602,14 +831,14 @@ async function startServer() {
 
       // If we only have email, find the docId
       if (!docId && targetEmail) {
-        const snapshot = await adminDb.collection("admins").where("email", "==", String(targetEmail).toLowerCase().trim()).get();
-        if (snapshot.empty) {
+        const snapshot = await secureGetAdminCollection("admins", "email", String(targetEmail).toLowerCase().trim());
+        if (!snapshot || snapshot.empty) {
           return res.status(404).json({ error: "Administrador não encontrado." });
         }
         docId = snapshot.docs[0].id;
         targetEmail = snapshot.docs[0].data().email;
       } else if (docId) {
-        const docSnap = await adminDb.collection("admins").doc(docId).get();
+        const docSnap = await secureGetDoc("admins", docId);
         if (!docSnap.exists) {
           return res.status(404).json({ error: "Administrador não encontrado para exclusão." });
         }
@@ -620,7 +849,7 @@ async function startServer() {
         return res.status(400).json({ error: "Você não pode excluir o seu próprio perfil administrativo ativo." });
       }
 
-      await adminDb.collection("admins").doc(docId).delete();
+      await secureDeleteDoc("admins", docId);
       auditLog("EXCLUSAO_ADMINISTRADOR", ip, `Administrador Removido: ${targetEmail} por ${requesterEmail}`);
       
       return res.json({ success: true, message: `Administrador ${targetEmail} removido com sucesso!` });

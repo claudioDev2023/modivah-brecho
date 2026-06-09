@@ -19,6 +19,16 @@ export interface Product {
   createdAt: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  image?: string;
+  icon?: string;
+  color?: string;
+  order: number;
+  active: boolean;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;

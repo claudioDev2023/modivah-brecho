@@ -120,12 +120,31 @@
         "createdBy": { "type": "string" }
       },
       "required": ["email", "passwordHash", "name", "role", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "User created categories which appear on the page filters and admin panels.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "name", "order", "active"]
     }
   },
   "firestore": {
     "products/{productId}": {
       "schema": "Product",
       "description": "The shared live products catalog collection."
+    },
+    "categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Customizable list of product categories dynamically managed by the admin."
     },
     "clients/{clientId}": {
       "schema": "Client",

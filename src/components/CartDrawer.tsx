@@ -344,11 +344,15 @@ export default function CartDrawer({
                   key={`drawer-left-${item.product.id}`}
                   className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
                 >
-                  <div className="aspect-square relative bg-neutral-900 w-full overflow-hidden">
+                  <div className="aspect-[4/5] relative bg-neutral-950 w-full overflow-hidden flex items-center justify-center">
+                    {/* Minimal color ambient background for checkout thumbnail */}
+                    <div className="absolute inset-0 select-none pointer-events-none scale-110 blur-md opacity-30">
+                      <img src={item.product.image} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                    </div>
                     <img 
                       src={item.product.image} 
                       alt={item.product.title}
-                      className="w-full h-full object-cover bg-neutral-950"
+                      className="relative z-10 max-h-full max-w-full object-contain"
                       referrerPolicy="no-referrer"
                     />
                     <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-amber-500/30 rounded-md px-2 py-0.5 text-[9px] font-mono text-amber-300 font-bold uppercase">
@@ -700,12 +704,16 @@ export default function CartDrawer({
                           className="flex gap-4 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl hover:border-zinc-700 transition-all duration-300 group shadow-md"
                         >
                           {/* Thumbnail */}
-                          <div className="relative aspect-square w-24 sm:w-28 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden shrink-0 shadow-lg group-hover:border-white/20 transition duration-300">
+                          <div className="relative aspect-[4/5] w-24 sm:w-28 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden shrink-0 shadow-lg group-hover:border-white/20 transition duration-300 flex items-center justify-center">
+                            {/* Ambient colorful backdrop blur for thumbnail */}
+                            <div className="absolute inset-0 select-none pointer-events-none scale-110 blur-md opacity-35">
+                              <img src={item.product.image} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                            </div>
                             <img 
                               src={item.product.image} 
                               alt={item.product.title} 
                               referrerPolicy="no-referrer"
-                              className="h-full w-full object-cover bg-neutral-950 group-hover:scale-105 transition duration-300"
+                              className="relative z-10 max-h-full max-w-full object-contain group-hover:scale-103 transition duration-300"
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
                               }}

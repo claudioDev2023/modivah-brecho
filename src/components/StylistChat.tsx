@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Sparkles, Send, Bot, User, RefreshCw, ShoppingCart, Eye } from 'lucide-react';
 import { Product, StylistMessage } from '../types';
+import { apiFetch } from '../utils/apiFetch';
 // @ts-ignore
 import moIaImg from '../assets/images/modivah_avatar_perfect_1780249727394.png';
 
@@ -65,7 +66,7 @@ export default function StylistChat({
 
     try {
       // Gather active products list to supply to Gemini to ensure zero-hallucinations
-      const response = await fetch('/api/chat-stylist', {
+      const data = await apiFetch('/api/chat-stylist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -76,12 +77,6 @@ export default function StylistChat({
           products: products
         })
       });
-
-      if (!response.ok) {
-        throw new Error('Falha ao conectar com o serviço de estilo.');
-      }
-
-      const data = await response.json();
       
       const stylistMsg: StylistMessage = {
         id: `stylist-${Date.now()}`,
@@ -96,7 +91,7 @@ export default function StylistChat({
       const errorMsg: StylistMessage = {
         id: `error-${Date.now()}`,
         sender: 'stylist',
-        text: 'Ah, mil perdões! Tive uma pequena oscilação em minha conexão estilística. Mas não se preocupe: você pode explorar toda a nossa curadoria incrível de vestidos e casacos diretamente nos filtros da página principal! ✨',
+        text: 'Ah, mil perdões! Tive uma pequena oscilação em minha conexão estilística. Mas não se preocupe: você pode explorar todos os nossos produtos diretamente nos filtros da página principal! ✨',
         timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, errorMsg]);
