@@ -965,7 +965,7 @@ export default function AdminPanel({
 
       const data = await res.json();
       if (res.ok) {
-        setAdminActionSuccess(`Administrador(a) ${nameTrimmed} cadastrado com sucesso!`);
+        setAdminActionSuccess(data.message || `Administrador(a) ${nameTrimmed} cadastrado com sucesso!`);
         setAdminEmailInput('');
         setAdminPasswordInput('');
         setAdminNameInput('');

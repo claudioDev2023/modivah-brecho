@@ -32,8 +32,8 @@ if (!fs.existsSync(iconsDir)) {
 
 // Copy to various PWA / Favicon targets in public/ to replace any default "V" icons
 copyFileSafe(srcLogoPath, path.join(publicDir, 'logo.png'));
-copyFileSafe(srcLogoPath, path.join(publicDir, 'favicon.ico')); // Copying as favicon.ico (modern browsers accept PNG)
-copyFileSafe(srcLogoPath, path.join(publicDir, 'favicon.png'));
+copyFileSafe(srcIconPath, path.join(publicDir, 'favicon.ico')); // Copying square icon as favicon.ico
+copyFileSafe(srcIconPath, path.join(publicDir, 'favicon.png')); // Copying square icon as favicon.png
 copyFileSafe(srcIconPath, path.join(publicDir, 'icon-192.png'));
 copyFileSafe(srcIconPath, path.join(publicDir, 'icon-512.png'));
 copyFileSafe(srcIconPath, path.join(publicDir, 'apple-touch-icon.png'));

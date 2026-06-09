@@ -390,6 +390,9 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
             alt="MODIVAH BRECHÓ Logo" 
             className="h-12 w-auto object-contain brightness-105"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/favicon.png';
+            }}
           />
         </div>
 

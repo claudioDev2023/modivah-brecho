@@ -2,7 +2,7 @@ import React from 'react';
 import { ShoppingBag, Search, Sparkles, Sliders, Menu, X, User } from 'lucide-react';
 import { CartItem } from '../types';
 // @ts-ignore
-import logoImg from '../assets/images/modivah_logo_1779828536217.png';
+import logoImg from '../assets/images/modivah_official_icon_1780357423680.png';
 
 interface NavbarProps {
   cart: CartItem[];
@@ -40,6 +40,10 @@ export default function Navbar({
               src={logoImg} 
               alt="Modivah Brechó Logo" 
               className="h-9 w-9 sm:h-11 sm:w-11 object-contain rounded-full bg-white p-1 border border-amber-500/30 group-hover:border-amber-400 group-hover:scale-105 transition-all duration-300 shadow-md shadow-amber-500/10" 
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/favicon.png';
+              }}
             />
             <div className="flex flex-col text-left">
               <span className="text-sm sm:text-lg font-black tracking-[0.2em] text-white leading-none">

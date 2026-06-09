@@ -846,6 +846,9 @@ export default function App() {
             alt="MODIVAH BRECHÓ" 
             className="logo-splash"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = '/favicon.png';
+            }}
           />
           <div className="mt-6 flex flex-col items-center gap-1.5 animate-pulse duration-1000">
             <span className="text-[10px] font-sans text-amber-600/60 uppercase tracking-[0.4em] font-medium leading-none">
@@ -921,6 +924,9 @@ export default function App() {
           alt="Banner Modivah Brechó" 
           className="w-full h-auto block select-none" 
           referrerPolicy="no-referrer"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/favicon.png';
+          }}
         />
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-[#39ff14] to-transparent shadow-[0_0_15px_rgba(57,255,20,0.5)]" />
       </div>

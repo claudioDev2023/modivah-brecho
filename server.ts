@@ -501,10 +501,52 @@ async function startServer() {
         return res.status(400).json({ error: "Já existe um administrador cadastrado com este endereço de e-mail." });
       }
 
+      const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
+
+      // Check if user is already registered as a common user (client in "clients" collection)
+      const clientQuery = await adminDb.collection("clients").where("email", "==", cleanEmail).get();
+      if (!clientQuery.empty) {
+        const clientDoc = clientQuery.docs[0];
+        const clientData = clientDoc.data();
+
+        // 1. Promote existing user in "clients" collection
+        await clientDoc.ref.update({
+          adminRequestStatus: "approved",
+          adminRequestApprovalDate: new Date().toISOString(),
+          approvedBy: requesterEmail,
+          requestAdminAccess: true
+        });
+
+        // 2. Add to "admins" collection with their existing password hash and data
+        const newAdminDoc = {
+          email: cleanEmail,
+          passwordHash: clientData.passwordHash || "default_unassigned_fallback",
+          name: clientData.name || sanitizeString(name),
+          role: "admin",
+          createdAt: new Date().toISOString(),
+          createdBy: requesterEmail
+        };
+
+        const docRef = await adminDb.collection("admins").add(newAdminDoc);
+        auditLog("PROMOÇÃO_ADMINISTRADOR", ip, `Usuário comum ${cleanEmail} promovido a Co-Administrador por ${requesterEmail}`);
+
+        return res.json({
+          success: true,
+          message: `O usuário existente "${clientData.name || cleanEmail}" foi promovido com sucesso para co-administrador, mantendo seu cadastro e senha originais no sistema. Ela(e) já possui permissão de acesso imediato!`,
+          admin: {
+            id: docRef.id,
+            email: cleanEmail,
+            name: newAdminDoc.name,
+            role: newAdminDoc.role,
+            createdAt: newAdminDoc.createdAt,
+            createdBy: newAdminDoc.createdBy
+          }
+        });
+      }
+
+      // If email doesn't exist, create normally
       const salt = bcrypt.genSaltSync(12);
       const passwordHash = bcrypt.hashSync(password, salt);
-
-      const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
       const newAdminDoc = {
         email: cleanEmail,
