@@ -1044,7 +1044,20 @@ export default function AdminPanel({
         active: editingCategory ? editingCategory.active : catActive
       };
 
-      await setDoc(doc(db, 'categories', catId), payload);
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/save-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao comunicar com o servidor para salvar categoria.');
+      }
       
       setCategoryActionSuccess(editingCategory ? "Categoria atualizada com sucesso!" : "Categoria criada com sucesso!");
       
@@ -1075,8 +1088,30 @@ export default function AdminPanel({
     try {
       const currentOrder = category.order || 0;
       const targetOrder = targetCategory.order || 0;
-      await updateDoc(doc(db, 'categories', category.id), { order: targetOrder });
-      await updateDoc(doc(db, 'categories', targetCategory.id), { order: currentOrder });
+
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      
+      const res1 = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: category.id, updatePayload: { order: targetOrder } })
+      });
+
+      const res2 = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: targetCategory.id, updatePayload: { order: currentOrder } })
+      });
+
+      if (!res1.ok || !res2.ok) {
+        throw new Error('Erro ao reordenar categoria no servidor.');
+      }
     } catch (err: any) {
       console.error("Erro ao reordenar categoria:", err);
     }
@@ -1085,14 +1120,25 @@ export default function AdminPanel({
   // Toggle category active state
   const handleToggleCategoryActive = async (category: Category) => {
     try {
-      await updateDoc(doc(db, 'categories', category.id), { active: !category.active });
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: category.id, updatePayload: { active: !category.active } })
+      });
+      if (!res.ok) {
+        throw new Error('Falha ao desativar/reativar no servidor.');
+      }
     } catch (err: any) {
       console.error("Erro ao alterar status da categoria:", err);
     }
   };
 
   // Check before deletion
-  const handleDeleteCategoryPrompt = (category: Category) => {
+  const handleDeleteCategoryPrompt = async (category: Category) => {
     const linked = products.filter(p => (p.category || '').toLowerCase() === category.name.toLowerCase());
     setCategoryToDelete(category);
     setLinkedProductsCount(linked.length);
@@ -1109,9 +1155,25 @@ export default function AdminPanel({
       setShowDeletionDialog(true);
     } else {
       if (confirm(`Deseja realmente excluir a categoria "${category.name}"?`)) {
-        deleteDoc(doc(db, 'categories', category.id))
-          .then(() => setCategoryActionSuccess("Categoria excluída com sucesso!"))
-          .catch((err) => setCategoryActionError(`Erro ao excluir: ${err.message || err}`));
+        try {
+          const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+          const res = await fetch('/api/admin/delete-category', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ id: category.id })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setCategoryActionSuccess("Categoria excluída com sucesso!");
+          } else {
+            throw new Error(data.error || "Erro ao excluir no servidor.");
+          }
+        } catch (err: any) {
+          setCategoryActionError(`Erro ao excluir: ${err.message || err}`);
+        }
       }
     }
   };
@@ -1145,7 +1207,20 @@ export default function AdminPanel({
         }
       }
 
-      await deleteDoc(doc(db, 'categories', categoryToDelete.id));
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/delete-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: categoryToDelete.id })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao excluir categoria no servidor.");
+      }
+
       setCategoryActionSuccess(`Categoria "${categoryToDelete.name}" excluída com sucesso!`);
       setShowDeletionDialog(false);
       setCategoryToDelete(null);
@@ -1910,26 +1985,11 @@ export default function AdminPanel({
                       onChange={(e) => setCategory(e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-3 text-base text-white focus:outline-none focus:border-amber-500 cursor-pointer font-medium"
                     >
-                      {categoriesList && categoriesList.length > 0 ? (
-                        categoriesList.map((cat) => (
-                          <option key={cat.id} className="bg-neutral-900 text-white" value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))
-                      ) : (
-                        <>
-                          <option className="bg-neutral-950 text-white" value="Vestidos">Vestidos</option>
-                          <option className="bg-neutral-950 text-white" value="Casacos">Casacos</option>
-                          <option className="bg-neutral-950 text-white" value="Shortes">Shortes</option>
-                          <option className="bg-neutral-950 text-white" value="Roupas Fitness">Roupas Fitness</option>
-                          <option className="bg-neutral-950 text-white" value="Calçados">Calçados</option>
-                          <option className="bg-neutral-950 text-white" value="Blusas">Blusas</option>
-                          <option className="bg-neutral-950 text-white" value="Conjuntos">Conjuntos</option>
-                          <option className="bg-neutral-950 text-white" value="Calças">Calças</option>
-                          <option className="bg-neutral-950 text-white" value="Acessórios">Acessórios</option>
-                          <option className="bg-neutral-900 text-white" value="Outros">Outros</option>
-                        </>
-                      )}
+                      {(categoriesList || []).map((cat) => (
+                        <option key={cat.id} className="bg-neutral-900 text-white" value={cat.name}>
+                          {cat.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

@@ -85,6 +85,7 @@ async function startServer() {
   interface SecureSettings {
     passwordHash: string;
     passwordVersion: number;
+    jwtSecret?: string;
   }
 
   // Ensure directory structures and security settings exist
@@ -103,18 +104,30 @@ async function startServer() {
       }
     }
 
+    let needsSave = false;
+
     if (!settings || !settings.passwordHash) {
       const salt = bcrypt.genSaltSync(12);
       const passwordHash = bcrypt.hashSync(DEFAULT_PASS, salt);
       settings = {
         passwordHash,
-        passwordVersion: 1
+        passwordVersion: 1,
+        jwtSecret: crypto.randomBytes(64).toString("hex")
       };
+      needsSave = true;
+      console.log("[Authentication Engine] Default security hash established in local disk storage.");
+    }
+
+    if (settings && !settings.jwtSecret) {
+      settings.jwtSecret = crypto.randomBytes(64).toString("hex");
+      needsSave = true;
+    }
+
+    if (needsSave && settings) {
       try {
         fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
-        console.log("[Authentication Engine] Default security hash established in local disk storage.");
       } catch (e) {
-        console.error("[Audit Error] Saving initial settings failed:", e);
+        console.error("[Audit Error] Saving settings failed:", e);
       }
     }
 
@@ -166,17 +179,15 @@ async function startServer() {
   }
   const failedAttempts = new Map<string, LockoutState>();
 
-  let fallbackJWTSecret: string | null = null;
-  function getFallbackSecret(): string {
-    if (!fallbackJWTSecret) {
-      fallbackJWTSecret = require("crypto").randomBytes(64).toString("hex");
-      console.log("[JWT Security] Dynamic cryptographic signing key generated on flight.");
-    }
-    return fallbackJWTSecret;
-  }
-
   function getJWTSecret(): string {
-    return process.env.JWT_SECRET || getFallbackSecret();
+    if (process.env.JWT_SECRET) {
+      return process.env.JWT_SECRET;
+    }
+    const settings = ensureSettings();
+    if (settings && settings.jwtSecret) {
+      return settings.jwtSecret;
+    }
+    return "modivah_secure_jwt_secret_key_fixed_2026"; // Fallback static secure key
   }
 
   // 6. FIREBASE ADMIN DATABASE INITIALIZATION
@@ -218,6 +229,77 @@ async function startServer() {
           }
         } catch (err) {
           console.error("[Authentication Engine] Error seeding default administrators:", err);
+        }
+      })();
+
+      // Async seeding of default categories: verify and upsert missing original categories
+      (async () => {
+        try {
+          const catsRef = adminDb!.collection("categories");
+          const snapshot = await catsRef.get();
+          const existingNames = new Set<string>();
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data && data.name) {
+              existingNames.add(String(data.name).trim().toLowerCase());
+            }
+          });
+
+          const defaultCats = [
+            'Vestidos',
+            'Blusas',
+            'Calçados',
+            'Bolsas',
+            'Saias',
+            'Shorts',
+            'Calças',
+            'Macacões',
+            'Conjuntos',
+            'Camisas',
+            'Camisetas',
+            'Croppeds',
+            'Regatas',
+            'Blazers',
+            'Jaquetas',
+            'Casacos',
+            'Moda Praia',
+            'Acessórios',
+            'Bijuterias',
+            'Óculos',
+            'Cintos',
+            'Lenços',
+            'Perfumes',
+            'Infantil',
+            'Masculino',
+            'Plus Size'
+          ];
+
+          let addedCount = 0;
+          for (let i = 0; i < defaultCats.length; i++) {
+            const catName = defaultCats[i];
+            const lowerName = catName.trim().toLowerCase();
+            if (!existingNames.has(lowerName)) {
+              const slug = catName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
+              const id = `cat-system-${slug}`;
+              await catsRef.doc(id).set({
+                id,
+                name: catName,
+                slug,
+                active: true,
+                color: '#FF4F93',
+                icon: 'Shirt',
+                order: i + 1,
+                createdAt: new Date().toISOString(),
+                createdBy: 'system'
+              });
+              addedCount++;
+            }
+          }
+          if (addedCount > 0) {
+            console.log(`[Category Engine] Restored ${addedCount} missing original dynamic categories successfully.`);
+          }
+        } catch (err) {
+          console.error("[Category Engine] Error seeding default categories:", err);
         }
       })();
     } else {
@@ -810,10 +892,13 @@ async function startServer() {
     }
   });
 
-  // DELETE CO-ADMINISTRATOR (CANNOT DELETE SELF OR PRIMARY ADMIN)
-  app.post("/api/admin/delete-admin", requireAdmin, async (req, res) => {
+  // REMOVE CO-ADMINISTRATOR (CANNOT DELETE SELF OR PRIMARY ADMIN)
+  // Supports POST /api/admin/delete-admin and DELETE /api/admin/remove-admin (query/body/route params)
+  const handleRemoveAdmin = async (req: express.Request, res: express.Response) => {
     const ip = req.ip || "unknown";
-    const { id, email } = req.body;
+    const id = req.body.id || req.query.id || req.params.id;
+    const email = req.body.email || req.query.email || req.params.email;
+
     if (!id && !email) {
       return res.status(400).json({ error: "Identificador ou email é obrigatório para exclusão." });
     }
@@ -839,13 +924,21 @@ async function startServer() {
         targetEmail = snapshot.docs[0].data().email;
       } else if (docId) {
         const docSnap = await secureGetDoc("admins", docId);
-        if (!docSnap.exists) {
-          return res.status(404).json({ error: "Administrador não encontrado para exclusão." });
+        if (docSnap && docSnap.exists) {
+          targetEmail = docSnap.data()?.email;
+        } else {
+          // Fallback searching by email in case of mismatch in IDs
+          const snapshot = await secureGetAdminCollection("admins", "email", String(targetEmail || "").toLowerCase().trim());
+          if (snapshot && !snapshot.empty) {
+            docId = snapshot.docs[0].id;
+            targetEmail = snapshot.docs[0].data().email;
+          } else {
+            return res.status(404).json({ error: "Administrador não encontrado para exclusão." });
+          }
         }
-        targetEmail = docSnap.data()?.email;
       }
 
-      if (requesterEmail.toLowerCase().trim() === String(targetEmail).toLowerCase().trim()) {
+      if (requesterEmail.toLowerCase().trim() === String(targetEmail || "").toLowerCase().trim()) {
         return res.status(400).json({ error: "Você não pode excluir o seu próprio perfil administrativo ativo." });
       }
 
@@ -857,7 +950,11 @@ async function startServer() {
       console.error("[Admin API Delete Admin Fail]", e);
       return res.status(500).json({ error: "Erro interno ao remover o administrador.", details: e.message });
     }
-  });
+  };
+
+  app.post("/api/admin/delete-admin", requireAdmin, handleRemoveAdmin);
+  app.delete("/api/admin/remove-admin", requireAdmin, handleRemoveAdmin);
+  app.post("/api/admin/remove-admin", requireAdmin, handleRemoveAdmin);
 
   // GET LIST OF PENDING CO-ADMINISTRATOR REQUESTS (FROM CLIENTS COLLECTION)
   app.get("/api/admin/pending-requests", requireAdmin, async (req, res) => {
@@ -1221,6 +1318,66 @@ async function startServer() {
     } catch (e: any) {
       console.error("[Delete Product API Error]", e);
       return res.status(500).json({ error: "Não foi possível remover o produto.", details: e.message });
+    }
+  });
+
+  // CATEGORY SECURE API ENDPOINTS
+  // Proxying direct writes to server-side Admin SDK to guarantee robust permission resolution
+  app.post("/api/admin/save-category", requireAdmin, async (req, res) => {
+    const { id, name, image, icon, color, order, active } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: "O nome da categoria é obrigatório." });
+    }
+
+    const catId = id || `cat-${Date.now()}`;
+    const payload = {
+      id: catId,
+      name: String(name).trim(),
+      image: image ? String(image).trim() : null,
+      icon: icon ? String(icon).trim() : "Shirt",
+      color: color ? String(color).trim() : "#FF4F93",
+      order: Number(order) || 1,
+      active: active !== false
+    };
+
+    try {
+      await secureSetDoc("categories", catId, payload);
+      auditLog("SALVAR_CATEGORIA", req.ip || "unknown", `Categoria salva: ${payload.name} (${catId})`);
+      return res.json({ success: true, message: "Categoria salva com sucesso!", category: payload });
+    } catch (e: any) {
+      console.error("[Category API Save Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao salvar categoria.", details: e.message });
+    }
+  });
+
+  app.post("/api/admin/delete-category", requireAdmin, async (req, res) => {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: "O ID da categoria para exclusão é obrigatório." });
+    }
+
+    try {
+      await secureDeleteDoc("categories", id);
+      auditLog("EXCLUSAO_CATEGORIA", req.ip || "unknown", `Categoria excluída: ${id}`);
+      return res.json({ success: true, message: `Categoria excluída com sucesso!` });
+    } catch (e: any) {
+      console.error("[Category API Delete Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao excluir a categoria.", details: e.message });
+    }
+  });
+
+  app.post("/api/admin/update-category-field", requireAdmin, async (req, res) => {
+    const { id, updatePayload } = req.body;
+    if (!id || !updatePayload) {
+      return res.status(400).json({ error: "O ID e os dados da categoria para atualização são obrigatórios." });
+    }
+
+    try {
+      await secureUpdateDoc("categories", id, updatePayload);
+      return res.json({ success: true, message: "Categoria atualizada com sucesso!" });
+    } catch (e: any) {
+      console.error("[Category API Update Field Fail]", e);
+      return res.status(500).json({ error: "Erro interno ao atualizar a categoria.", details: e.message });
     }
   });
 

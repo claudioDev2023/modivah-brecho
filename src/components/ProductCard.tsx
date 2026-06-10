@@ -17,9 +17,17 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
   // Upper left tag: use product.tag if defined, else fallback to 'NOVO'
   const leftTag = product.tag ? product.tag.toUpperCase() : 'NOVO';
 
+  // State / condition normalization
+  const isNew = product.condition === 'Novo com Etiqueta' || 
+                String(product.condition || '').toLowerCase().includes('novo');
+
+  // Fallback field parsing for title and description for bulletproof rendering
+  const displayTitle = product.title || (product as any).name || (product as any).productName || "Peça Exclusiva";
+  const displayDesc = product.description || (product as any).itemDescription || "Detalhes indisponíveis no momento.";
+
   // Format Size tag gracefully as 'TAM P', 'TAM M', 'TAM 38' etc.
   const formatSize = (sz: string) => {
-    const clean = sz.trim().toUpperCase();
+    const clean = (sz || '').trim().toUpperCase();
     if (clean.startsWith('TAM')) return clean;
     return `TAM ${clean}`;
   };
@@ -32,10 +40,10 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
       className="group relative flex flex-col bg-white border border-neutral-100 hover:border-neutral-200/80 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-2xl w-full h-[585px] sm:h-[625px]"
       id={`product-card-${product.id}`}
     >
-      {/* 1. AREA DA IMAGEM PRINCIPAL (65% of card height) */}
+      {/* 1. AREA DA IMAGEM PRINCIPAL (53% of card height) */}
       <div 
         onClick={() => onViewDetails(product)}
-        className="relative h-[65%] w-full bg-neutral-50 overflow-hidden cursor-pointer group/img border-b border-neutral-100 z-0 select-none"
+        className="relative h-[53%] w-full bg-neutral-50 overflow-hidden cursor-pointer group/img border-b border-neutral-100 z-0 select-none"
         title="Clique para ver todos os detalhes desta peça"
       >
         {/* EXPANSÃO INTELIGENTE DE FUNDO / FUNDO COMPLEMENTAR
@@ -52,7 +60,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         {/* Crisp original product image displayed on top - 100% visible, centered, and fully preserved without cuts */}
         <img
           src={product.image}
-          alt={product.title}
+          alt={displayTitle}
           referrerPolicy="no-referrer"
           className="relative z-10 w-full h-full object-contain mx-auto transition-transform duration-700 group-hover/img:scale-103"
           onError={(e) => {
@@ -101,18 +109,27 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         </div>
       </div>
 
-      {/* 2. AREA INFERIOR DO CARD (35% of card height) - Fully Independent of Photo */}
-      <div className="h-[35%] w-full p-3.5 sm:p-4.5 flex flex-col justify-between bg-white select-none relative z-10">
+      {/* 2. AREA INFERIOR DO CARD (47% of card height) - Fully Independent of Photo */}
+      <div className="h-[47%] w-full p-3.5 sm:p-4.5 flex flex-col justify-between bg-white select-none relative z-10">
         
         {/* Top Segment: Condition Label & Product Name */}
         <div className="space-y-1.5 flex-1 overflow-hidden min-w-0">
           
-          {/* Label "Gentilmente Usado" / Condition - Soft Light Orange theme */}
+          {/* Label "NOVO / SEMINOVO" & Estado do produto / Category - Soft theme */}
           <div className="flex items-center justify-between gap-1.5">
-            <span className="inline-block px-2.5 py-1 text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider bg-[#FFF2E9] text-[#E67E22] border border-[#FEE3D0] rounded-md leading-none">
-              ✨ Gentilmente Usado
-            </span>
-            <span className="text-[10.5px] font-bold text-neutral-400 capitalize max-w-[100px] truncate">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className={`inline-block px-2.5 py-1 text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider rounded-md leading-none ${
+                isNew 
+                  ? "bg-[#E8F8F5] text-[#117A65] border border-[#D1F2EB]" 
+                  : "bg-[#FFF2E9] text-[#E67E22] border border-[#FEE3D0]"
+              }`}>
+                {isNew ? 'NOVO' : 'SEMINOVO'}
+              </span>
+              <span className="text-[10px] text-neutral-400 font-bold hidden xs:inline truncate">
+                {product.condition || 'Seminovo'}
+              </span>
+            </div>
+            <span className="text-[10.5px] font-bold text-neutral-400 capitalize max-w-[100px] truncate shrink-0">
               {product.category}
             </span>
           </div>
@@ -120,11 +137,22 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           {/* Product Title - Big dark readable bold text, max 2 lines, avoids cropped titles */}
           <h3 
             onClick={() => onViewDetails(product)}
-            className="text-[16px] sm:text-[18px] font-sans font-extrabold text-neutral-950 hover:text-orange-600 transition-colors duration-150 line-clamp-2 leading-tight cursor-pointer"
-            title={product.title}
+            className="text-[15px] sm:text-[17px] font-sans font-extrabold text-neutral-950 hover:text-orange-600 transition-colors duration-150 line-clamp-2 leading-tight cursor-pointer"
+            title={displayTitle}
           >
-            {product.title}
+            {displayTitle}
           </h3>
+
+          {/* Product Description - Line-clamped, elegant secondary style */}
+          {displayDesc && (
+            <p 
+              className="text-neutral-500 text-xs font-normal leading-relaxed line-clamp-2 sm:line-clamp-3 overflow-hidden text-ellipsis break-words cursor-pointer"
+              style={{ wordBreak: 'break-word' }}
+              onClick={() => onViewDetails(product)}
+            >
+              {displayDesc}
+            </p>
+          )}
         </div>
 
         {/* Middle Segment: Stock Info & Urgent Warnings */}

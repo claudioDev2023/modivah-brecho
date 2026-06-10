@@ -821,9 +821,7 @@ export default function App() {
   // FILTERS IMPLEMENTATIONS
   const categories = [
     'Tudo',
-    ...(categoriesList && categoriesList.length > 0
-      ? categoriesList.filter(c => c.active).map(c => c.name)
-      : ['Acessórios', 'Blusas', 'Calçados', 'Calças', 'Casacos', 'Conjuntos', 'Outros', 'Roupas Fitness', 'Shortes', 'Vestidos'])
+    ...(categoriesList || []).filter(c => c.active).map(c => c.name)
   ];
   const sizes = ['Todos', 'P', 'M', 'G', 'GG', '36', '38', '40', 'Único'];
 
