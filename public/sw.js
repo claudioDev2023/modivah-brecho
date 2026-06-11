@@ -1,4 +1,4 @@
-const CACHE_NAME = 'modivah-brecho-cache-v5';
+const CACHE_NAME = 'modivah-brecho-cache-v10';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

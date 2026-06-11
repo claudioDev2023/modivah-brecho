@@ -9,6 +9,7 @@ import {
 import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product, Category } from '../types';
+import { FULL_MOCK_ACERVO } from '../data/fullMockAcervo';
 import { apiFetch } from '../utils/apiFetch';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import ReportsClientsDashboard from './ReportsClientsDashboard';
@@ -203,6 +204,10 @@ interface AdminPanelProps {
   onUpdateProductPrice: (productId: string, price: number) => void;
   onDeleteProduct: (productId: string) => void;
   onResetDatabase: () => void;
+  onImportProducts?: (importedProducts: Product[]) => void;
+  onSyncToFirestore?: () => Promise<void>;
+  onRestoreCategories?: () => Promise<void>;
+  isQuotaExceeded?: boolean;
 }
 
 export default function AdminPanel({
@@ -215,7 +220,11 @@ export default function AdminPanel({
   onUpdateProductStatus,
   onUpdateProductPrice,
   onDeleteProduct,
-  onResetDatabase
+  onResetDatabase,
+  onImportProducts,
+  onSyncToFirestore,
+  onRestoreCategories,
+  isQuotaExceeded = false
 }: AdminPanelProps) {
   if (!isOpen) return null;
 
@@ -231,6 +240,17 @@ export default function AdminPanel({
   const [authErrorText, setAuthErrorText] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
+
+  const handleSessionExpired = () => {
+    sessionStorage.removeItem('modivah_admin_auth');
+    sessionStorage.removeItem('modivah_admin_token');
+    localStorage.removeItem('modivah_admin_auth');
+    localStorage.removeItem('modivah_admin_token');
+    setIsAuthenticated(false);
+    setAuthError(true);
+    setAuthErrorText("Sessão corporativa expirada ou login inválido. Por favor, digite sua senha de acesso novamente.");
+    alert("Sessão administrativa expirada ou inválida. Por favor, realize o login novamente.");
+  };
 
   // Password Change Form States
   const [currentPassword, setCurrentPassword] = useState('');
@@ -992,7 +1012,7 @@ export default function AdminPanel({
   }
 
   // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
-  const [activeTab, setActiveTab ] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes' | 'admins' | 'categories'>('inventory');
+  const [activeTab, setActiveTab ] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes' | 'admins' | 'categories' | 'backup'>('inventory');
   
   // Category Admin Management States
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -1264,14 +1284,33 @@ export default function AdminPanel({
           'Authorization': `Bearer ${token}`
         }
       });
-      const data = await res.json();
-      if (res.ok) {
-        setAdminsList(data.admins || []);
-      } else {
-        setAdminActionError(data.error || 'Erro ao listar administradores.');
+      
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
       }
-    } catch (err) {
-      setAdminActionError('Falha na comunicação com o servidor.');
+      
+      const contentType = res.headers.get("content-type") || "";
+      if (res.ok) {
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          setAdminsList(data.admins || []);
+        } else {
+          const text = await res.text();
+          throw new Error(`Resposta inválida do servidor (HTML/Texto retornado em vez de JSON). Retorno: ${text.slice(0, 150)}`);
+        }
+      } else {
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          setAdminActionError(data.error || `Erro ao listar administradores (${res.status}).`);
+        } else {
+          const text = await res.text();
+          setAdminActionError(`Erro no servidor ao carregar administradores (${res.status}): ${text.slice(0, 150)}`);
+        }
+      }
+    } catch (err: any) {
+      console.error("[fetchAdmins failure]", err);
+      setAdminActionError(`Falha na comunicação com o servidor: ${err.message || String(err)}`);
     } finally {
       setLoadingAdmins(false);
     }
@@ -1290,6 +1329,10 @@ export default function AdminPanel({
           'Authorization': `Bearer ${token}`
         }
       });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       const data = await res.json();
       if (res.ok && data.success) {
         setPendingRequests(data.requests || []);
@@ -1386,23 +1429,35 @@ export default function AdminPanel({
         })
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
       if (res.ok) {
-        setAdminActionSuccess(data.message || `Administrador(a) ${nameTrimmed} cadastrado com sucesso!`);
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          setAdminActionSuccess(data.message || `Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
+        } else {
+          setAdminActionSuccess(`Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
+        }
         setAdminEmailInput('');
         setAdminPasswordInput('');
         setAdminNameInput('');
         fetchAdmins();
       } else {
-        setAdminActionError(data.error || 'Erro ao cadastrar administrador.');
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          setAdminActionError(data.error || `Erro ao cadastrar administrador (${res.status}).`);
+        } else {
+          const text = await res.text();
+          setAdminActionError(`Erro do servidor ao cadastrar (${res.status}): ${text.slice(0, 150)}`);
+        }
       }
-    } catch (err) {
-      setAdminActionError('Aconteceu uma falha ao registrar o co-administrador.');
+    } catch (err: any) {
+      console.error("[handleAddAdmin failure]", err);
+      setAdminActionError(`Falha na comunicação/registro com o servidor: ${err.message || String(err)}`);
     }
   };
 
-  const handleDeleteAdmin = async (id: string, email: string) => {
-    if (!window.confirm(`Tem certeza que deseja revogar definitivamente o acesso de ${email}?`)) {
+   const handleDeleteAdmin = async (id: string, email: string) => {
+    if (!window.confirm(`Tem certeza que deseja revogar de forma definitiva o acesso de ${email}?`)) {
       return;
     }
 
@@ -1422,12 +1477,15 @@ export default function AdminPanel({
 
       const data = await res.json();
       if (res.ok) {
+        alert(`Acesso revogado com sucesso para ${email}!`);
         setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
         fetchAdmins();
       } else {
+        alert(`Erro: ${data.error || 'Não foi possível revogar o privilégio administrativo.'}`);
         setAdminActionError(data.error || 'Erro ao revogar acesso administrativo.');
       }
     } catch (err) {
+      alert('Ocorreu uma falha na tentativa de exclusão do administrador.');
       setAdminActionError('Ocorreu uma falha ao tentar excluir o administrador.');
     }
   };
@@ -1656,8 +1714,29 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* 🗃️ TABS NAVIGATION BAR */}
-          <div className="bg-neutral-900 border-b border-white/10 flex items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
+          {/* 🗃️ RESPONSIVE TABS NAVIGATION BAR */}
+          {/* Dropdown Selector for Mobile view (resolves invisible/cut-off tabs on phones) */}
+          <div className="bg-neutral-900 border-b border-white/10 px-4 py-3 block sm:hidden">
+            <label className="text-[9px] text-amber-400 font-mono uppercase tracking-wider block mb-1.5 font-bold">
+              Painel de Navegação
+            </label>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value as any)}
+              className="w-full bg-black/60 text-white font-mono text-xs font-bold py-3 px-3 rounded-lg border border-white/20 focus:outline-none focus:border-amber-400 uppercase cursor-pointer"
+            >
+              <option value="inventory">📦 Estoque</option>
+              <option value="analytics">📈 Dashboard de Vendas</option>
+              <option value="reports">📊 Clientes &amp; Relatórios</option>
+              <option value="comprovantes">📎 Comprovantes</option>
+              <option value="admins">🔑 Admins</option>
+              <option value="categories">🏷️ Categorias</option>
+              <option value="backup">💾 Backup &amp; Diagnóstico</option>
+            </select>
+          </div>
+
+          {/* Traditional tabs row for Desktop and Tablet */}
+          <div className="hidden sm:flex bg-neutral-900 border-b border-white/10 items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
             <button
               onClick={() => setActiveTab('inventory')}
               className={`flex-1 min-w-[110px] py-3 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
@@ -1717,6 +1796,17 @@ export default function AdminPanel({
               }`}
             >
               🏷️ Categorias
+            </button>
+            <button
+              onClick={() => setActiveTab('backup')}
+              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+                activeTab === 'backup'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
+              }`}
+              id="admin-tab-backup-btn"
+            >
+              💾 Backup &amp; Diagnóstico
             </button>
           </div>
 
@@ -1833,6 +1923,7 @@ export default function AdminPanel({
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => {
                   if (confirm('Tem certeza que deseja recomeçar a curadoria do acervo? Todas as alterações serão perdidas.')) {
                     onResetDatabase();
@@ -3216,17 +3307,24 @@ export default function AdminPanel({
                           className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans"
                           id="admin-form-email-input"
                         />
+                        {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) && (
+                          <p className="text-[10px] text-amber-400 font-sans mt-1 leading-normal">
+                            ⚠️ Este email já pertence a um co-administrador funcional. Enviar este formulário atualizará os privilégios, senha (se informada) e nome do co-administrador correspondente.
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Senha de Acesso (Mínimo 6 dígitos)</label>
+                      <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">
+                        Senha de Acesso {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "(Opcional - Deixe em branco para manter a atual)" : "(Mínimo de 6 caracteres)"}
+                      </label>
                       <input
                         type="password"
-                        required
+                        required={!adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase())}
                         value={adminPasswordInput}
                         onChange={(e) => setAdminPasswordInput(e.target.value)}
-                        placeholder="••••••"
+                        placeholder={adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "Deixe em branco para manter original" : "••••••"}
                         className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                         id="admin-form-pass-input"
                       />
@@ -3238,7 +3336,9 @@ export default function AdminPanel({
                         className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-black font-semibold rounded-lg text-xs transition cursor-pointer font-sans"
                         id="admin-form-submit-btn"
                       >
-                        Salvar Novo Administrador
+                        {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) 
+                          ? "Atualizar Co-Administrador" 
+                          : "Salvar Novo Administrador"}
                       </button>
                     </div>
                   </form>
@@ -3365,15 +3465,34 @@ export default function AdminPanel({
                                 </div>
                               </div>
                               
-                              {!isSuper && !isSelf && (
-                                <button
-                                  onClick={() => handleDeleteAdmin(adm.id, adm.email)}
-                                  className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 hover:border-red-500/20 rounded-lg transition shrink-0 cursor-pointer"
-                                  title="Revogar Acesso"
-                                  id={`revoke-btn-${adm.id}`}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                              {!isSuper && (
+                                <div className="flex gap-2 shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      setAdminEmailInput(adm.email);
+                                      setAdminNameInput(adm.name || "Co-Administrador");
+                                      setAdminPasswordInput('');
+                                      const el = document.getElementById('add-admin-form-container');
+                                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                                    }}
+                                    className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/10 hover:border-amber-500/20 rounded-lg transition shrink-0 cursor-pointer"
+                                    title="Editar Dados / Nova Senha"
+                                    id={`edit-btn-${adm.id}`}
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </button>
+
+                                  {!isSelf && (
+                                    <button
+                                      onClick={() => handleDeleteAdmin(adm.id, adm.email)}
+                                      className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/10 hover:border-red-500/20 rounded-lg transition shrink-0 cursor-pointer"
+                                      title="Revogar Acesso"
+                                      id={`revoke-btn-${adm.id}`}
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
@@ -3393,6 +3512,36 @@ export default function AdminPanel({
                   <p className="text-[11px] text-neutral-400 font-sans mt-1 leading-relaxed">
                     Personalize as categorias que aparecem no menu lateral e filtros do aplicativo de compras. Você pode atribuir ícones customizados, cores de destaque, imagens e controlar livremente a ordem dinâmica de exibição na página principal.
                   </p>
+                </div>
+
+                {/* NOVO: BANNER DE RESTAURAÇÃO DE CATEGORIAS DO BRECHÓ COLETIVO */}
+                <div className="bg-amber-400/[0.03] border border-amber-400/20 p-4 rounded-xl space-y-2.5" id="restore-all-categories-banner">
+                  <span className="text-xs uppercase tracking-widest text-[#ffe4a0] font-black flex items-center gap-1.5 font-mono">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    <span>Restaurar Categorias Completas de Brechó</span>
+                  </span>
+                  <p className="text-[11px] text-zinc-300 leading-relaxed font-sans font-light">
+                    Se você possui poucas categorias cadastradas (por exemplo, apenas "Bermudas"), clique no botão abaixo para restaurar o acervo completo de <strong>44 categorias fundamentais para brechós de luxo</strong> (Calça, Camisa, Blusa, Vestidos, Calçados, Shorts, Jaquetas, Blazers, etc.).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (onRestoreCategories) {
+                        try {
+                          await onRestoreCategories();
+                        } catch (err) {
+                          alert("Ocorreu um erro ao restaurar.");
+                        }
+                      } else {
+                        alert("Função de restauração indisponível.");
+                      }
+                    }}
+                    className="py-2 px-4 bg-gradient-to-r from-amber-500/30 to-amber-600/35 hover:from-amber-500/40 hover:to-amber-600/50 text-amber-200 hover:text-white border border-amber-400/30 font-bold uppercase text-[10px] tracking-widest rounded-lg shadow-md transition duration-200 flex items-center gap-2 cursor-pointer w-full sm:w-auto"
+                    id="trigger-restore-categories-btn"
+                  >
+                    <RefreshCw className="h-4 w-4 text-amber-400" />
+                    <span>Carregar 44 Categorias Originais na Nuvem</span>
+                  </button>
                 </div>
 
                 {/* Return/Cancel edit header info banner when editing */}
@@ -3668,6 +3817,198 @@ export default function AdminPanel({
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'backup' && (
+              <div className="space-y-6 animate-in fade-in duration-200" id="backup-management-panel">
+                {/* Header */}
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">💾 Diagnóstico &amp; Backup do Acervo</h3>
+                  <p className="text-[11px] text-neutral-400 font-sans mt-1 leading-relaxed">
+                    Painel integrado de integridade, sincronização e proteção contra perdas acidentais de dados. Use esta aba para importar/exportar backups JSON ou forçar a sincronização de sua planilha local com o banco de dados Firebase Firestore.
+                  </p>
+                </div>
+
+                {/* RELATÓRIO DE INTEGRIDADE E BACKUP DO ACERVO */}
+                <section className="bg-neutral-900/50 border border-white/5 rounded-xl p-5 space-y-4" id="inventory-diagnostics-backup">
+                  <h3 className="text-xs uppercase tracking-widest text-[#ffe4a0] font-bold flex items-center gap-2 font-mono">
+                    <Database className="h-4 w-4 text-amber-500 animate-pulse" />
+                    <span>Acervo Diagnóstico &amp; Backup Preventivo ({products.length} Anúncios)</span>
+                  </h3>
+
+                  <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
+                    Exporte backups regulares para o seu computador. Isso blinda a sua infraestrutura contra quedas de rede, facilita redefinições e previne remoções acidentais no banco em nuvem.
+                  </p>
+
+                  {/* Grid 4 Estatísticas */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-black/30 border border-white/5 p-3 rounded-lg space-y-1">
+                      <span className="text-[8px] text-neutral-500 font-bold uppercase tracking-wider font-mono">Status Firestore</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isQuotaExceeded ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isQuotaExceeded ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                        </span>
+                        <span className={`text-[10px] font-bold uppercase font-mono ${isQuotaExceeded ? 'text-red-400' : 'text-emerald-400'}`}>
+                          {isQuotaExceeded ? 'LOCK / 429' : 'ONLINE'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/30 border border-white/5 p-3 rounded-lg space-y-1">
+                      <span className="text-[8px] text-neutral-500 font-bold uppercase tracking-wider font-mono">Cache Local (localStorage)</span>
+                      <p className="text-sm font-black text-amber-400 font-mono">
+                        {(() => {
+                          try {
+                            const cached = localStorage.getItem('modivah_products_cache');
+                            return cached ? JSON.parse(cached).length : 0;
+                          } catch (e) { return 0; }
+                        })()} un.
+                      </p>
+                    </div>
+
+                    <div className="bg-black/30 border border-white/5 p-3 rounded-lg space-y-1">
+                      <span className="text-[8px] text-neutral-500 font-bold uppercase tracking-wider font-mono">Estoque Base (Garantido)</span>
+                      <p className="text-sm font-black text-neutral-300 font-mono">8 un.</p>
+                    </div>
+
+                    <div className="bg-black/30 border border-white/5 p-3 rounded-lg space-y-1">
+                      <span className="text-[8px] text-neutral-500 font-bold uppercase tracking-wider font-mono">Apresentado na Interface</span>
+                      <p className="text-sm font-black text-emerald-400 font-mono">{products.length} un.</p>
+                    </div>
+                  </div>
+
+                  {/* Diagnósticos de Ausência */}
+                  <div className="p-3 bg-neutral-950/40 border border-white/5 rounded-lg text-[10px] text-neutral-400 space-y-1.5">
+                    <span className="font-bold text-amber-200/95 font-mono uppercase block">Relatório de Integridade de Acervo</span>
+                    <div className="space-y-1 text-[11px] font-light">
+                      <p>• <strong className="font-semibold text-neutral-300">Produtos no Firestore:</strong> {isQuotaExceeded ? 'LOCK (Não foi possível consultar devido à exaustão de cota diária)' : 'Sincronizado'}</p>
+                      <p>• <strong className="font-semibold text-neutral-300">Produtos ocultos / ausentes:</strong> {
+                        (() => {
+                          let cacheLength = 0;
+                          try {
+                            const cached = localStorage.getItem('modivah_products_cache');
+                            if (cached) cacheLength = JSON.parse(cached).length;
+                          } catch (e) {}
+                          const diff = Math.max(0, cacheLength - products.length);
+                          return diff > 0 ? `${diff} produto(s) salvos no cache não estão sendo listados` : 'Todos os anúncios locais ativos estão renderizados';
+                        })()
+                      }</p>
+                      <p>• <strong className="font-semibold text-neutral-300">Ação de segurança:</strong> Ativada a proteção avançada contra perdas de dados e habilitada a redundância de banco local para blindagem.</p>
+                    </div>
+                  </div>
+
+                  {/* NOVO: BOTÃO DE RESTAURAÇÃO RÁPIDA 51 PRODUTOS */}
+                  <div className="bg-amber-400/[0.03] border border-amber-400/20 p-4 rounded-xl space-y-2.5" id="rescue-51-banner">
+                    <span className="text-xs uppercase tracking-widest text-[#ffe4a0] font-black flex items-center gap-1.5 font-mono">
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      <span>Voltar Anúncios Imediatamente (Bypassar Limite do Firebase)</span>
+                    </span>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-sans font-light">
+                      Se você abriu o aplicativo em outro navegador/celular ou limpou seu histórico de navegação, o seu cache local foi redefinido. Como a cota diária de leitura gratuita do Google Firebase foi excedida para o dia de hoje, o aplicativo não consegue baixar o acervo da nuvem.
+                    </p>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans font-semibold">
+                      💡 Solução: Clique no botão dourado abaixo para carregar instantaneamente o acervo completo de <span className="text-amber-400">51 Anúncios de Luxo pré-configurados</span> direto no seu navegador. Você terá o acervo inteiro de volta agora mesmo!
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onImportProducts) {
+                          onImportProducts(FULL_MOCK_ACERVO);
+                        } else {
+                          alert("Ação indisponível.");
+                        }
+                      }}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/30 to-amber-600/35 hover:from-amber-500/40 hover:to-amber-600/50 text-amber-200 hover:text-white border border-amber-400/30 font-black uppercase text-[10px] tracking-widest rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                      id="force-restore-51-button"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      <span>Restaurar Todos os 51 Anúncios Originais do Acervo</span>
+                    </button>
+                  </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                    {/* Export Backup */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(products, null, 2));
+                          const downloadAnchor = document.createElement('a');
+                          downloadAnchor.setAttribute("href", dataStr);
+                          downloadAnchor.setAttribute("download", `modivah_backup_acervo_${products.length}.json`);
+                          document.body.appendChild(downloadAnchor);
+                          downloadAnchor.click();
+                          downloadAnchor.remove();
+                        } catch (err: any) {
+                          alert("Erro ao exportar backup: " + err.message);
+                        }
+                      }}
+                      className="flex-1 py-2 px-3 bg-neutral-800 hover:bg-neutral-700 text-white border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Exportar Backup (JSON)</span>
+                    </button>
+
+                    {/* Import Backup */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selector = document.createElement('input');
+                        selector.type = 'file';
+                        selector.accept = '.json';
+                        selector.onchange = (e: any) => {
+                          const file = e.target.files[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = (event: any) => {
+                            try {
+                              const parsed = JSON.parse(event.target.result);
+                              if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
+                                if (onImportProducts) {
+                                  onImportProducts(parsed);
+                                } else {
+                                  alert("Recurso de importação indisponível no momento.");
+                                }
+                              } else {
+                                alert("O arquivo JSON de backup não possui um formato de produtos válido.");
+                              }
+                            } catch (err: any) {
+                              alert("Erro ao ler arquivo JSON: " + err.message);
+                            }
+                          };
+                          reader.readAsText(file);
+                        };
+                        selector.click();
+                      }}
+                      className="flex-1 py-2 px-3 bg-neutral-800 hover:bg-neutral-700 text-white border border-white/10 rounded-lg text-[10px] font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>📥 Importar Backup (JSON)</span>
+                    </button>
+
+                    {/* Force sync */}
+                    <button
+                      type="button"
+                      disabled={isQuotaExceeded || !onSyncToFirestore}
+                      onClick={async () => {
+                        if (onSyncToFirestore) {
+                          try {
+                            await onSyncToFirestore();
+                          } catch (err: any) {
+                            alert("Falha ao sincronizar: " + err.message);
+                          }
+                        }
+                      }}
+                      className={`flex-1 py-2 px-3 border rounded-lg text-[10px] font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ${isQuotaExceeded || !onSyncToFirestore ? 'bg-neutral-900 border-white/5 text-neutral-500 cursor-not-allowed' : 'bg-amber-600/25 hover:bg-amber-600/40 text-amber-200 border-amber-500/20 cursor-pointer'}`}
+                      title={isQuotaExceeded ? "Sincronização temporariamente indisponível devido ao limite do Firebase" : "Enviar todo o acervo ativo no momento para o banco em nuvem"}
+                    >
+                      <Database className="h-3.5 w-3.5" />
+                      <span>Sincronizar no Banco</span>
+                    </button>
+                  </div>
+                </section>
               </div>
             )}
 

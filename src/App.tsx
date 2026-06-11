@@ -6,7 +6,7 @@ import {
   X, RefreshCw, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
 import { Product, CartItem, Category } from './types';
-import { INITIAL_PRODUCTS } from './data/initialProducts';
+import { FULL_MOCK_ACERVO } from './data/fullMockAcervo';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ProductCard from './components/ProductCard';
@@ -24,8 +24,55 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, writeBatch, 
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { apiFetch } from './utils/apiFetch';
 
+const DEFAULT_CATEGORIES: Category[] = [
+  { id: 'cat-acessorios', name: 'Acessórios', active: true, order: 1 },
+  { id: 'cat-bermudas', name: 'Bermudas', active: true, order: 2 },
+  { id: 'cat-bijuterias', name: 'Bijuterias', active: true, order: 3 },
+  { id: 'cat-blazers', name: 'Blazers', active: true, order: 4 },
+  { id: 'cat-blusas', name: 'Blusas', active: true, order: 5 },
+  { id: 'cat-bodys', name: 'Bodys', active: true, order: 6 },
+  { id: 'cat-bolsas', name: 'Bolsas', active: true, order: 7 },
+  { id: 'cat-botas', name: 'Botas', active: true, order: 8 },
+  { id: 'cat-calcas', name: 'Calças', active: true, order: 9 },
+  { id: 'cat-calcados', name: 'Calçados', active: true, order: 10 },
+  { id: 'cat-camisas', name: 'Camisas', active: true, order: 11 },
+  { id: 'cat-camisetas', name: 'Camisetas', active: true, order: 12 },
+  { id: 'cat-cardigans', name: 'Cardigans', active: true, order: 13 },
+  { id: 'cat-carteiras', name: 'Carteiras', active: true, order: 14 },
+  { id: 'cat-casacos', name: 'Casacos', active: true, order: 15 },
+  { id: 'cat-cintos', name: 'Cintos', active: true, order: 16 },
+  { id: 'cat-coletes', name: 'Coletes', active: true, order: 17 },
+  { id: 'cat-conjuntos', name: 'Conjuntos', active: true, order: 18 },
+  { id: 'cat-croppeds', name: 'Croppeds', active: true, order: 19 },
+  { id: 'cat-fitness', name: 'Fitness', active: true, order: 20 },
+  { id: 'cat-infantil', name: 'Infantil', active: true, order: 21 },
+  { id: 'cat-jaquetas', name: 'Jaquetas', active: true, order: 22 },
+  { id: 'cat-jeans', name: 'Jeans', active: true, order: 23 },
+  { id: 'cat-joias', name: 'Joias e Semijoias', active: true, order: 24 },
+  { id: 'cat-lencos', name: 'Lenços', active: true, order: 25 },
+  { id: 'cat-macacoes', name: 'Macacões', active: true, order: 26 },
+  { id: 'cat-macaquinhos', name: 'Macaquinhos', active: true, order: 27 },
+  { id: 'cat-malas-mochilas', name: 'Malas e Mochilas', active: true, order: 28 },
+  { id: 'cat-masculino', name: 'Masculino', active: true, order: 29 },
+  { id: 'cat-moda-praia', name: 'Moda Praia', active: true, order: 30 },
+  { id: 'cat-moletons', name: 'Moletons', active: true, order: 31 },
+  { id: 'cat-oculos', name: 'Óculos', active: true, order: 32 },
+  { id: 'cat-perfumes', name: 'Perfumes', active: true, order: 33 },
+  { id: 'cat-plus-size', name: 'Plus Size', active: true, order: 34 },
+  { id: 'cat-regatas', name: 'Regatas', active: true, order: 35 },
+  { id: 'cat-relogios', name: 'Relógios', active: true, order: 36 },
+  { id: 'cat-saias', name: 'Saias', active: true, order: 37 },
+  { id: 'cat-sandalias', name: 'Sandálias', active: true, order: 38 },
+  { id: 'cat-shorts', name: 'Shorts', active: true, order: 39 },
+  { id: 'cat-sueteres', name: 'Suéteres', active: true, order: 40 },
+  { id: 'cat-tenis', name: 'Tênis', active: true, order: 41 },
+  { id: 'cat-trench-coats', name: 'Trench Coats', active: true, order: 42 },
+  { id: 'cat-trico-croche', name: 'Tricô e Crochê', active: true, order: 43 },
+  { id: 'cat-vestidos', name: 'Vestidos', active: true, order: 44 }
+];
+
 export default function App() {
-  // Products list from localStorage or INITIAL_PRODUCTS fallback
+  // Products list from localStorage or FULL_MOCK_ACERVO fallback
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('modivah_products_cache');
@@ -38,14 +85,14 @@ export default function App() {
     } catch (e) {
       console.warn('Erro ao ler modivah_products_cache de localStorage:', e);
     }
-    return INITIAL_PRODUCTS;
+    return FULL_MOCK_ACERVO;
   });
   
   // Cart state sync
   const [cart, setCart] = useState<CartItem[]>([]);
   
   // Category & Filter states
-  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [categoriesList, setCategoriesList] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [selectedCategory, setSelectedCategory] = useState<string>('Tudo');
   const [selectedSize, setSelectedSize] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -80,6 +127,7 @@ export default function App() {
   });
   const [isClientAuthLoading, setIsClientAuthLoading] = useState(true);
   const [isInitialLoadingProducts, setIsInitialLoadingProducts] = useState(true);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [splashActive, setSplashActive] = useState(true);
 
   // Elegant minimum display timer for the high-end luxury white Brand Splash Screen
@@ -221,14 +269,14 @@ export default function App() {
   const seedDatabase = async () => {
     try {
       const batch = writeBatch(db);
-      INITIAL_PRODUCTS.forEach((product) => {
+      FULL_MOCK_ACERVO.forEach((product) => {
         const docRef = doc(db, 'products', product.id);
         batch.set(docRef, product);
       });
       await batch.commit();
       notify("Estoque inicial carregado no banco de dados sincronizado!");
       try {
-        localStorage.setItem('modivah_products_cache', JSON.stringify(INITIAL_PRODUCTS));
+        localStorage.setItem('modivah_products_cache', JSON.stringify(FULL_MOCK_ACERVO));
       } catch (err) {
         console.warn('Erro ao salvar cache de produtos:', err);
       }
@@ -242,16 +290,66 @@ export default function App() {
     // 0. Subscribe to Real-time Categories list
     const unsubscribeCategories = onSnapshot(
       collection(db, 'categories'),
-      (snapshot) => {
+      async (snapshot) => {
         const fetchedList: Category[] = [];
         snapshot.forEach((doc) => {
           fetchedList.push(doc.data() as Category);
         });
-        fetchedList.sort((a, b) => (a.order || 0) - (b.order || 0));
-        setCategoriesList(fetchedList);
+        
+        if (fetchedList.length >= 15) {
+          // Sort by order first (ascending), then alphabetically by name
+          fetchedList.sort((a, b) => {
+            const orderA = a.order ?? 999;
+            const orderB = b.order ?? 999;
+            if (orderA !== orderB) {
+              return orderA - orderB;
+            }
+            return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
+          });
+          setCategoriesList(fetchedList);
+        } else {
+          // If Firestore is empty OR has very few items (e.g. less than 15, like just Bermudas),
+          // seed/merge all 44 default premium categories so they all appear automatically!
+          const existingNames = new Set(fetchedList.map(c => c.name.toLowerCase().trim()));
+          const missingCategories = DEFAULT_CATEGORIES.filter(c => !existingNames.has(c.name.toLowerCase().trim()));
+          
+          let updatedList = [...fetchedList];
+          if (missingCategories.length > 0) {
+            console.log(`[Auto-Seed Categories] Semeando ${missingCategories.length} categorias padrão do brechó no Firestore...`);
+            try {
+              const batch = writeBatch(db);
+              missingCategories.forEach((cat) => {
+                const docRef = doc(db, 'categories', cat.id);
+                batch.set(docRef, cat);
+                updatedList.push(cat);
+              });
+              await batch.commit();
+              console.log(`[Auto-Seed Categories] Semeado total com sucesso.`);
+            } catch (err) {
+              console.warn('[Auto-Seed Categories - Erro ao gravar]', err);
+            }
+          }
+          
+          // Sort after merging
+          updatedList.sort((a, b) => {
+            const orderA = a.order ?? 999;
+            const orderB = b.order ?? 999;
+            if (orderA !== orderB) {
+              return orderA - orderB;
+            }
+            return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
+          });
+          
+          setCategoriesList(updatedList);
+        }
       },
       (error) => {
         console.warn('Erro ao carregar categorias do Firestore:', error);
+        const errMsg = error?.message || String(error);
+        if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('exhausted') || (error as any).code === 'resource-exhausted') {
+          setIsQuotaExceeded(true);
+        }
+        setCategoriesList(DEFAULT_CATEGORIES);
       }
     );
 
@@ -264,57 +362,56 @@ export default function App() {
           fetchedProducts.push(doc.data() as Product);
         });
 
-        if (fetchedProducts.length === 0) {
-          // If Firestore is empty, let's see if we have products in local cache first
-          let cached: Product[] = [];
-          try {
-            const saved = localStorage.getItem('modivah_products_cache');
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                cached = parsed;
-              }
+        // Read local storage cache to compare lengths
+        let localCachedProducts: Product[] = [];
+        try {
+          const saved = localStorage.getItem('modivah_products_cache');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              localCachedProducts = parsed;
             }
-          } catch (e) {}
-
-          if (cached.length > 0) {
-            // Seed Firestore with our cached products so they aren't lost!
-            const batch = writeBatch(db);
-            cached.forEach((product) => {
-              const docRef = doc(db, 'products', product.id);
-              batch.set(docRef, product);
-            });
-            batch.commit()
-              .then(() => notify("Estoque recuperado e sincronizado com o banco de dados remoto!"))
-              .catch((err) => console.error("Erro ao subir cache local para o Firestore:", err));
-            setProducts(cached);
-            setIsInitialLoadingProducts(false);
-          } else {
-            // Empty DB and empty cache: seed with default catalog
-            seedDatabase().then(() => {
-              setIsInitialLoadingProducts(false);
-            }).catch(() => {
-              setIsInitialLoadingProducts(false);
-            });
           }
+        } catch (e) {}
+
+        if (fetchedProducts.length === 0) {
+          // If Firestore is empty or clean, retrieve cached items ONLY
+          if (localCachedProducts.length > 0) {
+            setProducts(localCachedProducts);
+          } else {
+            setProducts(FULL_MOCK_ACERVO);
+          }
+          setIsInitialLoadingProducts(false);
         } else {
           // Sort fetched products by creation timestamp descending
           fetchedProducts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-          // Set products directly from the latest snapshot of Firestore - guaranteeing real-time updates!
-          setProducts(fetchedProducts);
+          // If local cache has MORE products than Firestore's live return, let's keep local cache to prevent data loss!
+          if (localCachedProducts.length > fetchedProducts.length) {
+            setProducts(localCachedProducts);
+            console.log(`[Cache Protection] Mantendo o cache local de ${localCachedProducts.length} itens vs ${fetchedProducts.length} no Firestore.`);
+          } else {
+            // Set products directly from the latest snapshot of Firestore - guaranteeing real-time updates!
+            setProducts(fetchedProducts);
 
-          // Update disk storage cache
-          try {
-            localStorage.setItem('modivah_products_cache', JSON.stringify(fetchedProducts));
-          } catch (err) {
-            console.warn('Erro ao atualizar modivah_products_cache:', err);
+            // Update disk storage cache
+            try {
+              localStorage.setItem('modivah_products_cache', JSON.stringify(fetchedProducts));
+            } catch (err) {
+              console.warn('Erro ao atualizar modivah_products_cache:', err);
+            }
           }
           setIsInitialLoadingProducts(false);
         }
       },
       (error) => {
         console.warn('Firestore connection issue or permission denied. Falling back to local cache.', error);
+        
+        const errMsg = error?.message || String(error);
+        if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('exhausted') || (error as any).code === 'resource-exhausted') {
+          setIsQuotaExceeded(true);
+        }
+
         // Fallback: Read cache
         try {
           const saved = localStorage.getItem('modivah_products_cache');
@@ -322,10 +419,15 @@ export default function App() {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setProducts(parsed);
+            } else {
+              setProducts(FULL_MOCK_ACERVO);
             }
+          } else {
+            setProducts(FULL_MOCK_ACERVO);
           }
         } catch (e) {
           console.warn('Erro ao ler cache local após falha do Firestore:', e);
+          setProducts(FULL_MOCK_ACERVO);
         }
         setIsInitialLoadingProducts(false);
       }
@@ -818,10 +920,62 @@ export default function App() {
     }
   };
 
+  const handleRestoreCategories = async () => {
+    try {
+      const batch = writeBatch(db);
+      DEFAULT_CATEGORIES.forEach((cat) => {
+        const docRef = doc(db, 'categories', cat.id);
+        batch.set(docRef, cat);
+      });
+      await batch.commit();
+      notify("As 44 categorias do brechó de luxo foram reabastecidas com sucesso de forma dinâmica!");
+    } catch (error: any) {
+      console.error("Erro ao restaurar categorias:", error);
+      notify("Erro na escrita da nuvem: Limite de cota do Firebase atingido hoje.");
+    }
+  };
+
+  const handleImportProducts = (imported: Product[]) => {
+    if (!Array.isArray(imported) || imported.length === 0) {
+      notify("Falha ao importar: Formato de backup inválido.");
+      return;
+    }
+    setProducts(imported);
+    try {
+      localStorage.setItem('modivah_products_cache', JSON.stringify(imported));
+    } catch (e) {
+      console.warn("Erro ao gravar modivah_products_cache de backup:", e);
+    }
+    notify(`Backup carregado! ${imported.length} produtos importados e salvos localmente.`);
+  };
+
+  const handleSyncToFirestore = async () => {
+    if (products.length === 0) {
+      notify("Nenhum produto para sincronizar.");
+      return;
+    }
+    try {
+      const batch = writeBatch(db);
+      products.forEach((product) => {
+        const docRef = doc(db, 'products', product.id);
+        batch.set(docRef, product);
+      });
+      await batch.commit();
+      notify("Acervo carregado com total sucesso no Firestore!");
+    } catch (error: any) {
+      console.error("Erro na sincronização manual com o Firestore:", error);
+      notify("Erro de Sincronização: O banco ainda está com limite de cota ativo.");
+      throw error;
+    }
+  };
+
   // FILTERS IMPLEMENTATIONS
   const categories = [
     'Tudo',
-    ...(categoriesList || []).filter(c => c.active).map(c => c.name)
+    ...([...(categoriesList || [])]
+      .filter(c => c.active)
+      .map(c => c.name)
+      .sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' })))
   ];
   const sizes = ['Todos', 'P', 'M', 'G', 'GG', '36', '38', '40', 'Único'];
 
@@ -957,6 +1111,29 @@ export default function App() {
         </div>
       )}
 
+      {/* Database Quota Exceeded Warning Banner */}
+      {isQuotaExceeded && (
+        <div className="w-full bg-[#ff3b30]/10 border-b border-[#ff3b30]/20 py-3 px-6 flex flex-col md:flex-row md:items-center md:justify-between text-xs gap-3 transition duration-200" id="quota-exceeded-banner">
+          <div className="flex items-start md:items-center gap-2.5">
+            <span className="relative flex h-2 w-2 mt-1 md:mt-0 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30]/80 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff3b30]"></span>
+            </span>
+            <span className="text-zinc-300 leading-relaxed">
+              <strong className="text-amber-500 font-semibold">Cota Diária Excedida (GCP Firestore Spark):</strong> O limite diário de leitura gratuita do Google Firebase foi atingido pelo alto volume de acessos. Exibindo acervo salvo localmente. Suas compras e reservas via WhatsApp seguem funcionando normalmente!
+            </span>
+          </div>
+          <a
+            href="https://console.firebase.google.com/project/gen-lang-client-0300626869/firestore/databases/ai-studio-089e9585-2405-444b-8356-8163e1545262/data?openUpgradeDialog=true"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[9px] uppercase tracking-widest text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg transition duration-200 flex items-center justify-center gap-1 shrink-0 w-fit cursor-pointer hover:border-amber-400/40"
+          >
+            <span>Ver Console Firebase</span>
+          </a>
+        </div>
+      )}
+
       {/* Visual background atmospheric lights */}
       <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/[0.02] filter blur-[120px] pointer-events-none" />
       <div className="absolute top-1/3 left-1/4 w-[600px] h-[600px] rounded-full bg-purple-500/[0.01] filter blur-[150px] pointer-events-none" />
@@ -965,6 +1142,7 @@ export default function App() {
       <AnimatePresence>
         {notification && (
           <motion.div 
+            key="global-notification-banner"
             initial={{ opacity: 0, y: -40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -1241,6 +1419,10 @@ export default function App() {
           onUpdateProductPrice={handleUpdateProductPrice}
           onDeleteProduct={handleDeleteProduct}
           onResetDatabase={handleResetDatabase}
+          onImportProducts={handleImportProducts}
+          onSyncToFirestore={handleSyncToFirestore}
+          onRestoreCategories={handleRestoreCategories}
+          isQuotaExceeded={isQuotaExceeded}
         />
       </Suspense>
 

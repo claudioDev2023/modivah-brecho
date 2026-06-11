@@ -7,6 +7,7 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
   const { timeout = 15000, retries = 2, ...fetchOptions } = options;
 
   let attempt = 0;
+  let lastError: any = null;
   while (attempt <= retries) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -52,6 +53,7 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
       }
     } catch (err: any) {
       clearTimeout(id);
+      lastError = err;
 
       const isAbort = err.name === "AbortError" || (err instanceof DOMException && err.name === "AbortError");
       const isNetworkError = err.message && (
@@ -73,5 +75,6 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
     }
   }
 
-  throw new Error("Falha na comunicação com o servidor após múltiplas tentativas.");
+  const detail = lastError ? ` Detalhes: ${lastError.message || String(lastError)}` : "";
+  throw new Error(`Falha na comunicação com o servidor após múltiplas tentativas.${detail}`);
 }

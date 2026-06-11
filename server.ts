@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import crypto from "crypto";
 import { initializeApp as createClientApp } from "firebase/app";
 import { 
@@ -27,7 +28,7 @@ import {
   orderBy as cOrderBy, 
   writeBatch as cWriteBatch 
 } from "firebase/firestore";
-import { INITIAL_PRODUCTS } from "./src/data/initialProducts";
+import { FULL_MOCK_ACERVO } from "./src/data/fullMockAcervo";
 import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./src/data/fashionDatabase";
 
 async function startServer() {
@@ -201,9 +202,11 @@ async function startServer() {
           projectId: firebaseConfig.projectId
         });
       }
-      adminDb = firebaseConfig.firestoreDatabaseId 
-        ? admin.firestore(firebaseConfig.firestoreDatabaseId)
-        : admin.firestore();
+      // Initialize Firebase Admin DB with safe ESM getFirestore helper
+      adminDb = getFirestore(
+        admin.apps[0] || admin.initializeApp({ projectId: firebaseConfig.projectId }),
+        firebaseConfig.firestoreDatabaseId
+      );
       
       // Opt-in for undefined properties ignoring
       adminDb.settings({ ignoreUndefinedProperties: true });
@@ -555,6 +558,41 @@ async function startServer() {
     res.json({ status: "ok", service: "Modivah Brechó Secure Core API" });
   });
 
+  // Diagnostic API inside server context to evaluate database status
+  app.get("/api/debug/database-info", async (req, res) => {
+    if (!adminDb) {
+      return res.status(503).json({ error: "Banco offline ou indisponível" });
+    }
+    try {
+      const productsSnap = await adminDb.collection("products").get();
+      const categoriesSnap = await adminDb.collection("categories").get();
+      const clientsSnap = await adminDb.collection("clients").get();
+      const ordersSnap = await adminDb.collection("orders").get();
+      
+      const products: any[] = [];
+      productsSnap.forEach(doc => {
+        const d = doc.data();
+        products.push({ id: doc.id, title: d.title, category: d.category, status: d.status, active: d.active ?? true, visible: d.visible ?? true, stock: d.stock, image: d.image });
+      });
+
+      const categories: any[] = [];
+      categoriesSnap.forEach(doc => {
+        categories.push({ id: doc.id, ...doc.data() });
+      });
+
+      return res.json({
+        productsCount: productsSnap.size,
+        categoriesCount: categoriesSnap.size,
+        clientsCount: clientsSnap.size,
+        ordersCount: ordersSnap.size,
+        products: products,
+        categories: categories
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
   // JWT ADMIN AUTHENTICATION LOGIN ROUTE
   app.post("/api/auth/login", async (req, res) => {
     const ip = req.ip || "unknown";
@@ -573,11 +611,13 @@ async function startServer() {
     let adminName = "Administrador";
 
     // A. Verify if Primary Administrator (Super Admin)
-    const isPrimaryEmail = typedEmail === "divamodivah@gmail.com" || typedEmail === "admin@modivah.com.br";
+    const isPrimaryEmail = typedEmail === "divamodivah@gmail.com" || 
+                           typedEmail === "admin@modivah.com.br" || 
+                           typedEmail === "claudioshekina34@gmail.com";
     if (isPrimaryEmail) {
       isMatched = bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
       isPrimary = true;
-      adminName = "Diva Modivah (Dona)";
+      adminName = typedEmail === "claudioshekina34@gmail.com" ? "Claudio Shekina" : "Diva Modivah (Dona)";
     }
 
     // B. Verify from Firestore Database administrators collection if not already matched
@@ -734,11 +774,21 @@ async function startServer() {
         createdBy: "Sistema"
       });
 
+      adminsList.push({
+        id: "root-owner-claudio",
+        email: "claudioshekina34@gmail.com",
+        name: "Claudio Shekina (Owner)",
+        role: "superadmin",
+        createdAt: "Sempre Ativo",
+        createdBy: "Sistema"
+      });
+
       if (snapshot && snapshot.forEach) {
         snapshot.forEach((doc: any) => {
           const data = doc.data();
-          // Filter out the duplicate root email if it exists dynamically, since we push it manually
-          if (data.email && data.email.toLowerCase().trim() === "divamodivah@gmail.com") {
+          const lowerEmail = data.email ? String(data.email).toLowerCase().trim() : "";
+          // Filter out the duplicate root emails if they exist dynamically, since we push them manually
+          if (lowerEmail === "divamodivah@gmail.com" || lowerEmail === "claudioshekina34@gmail.com") {
             return;
           }
           adminsList.push({
@@ -768,7 +818,7 @@ async function startServer() {
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
-    if (cleanEmail === "divamodivah@gmail.com" || cleanEmail === "admin@modivah.com.br") {
+    if (cleanEmail === "divamodivah@gmail.com" || cleanEmail === "admin@modivah.com.br" || cleanEmail === "claudioshekina34@gmail.com") {
       return res.status(400).json({ error: "Este email já pertence ao administrador corporativo principal." });
     }
 
@@ -899,6 +949,8 @@ async function startServer() {
     const id = req.body.id || req.query.id || req.params.id;
     const email = req.body.email || req.query.email || req.params.email;
 
+    console.log(`[DEBUG DELETE ADMIN] Received ID: ${id}, Email: ${email}`);
+
     if (!id && !email) {
       return res.status(400).json({ error: "Identificador ou email é obrigatório para exclusão." });
     }
@@ -909,46 +961,88 @@ async function startServer() {
       let docId = id;
       let targetEmail = email;
 
-      // Ensure target isn't the primary owner
-      if (targetEmail === "divamodivah@gmail.com" || targetEmail === "admin@modivah.com.br") {
+      const verifiedTargetLower = String(targetEmail || "").toLowerCase().trim();
+      if (verifiedTargetLower === "divamodivah@gmail.com" || verifiedTargetLower === "admin@modivah.com.br" || verifiedTargetLower === "claudioshekina34@gmail.com") {
         return res.status(400).json({ error: "Não é permitido excluir o administrador corporativo principal." });
       }
 
-      // If we only have email, find the docId
-      if (!docId && targetEmail) {
-        const snapshot = await secureGetAdminCollection("admins", "email", String(targetEmail).toLowerCase().trim());
-        if (!snapshot || snapshot.empty) {
-          return res.status(404).json({ error: "Administrador não encontrado." });
-        }
-        docId = snapshot.docs[0].id;
-        targetEmail = snapshot.docs[0].data().email;
-      } else if (docId) {
-        const docSnap = await secureGetDoc("admins", docId);
-        if (docSnap && docSnap.exists) {
-          targetEmail = docSnap.data()?.email;
-        } else {
-          // Fallback searching by email in case of mismatch in IDs
-          const snapshot = await secureGetAdminCollection("admins", "email", String(targetEmail || "").toLowerCase().trim());
-          if (snapshot && !snapshot.empty) {
-            docId = snapshot.docs[0].id;
-            targetEmail = snapshot.docs[0].data().email;
-          } else {
-            return res.status(404).json({ error: "Administrador não encontrado para exclusão." });
-          }
-        }
-      }
-
-      if (requesterEmail.toLowerCase().trim() === String(targetEmail || "").toLowerCase().trim()) {
+      if (requesterEmail.toLowerCase().trim() === verifiedTargetLower) {
         return res.status(400).json({ error: "Você não pode excluir o seu próprio perfil administrativo ativo." });
       }
 
-      await secureDeleteDoc("admins", docId);
-      auditLog("EXCLUSAO_ADMINISTRADOR", ip, `Administrador Removido: ${targetEmail} por ${requesterEmail}`);
+      let documentRefDeleted = false;
+
+      // Try 1: Direct deletion via ID if possible
+      if (docId) {
+        try {
+          const docSnap = await secureGetDoc("admins", docId);
+          if (docSnap && docSnap.exists) {
+            await secureDeleteDoc("admins", docId);
+            documentRefDeleted = true;
+            console.log(`[DEBUG DELETE ADMIN] Deleted successfully via direct ID: ${docId}`);
+          }
+        } catch (err: any) {
+          console.warn(`[DEBUG DELETE ADMIN] Failed delete attempt by ID docId ${docId}:`, err.message);
+        }
+      }
+
+      // Try 2: If not deleted yet, search and delete by email
+      if (!documentRefDeleted && verifiedTargetLower) {
+        try {
+          const snapshot = await secureGetAdminCollection("admins", "email", verifiedTargetLower);
+          if (snapshot && !snapshot.empty) {
+            for (const doc of snapshot.docs) {
+              await secureDeleteDoc("admins", doc.id);
+            }
+            documentRefDeleted = true;
+            console.log(`[DEBUG DELETE ADMIN] Deleted successfully via email: ${verifiedTargetLower}`);
+          }
+        } catch (err: any) {
+          console.warn(`[DEBUG DELETE ADMIN] Failed delete attempt by email ${verifiedTargetLower}:`, err.message);
+        }
+      }
+
+      // Try 3: Direct fallback on clientDb if initialized
+      if (!documentRefDeleted && clientDb && docId) {
+        try {
+          const cDocRef = cDoc(clientDb, "admins", docId);
+          await cDeleteDoc(cDocRef);
+          documentRefDeleted = true;
+          console.log(`[DEBUG DELETE ADMIN] Deleted successfully via direct Client SDK deleteDoc fallback: ${docId}`);
+        } catch (err: any) {
+          console.warn(`[DEBUG DELETE ADMIN] Direct clientDb delete fallback failed:`, err.message);
+        }
+      }
+
+      // Also Reset requestAdminAccess in clients collection so the user is demoted there too
+      try {
+        const clientQuery = await secureGetAdminCollection("clients", "email", verifiedTargetLower);
+        if (clientQuery && !clientQuery.empty) {
+          for (const doc of clientQuery.docs) {
+            await secureUpdateDoc("clients", doc.id, {
+              adminRequestStatus: "none",
+              requestAdminAccess: false,
+              adminRequestApprovalDate: null,
+              approvedBy: null
+            });
+          }
+          console.log(`[DEBUG DELETE ADMIN] Successfully reset requestAdminAccess status on "clients" collection for: ${verifiedTargetLower}`);
+        }
+      } catch (err: any) {
+        console.warn(`[DEBUG DELETE ADMIN] Failed to revert clients status during admin deletion for ${verifiedTargetLower}:`, err.message);
+      }
+
+      // If we couldn't delete any document, return informative error but still allow resetting of local client status
+      if (!documentRefDeleted) {
+        return res.status(404).json({ error: "Este co-administrador já foi removido ou não pôde ser localizado na nuvem." });
+      }
+
+      auditLog("EXCLUSAO_ADMINISTRADOR", ip, `Administrador Removido: ${verifiedTargetLower} por ${requesterEmail}`);
       
-      return res.json({ success: true, message: `Administrador ${targetEmail} removido com sucesso!` });
+      return res.json({ success: true, message: `Administrador ${verifiedTargetLower} removido com sucesso!` });
     } catch (e: any) {
       console.error("[Admin API Delete Admin Fail]", e);
-      return res.status(500).json({ error: "Erro interno ao remover o administrador.", details: e.message });
+      return res.status(500).json({ error: "Erro interno ao remover o administrador de forma definitiva.", details: e.message });
     }
   };
 
@@ -958,29 +1052,27 @@ async function startServer() {
 
   // GET LIST OF PENDING CO-ADMINISTRATOR REQUESTS (FROM CLIENTS COLLECTION)
   app.get("/api/admin/pending-requests", requireAdmin, async (req, res) => {
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
     try {
-      const clientsRef = adminDb.collection("clients");
-      const snapshot = await clientsRef
-        .where("requestAdminAccess", "==", true)
-        .where("adminRequestStatus", "==", "pending")
-        .get();
-
+      const snapshot = await secureGetAdminCollection("clients", "requestAdminAccess", true);
       const requests: any[] = [];
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        requests.push({
-          clientId: doc.id,
-          name: data.name || "Sem Nome",
-          email: data.email || "",
-          phone: data.phone || "",
-          whatsapp: data.whatsapp || "",
-          adminRequestDate: data.adminRequestDate || data.createdAt || new Date().toISOString(),
-          adminRequestStatus: data.adminRequestStatus || "pending"
+      
+      if (snapshot && snapshot.forEach) {
+        snapshot.forEach((doc: any) => {
+          const data = doc.data();
+          const status = data.adminRequestStatus || "pending";
+          if (status === "pending") {
+            requests.push({
+              clientId: doc.id,
+              name: data.name || "Sem Nome",
+              email: data.email || "",
+              phone: data.phone || "",
+              whatsapp: data.whatsapp || "",
+              adminRequestDate: data.adminRequestDate || data.createdAt || new Date().toISOString(),
+              adminRequestStatus: status
+            });
+          }
         });
-      });
+      }
 
       // Sort by request date descending
       requests.sort((a, b) => new Date(b.adminRequestDate).getTime() - new Date(a.adminRequestDate).getTime());
@@ -995,10 +1087,6 @@ async function startServer() {
   // APPROVE CO-ADMINISTRATOR REQUEST
   app.post("/api/admin/approve-request", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
-
     const { clientId } = req.body;
     if (!clientId) {
       return res.status(400).json({ error: "O clientId do usuário é obrigatório para aprovação." });
@@ -1007,20 +1095,19 @@ async function startServer() {
     const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
-      const clientDocRef = adminDb.collection("clients").doc(clientId);
-      const clientSnap = await clientDocRef.get();
-      if (!clientSnap.exists) {
+      const clientSnap = await secureGetDoc("clients", clientId);
+      if (!clientSnap || !clientSnap.exists) {
         return res.status(404).json({ error: "Usuário não encontrado." });
       }
 
       const clientData = clientSnap.data()!;
       const cleanEmail = String(clientData.email).toLowerCase().trim();
 
-      // Ensure not a duplicate in admins first
-      const duplicateRefs = await adminDb.collection("admins").where("email", "==", cleanEmail).get();
-      if (!duplicateRefs.empty) {
+      // Ensure not a duplicate in admins first by using the secure helper
+      const duplicateRefs = await secureGetAdminCollection("admins", "email", cleanEmail);
+      if (duplicateRefs && !duplicateRefs.empty) {
         // Just update status and skip creating duplicate
-        await clientDocRef.update({
+        await secureUpdateDoc("clients", clientId, {
           adminRequestStatus: "approved",
           adminRequestApprovalDate: new Date().toISOString(),
           approvedBy: requesterEmail
@@ -1029,7 +1116,7 @@ async function startServer() {
       }
 
       // Update client document status
-      await clientDocRef.update({
+      await secureUpdateDoc("clients", clientId, {
         adminRequestStatus: "approved",
         adminRequestApprovalDate: new Date().toISOString(),
         approvedBy: requesterEmail
@@ -1045,7 +1132,7 @@ async function startServer() {
         createdBy: requesterEmail
       };
 
-      await adminDb.collection("admins").add(newAdminDoc);
+      await secureAddDoc("admins", newAdminDoc);
       auditLog("APROVACAO_ADMINISTRADOR", ip, `Solicitação aprovada para: ${cleanEmail} por ${requesterEmail}`);
 
       return res.json({ success: true, message: `Administrador ${cleanEmail} aprovado com sucesso!` });
@@ -1058,10 +1145,6 @@ async function startServer() {
   // REJECT CO-ADMINISTRATOR REQUEST
   app.post("/api/admin/reject-request", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
-    }
-
     const { clientId } = req.body;
     if (!clientId) {
       return res.status(400).json({ error: "O clientId do usuário é obrigatório para rejeição." });
@@ -1070,9 +1153,8 @@ async function startServer() {
     const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
-      const clientDocRef = adminDb.collection("clients").doc(clientId);
-      const clientSnap = await clientDocRef.get();
-      if (!clientSnap.exists) {
+      const clientSnap = await secureGetDoc("clients", clientId);
+      if (!clientSnap || !clientSnap.exists) {
         return res.status(404).json({ error: "Usuário não encontrado." });
       }
 
@@ -1080,7 +1162,7 @@ async function startServer() {
       const cleanEmail = String(clientData.email).toLowerCase().trim();
 
       // Update client document status
-      await clientDocRef.update({
+      await secureUpdateDoc("clients", clientId, {
         adminRequestStatus: "rejected",
         adminRequestRejectionDate: new Date().toISOString(),
         rejectedBy: requesterEmail
@@ -1341,6 +1423,13 @@ async function startServer() {
     };
 
     try {
+      // Validate category duplicate name
+      const querySnapshot = await adminDb.collection("categories").where("name", "==", payload.name).get();
+      const duplicateExists = querySnapshot.docs.some((doc: any) => doc.id !== catId);
+      if (duplicateExists) {
+        return res.status(400).json({ error: "Já existe uma categoria cadastrada com este nome." });
+      }
+
       await secureSetDoc("categories", catId, payload);
       auditLog("SALVAR_CATEGORIA", req.ip || "unknown", `Categoria salva: ${payload.name} (${catId})`);
       return res.json({ success: true, message: "Categoria salva com sucesso!", category: payload });
@@ -1397,11 +1486,72 @@ async function startServer() {
 
       // 2. Load clean initial static dataset
       const batchSeed = adminDb.batch();
-      INITIAL_PRODUCTS.forEach(p => {
+      FULL_MOCK_ACERVO.forEach(p => {
         const docRef = adminDb!.collection("products").doc(p.id);
         batchSeed.set(docRef, p);
       });
       await batchSeed.commit();
+
+      // 3. Clear and seed categories
+      const currentCategories = await adminDb.collection("categories").get();
+      const batchClearCats = adminDb.batch();
+      currentCategories.forEach(doc => {
+        batchClearCats.delete(doc.ref);
+      });
+      await batchClearCats.commit();
+
+      const batchSeedCats = adminDb.batch();
+      const defaultCategories = [
+        { id: 'cat-acessorios', name: 'Acessórios', active: true, order: 1 },
+        { id: 'cat-bermudas', name: 'Bermudas', active: true, order: 2 },
+        { id: 'cat-bijuterias', name: 'Bijuterias', active: true, order: 3 },
+        { id: 'cat-blazers', name: 'Blazers', active: true, order: 4 },
+        { id: 'cat-blusas', name: 'Blusas', active: true, order: 5 },
+        { id: 'cat-bodys', name: 'Bodys', active: true, order: 6 },
+        { id: 'cat-bolsas', name: 'Bolsas', active: true, order: 7 },
+        { id: 'cat-botas', name: 'Botas', active: true, order: 8 },
+        { id: 'cat-calcas', name: 'Calças', active: true, order: 9 },
+        { id: 'cat-calcados', name: 'Calçados', active: true, order: 10 },
+        { id: 'cat-camisas', name: 'Camisas', active: true, order: 11 },
+        { id: 'cat-camisetas', name: 'Camisetas', active: true, order: 12 },
+        { id: 'cat-cardigans', name: 'Cardigans', active: true, order: 13 },
+        { id: 'cat-carteiras', name: 'Carteiras', active: true, order: 14 },
+        { id: 'cat-casacos', name: 'Casacos', active: true, order: 15 },
+        { id: 'cat-cintos', name: 'Cintos', active: true, order: 16 },
+        { id: 'cat-coletes', name: 'Coletes', active: true, order: 17 },
+        { id: 'cat-conjuntos', name: 'Conjuntos', active: true, order: 18 },
+        { id: 'cat-croppeds', name: 'Croppeds', active: true, order: 19 },
+        { id: 'cat-fitness', name: 'Fitness', active: true, order: 20 },
+        { id: 'cat-infantil', name: 'Infantil', active: true, order: 21 },
+        { id: 'cat-jaquetas', name: 'Jaquetas', active: true, order: 22 },
+        { id: 'cat-jeans', name: 'Jeans', active: true, order: 23 },
+        { id: 'cat-joias', name: 'Joias e Semijoias', active: true, order: 24 },
+        { id: 'cat-lencos', name: 'Lenços', active: true, order: 25 },
+        { id: 'cat-macacoes', name: 'Macacões', active: true, order: 26 },
+        { id: 'cat-macaquinhos', name: 'Macaquinhos', active: true, order: 27 },
+        { id: 'cat-malas-mochilas', name: 'Malas e Mochilas', active: true, order: 28 },
+        { id: 'cat-masculino', name: 'Masculino', active: true, order: 29 },
+        { id: 'cat-moda-praia', name: 'Moda Praia', active: true, order: 30 },
+        { id: 'cat-moletons', name: 'Moletons', active: true, order: 31 },
+        { id: 'cat-oculos', name: 'Óculos', active: true, order: 32 },
+        { id: 'cat-perfumes', name: 'Perfumes', active: true, order: 33 },
+        { id: 'cat-plus-size', name: 'Plus Size', active: true, order: 34 },
+        { id: 'cat-regatas', name: 'Regatas', active: true, order: 35 },
+        { id: 'cat-relogios', name: 'Relógios', active: true, order: 36 },
+        { id: 'cat-saias', name: 'Saias', active: true, order: 37 },
+        { id: 'cat-sandalias', name: 'Sandálias', active: true, order: 38 },
+        { id: 'cat-shorts', name: 'Shorts', active: true, order: 39 },
+        { id: 'cat-sueteres', name: 'Suéteres', active: true, order: 40 },
+        { id: 'cat-tenis', name: 'Tênis', active: true, order: 41 },
+        { id: 'cat-trench-coats', name: 'Trench Coats', active: true, order: 42 },
+        { id: 'cat-trico-croche', name: 'Tricô e Crochê', active: true, order: 43 },
+        { id: 'cat-vestidos', name: 'Vestidos', active: true, order: 44 }
+      ];
+      defaultCategories.forEach(cat => {
+        const docRef = adminDb!.collection("categories").doc(cat.id);
+        batchSeedCats.set(docRef, cat);
+      });
+      await batchSeedCats.commit();
 
       auditLog("RESTAURO_TOTAL_ESTOQUE", ip, "Configuração de fábrica do brechó restaurada.");
       return res.json({ success: true, message: "Banco de dados restaurado e semeado com sucesso." });
