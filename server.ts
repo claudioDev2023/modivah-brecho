@@ -31,8 +31,10 @@ import {
 import { FULL_MOCK_ACERVO } from "./src/data/fullMockAcervo";
 import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./src/data/fashionDatabase";
 
+const app = express();
+export { app };
+
 async function startServer() {
-  const app = express();
   const PORT = 3000;
 
   // Let the server trust reverse proxy headers (Cloud Run setup)
@@ -194,7 +196,17 @@ async function startServer() {
   // 6. FIREBASE ADMIN DATABASE INITIALIZATION
   let adminDb: admin.firestore.Firestore | null = null;
   try {
-    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    let configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (!fs.existsSync(configPath)) {
+      const altPath1 = path.join(__dirname, "firebase-applet-config.json");
+      const altPath2 = path.join(__dirname, "..", "firebase-applet-config.json");
+      if (fs.existsSync(altPath1)) {
+        configPath = altPath1;
+      } else if (fs.existsSync(altPath2)) {
+        configPath = altPath2;
+      }
+    }
+    
     if (fs.existsSync(configPath)) {
       const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
       if (admin.apps.length === 0) {
@@ -223,7 +235,17 @@ async function startServer() {
   // 6.5. FIREBASE CLIENT FALLBACK INITIALIZATION
   let clientDb: any = null;
   try {
-    const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    let configPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (!fs.existsSync(configPath)) {
+      const altPath1 = path.join(__dirname, "firebase-applet-config.json");
+      const altPath2 = path.join(__dirname, "..", "firebase-applet-config.json");
+      if (fs.existsSync(altPath1)) {
+        configPath = altPath1;
+      } else if (fs.existsSync(altPath2)) {
+        configPath = altPath2;
+      }
+    }
+    
     if (fs.existsSync(configPath)) {
       const firebaseConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
       const clientApp = createClientApp(firebaseConfig);
@@ -2138,9 +2160,13 @@ Mantenha a resposta com cerca de 150 a 200 palavras em português pt-BR.`;
     console.log("[Production Mode] Static asset serving active.");
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running securely on port ${PORT}...`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running securely on port ${PORT}...`);
+    });
+  } else {
+    console.log("[Production Vercel] Express server initialized in serverless handler context successfully.");
+  }
 }
 
 // Simulated fallback if GEMINI_API_KEY key is unconfigured
