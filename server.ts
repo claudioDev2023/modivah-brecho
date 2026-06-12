@@ -212,100 +212,7 @@ async function startServer() {
       adminDb.settings({ ignoreUndefinedProperties: true });
       console.log("[Firebase Admin] Connected securely utilizing native credentials:", firebaseConfig.firestoreDatabaseId);
 
-      // Async seeding of requested administrator profile (gleidefx38@gmail.com / Shekina1)
-      (async () => {
-        try {
-          const adminRef = adminDb!.collection("admins");
-          const snapshot = await adminRef.where("email", "==", "gleidefx38@gmail.com").get();
-          if (snapshot.empty) {
-            const salt = bcrypt.genSaltSync(12);
-            const passwordHash = bcrypt.hashSync("Shekina1", salt);
-            await adminRef.add({
-              email: "gleidefx38@gmail.com",
-              passwordHash,
-              name: "Gleide Admin",
-              role: "admin",
-              status: "active",
-              createdAt: new Date().toISOString(),
-              createdBy: "divamodivah@gmail.com"
-            });
-            console.log("[Authentication Engine] Seeded gleidefx38@gmail.com successfully.");
-          }
-        } catch (err) {
-          console.error("[Authentication Engine] Error seeding default administrators:", err);
-        }
-      })();
-
-      // Async seeding of default categories: verify and upsert missing original categories
-      (async () => {
-        try {
-          const catsRef = adminDb!.collection("categories");
-          const snapshot = await catsRef.get();
-          const existingNames = new Set<string>();
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            if (data && data.name) {
-              existingNames.add(String(data.name).trim().toLowerCase());
-            }
-          });
-
-          const defaultCats = [
-            'Vestidos',
-            'Blusas',
-            'Calçados',
-            'Bolsas',
-            'Saias',
-            'Shorts',
-            'Calças',
-            'Macacões',
-            'Conjuntos',
-            'Camisas',
-            'Camisetas',
-            'Croppeds',
-            'Regatas',
-            'Blazers',
-            'Jaquetas',
-            'Casacos',
-            'Moda Praia',
-            'Acessórios',
-            'Bijuterias',
-            'Óculos',
-            'Cintos',
-            'Lenços',
-            'Perfumes',
-            'Infantil',
-            'Masculino',
-            'Plus Size'
-          ];
-
-          let addedCount = 0;
-          for (let i = 0; i < defaultCats.length; i++) {
-            const catName = defaultCats[i];
-            const lowerName = catName.trim().toLowerCase();
-            if (!existingNames.has(lowerName)) {
-              const slug = catName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
-              const id = `cat-system-${slug}`;
-              await catsRef.doc(id).set({
-                id,
-                name: catName,
-                slug,
-                active: true,
-                color: '#FF4F93',
-                icon: 'Shirt',
-                order: i + 1,
-                createdAt: new Date().toISOString(),
-                createdBy: 'system'
-              });
-              addedCount++;
-            }
-          }
-          if (addedCount > 0) {
-            console.log(`[Category Engine] Restored ${addedCount} missing original dynamic categories successfully.`);
-          }
-        } catch (err) {
-          console.error("[Category Engine] Error seeding default categories:", err);
-        }
-      })();
+      console.log("[Firebase Admin] Startup initialization complete. Async seeding tasks will run using secure fallback helpers.");
     } else {
       console.error("[Firebase Admin] Config file firebase-applet-config.json missing!");
     }
@@ -524,6 +431,109 @@ async function startServer() {
     throw new Error("Serviço de banco de dados indisponível.");
   }
 
+  // Defer run of startup tasks using the secure, fallback-aware wrappers we just declared!
+  
+  // TAREFA 1: Async purge of ALL historical administrative users (except claudioshekina34@gmail.com)
+  (async () => {
+    try {
+      console.log("[Authentication Engine] Running deferred purging task...");
+      const snapshot = await secureGetAdminCollection("admins");
+      if (snapshot && !snapshot.empty) {
+        let count = 0;
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+          const email = String(data.email || "").toLowerCase().trim();
+          if (email !== "claudioshekina34@gmail.com") {
+            await secureDeleteDoc("admins", doc.id);
+            count++;
+          }
+        }
+        if (count > 0) {
+          console.log(`[Authentication Engine] Purged ${count} legacy administrative accounts from database successfully.`);
+        } else {
+          console.log("[Authentication Engine] No legacy administrative accounts identified for purging.");
+        }
+      }
+    } catch (err: any) {
+      console.error("[Authentication Engine] Deferred purging task failed:", err.message || err);
+    }
+  })();
+
+  // Async seeding of default categories: verify and upsert missing original categories
+  (async () => {
+    try {
+      console.log("[Category Engine] Running deferred categories seeding task...");
+      const snapshot = await secureGetAdminCollection("categories");
+      const existingNames = new Set<string>();
+      if (snapshot && !snapshot.empty) {
+        snapshot.forEach((doc: any) => {
+          const data = doc.data();
+          if (data && data.name) {
+            existingNames.add(String(data.name).trim().toLowerCase());
+          }
+        });
+      }
+
+      const defaultCats = [
+        'Vestidos',
+        'Blusas',
+        'Calçados',
+        'Bolsas',
+        'Saias',
+        'Shorts',
+        'Calças',
+        'Macacões',
+        'Conjuntos',
+        'Camisas',
+        'Camisetas',
+        'Croppeds',
+        'Regatas',
+        'Blazers',
+        'Jaquetas',
+        'Casacos',
+        'Moda Praia',
+        'Acessórios',
+        'Bijuterias',
+        'Óculos',
+        'Cintos',
+        'Lenços',
+        'Perfumes',
+        'Infantil',
+        'Masculino',
+        'Plus Size'
+      ];
+
+      let addedCount = 0;
+      for (let i = 0; i < defaultCats.length; i++) {
+        const catName = defaultCats[i];
+        const lowerName = catName.trim().toLowerCase();
+        if (!existingNames.has(lowerName)) {
+          const slug = catName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "-");
+          const id = `cat-system-${slug}`;
+          await secureSetDoc("categories", id, {
+            id,
+            name: catName,
+            slug,
+            active: true,
+            color: '#FF4F93',
+            icon: 'Shirt',
+            order: i + 1,
+            createdAt: new Date().toISOString(),
+            createdBy: 'system'
+          });
+          addedCount++;
+        }
+      }
+      if (addedCount > 0) {
+        console.log(`[Category Engine] Restored ${addedCount} missing original dynamic categories successfully.`);
+      } else {
+        console.log("[Category Engine] Seeding check complete. All categories exist.");
+      }
+    } catch (err: any) {
+      console.error("[Category Engine] Deferred seeding task failed:", err.message || err);
+    }
+  })();
+
   // 7. JWT VALIDATOR MIDDLEWARE
   function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
     const authHeader = req.headers.authorization;
@@ -536,7 +546,7 @@ async function startServer() {
     // Support emergency bypass master-key token recovery
     if (token === 'bypass_master_key_77277727') {
       const settings = ensureSettings();
-      const adminEmail = (req.headers["x-admin-email"] as string) || "divamodivah@gmail.com";
+      const adminEmail = (req.headers["x-admin-email"] as string) || "claudioshekina34@gmail.com";
       (req as any).adminUser = { admin: true, isPrimary: true, email: adminEmail, passwordVersion: settings.passwordVersion };
       return next();
     }
@@ -643,13 +653,11 @@ async function startServer() {
     let adminName = "Administrador";
 
     // A. Verify if Primary Administrator (Super Admin)
-    const isPrimaryEmail = typedEmail === "divamodivah@gmail.com" || 
-                           typedEmail === "admin@modivah.com.br" || 
-                           typedEmail === "claudioshekina34@gmail.com";
+    const isPrimaryEmail = typedEmail === "claudioshekina34@gmail.com";
     if (isPrimaryEmail) {
       isMatched = bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
       isPrimary = true;
-      adminName = typedEmail === "claudioshekina34@gmail.com" ? "Claudio Shekina" : "Diva Modivah (Dona)";
+      adminName = "Claudio Shekina";
     }
 
     // B. Verify from Firestore Database administrators collection if not already matched
@@ -812,16 +820,7 @@ async function startServer() {
       const snapshot = await secureGetAdminCollection("admins");
       const adminsList: any[] = [];
       
-      // Seed root primary administrator representation
-      adminsList.push({
-        id: "root-super-admin",
-        email: "divamodivah@gmail.com",
-        name: "Diva Modivah (Dona Core)",
-        role: "superadmin",
-        createdAt: "Sempre Ativo",
-        createdBy: "Sistema"
-      });
-
+      // Seed root primary administrator representation (Super Admin)
       adminsList.push({
         id: "root-owner-claudio",
         email: "claudioshekina34@gmail.com",
@@ -836,7 +835,7 @@ async function startServer() {
           const data = doc.data();
           const lowerEmail = data.email ? String(data.email).toLowerCase().trim() : "";
           // Filter out the duplicate root emails if they exist dynamically, since we push them manually
-          if (lowerEmail === "divamodivah@gmail.com" || lowerEmail === "claudioshekina34@gmail.com") {
+          if (lowerEmail === "divamodivah@gmail.com" || lowerEmail === "claudioshekina34@gmail.com" || lowerEmail === "admin@modivah.com.br") {
             return;
           }
           adminsList.push({
@@ -861,17 +860,22 @@ async function startServer() {
   app.post("/api/admin/add-admin", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
     const { email, password, name, role } = req.body;
+
+    const requesterEmail = String((req as any).adminUser?.email || "").toLowerCase().trim();
+    if (requesterEmail !== "claudioshekina34@gmail.com") {
+      return res.status(403).json({ error: "Sua conta não tem autorização para esta operação. Apenas o proprietário principal (claudioshekina34@gmail.com) pode criar ou gerenciar administradores." });
+    }
+
     if (!email || !name) {
       return res.status(400).json({ error: "Os campos nome e e-mail são obrigatórios para cadastro." });
     }
 
     const cleanEmail = String(email).toLowerCase().trim();
-    if (cleanEmail === "divamodivah@gmail.com" || cleanEmail === "admin@modivah.com.br" || cleanEmail === "claudioshekina34@gmail.com") {
-      return res.status(400).json({ error: "Este email já pertence ao administrador corporativo principal." });
+    if (cleanEmail === "claudioshekina34@gmail.com") {
+      return res.status(400).json({ error: "Este email já pertence ao proprietário principal do sistema." });
     }
 
     const chosenRole = role || "admin";
-    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
       // Validate unique email check in user-defined dynamic admins first
@@ -999,22 +1003,25 @@ async function startServer() {
 
     console.log(`[DEBUG DELETE ADMIN] Received ID: ${id}, Email: ${email}`);
 
+    const requesterEmail = String((req as any).adminUser?.email || "").toLowerCase().trim();
+    if (requesterEmail !== "claudioshekina34@gmail.com") {
+      return res.status(403).json({ error: "Sua conta não tem autorização para esta operação. Apenas o proprietário principal (claudioshekina34@gmail.com) pode criar ou excluir administradores." });
+    }
+
     if (!id && !email) {
       return res.status(400).json({ error: "Identificador ou email é obrigatório para exclusão." });
     }
-
-    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
       let docId = id;
       let targetEmail = email;
 
       const verifiedTargetLower = String(targetEmail || "").toLowerCase().trim();
-      if (verifiedTargetLower === "divamodivah@gmail.com" || verifiedTargetLower === "admin@modivah.com.br" || verifiedTargetLower === "claudioshekina34@gmail.com") {
-        return res.status(400).json({ error: "Não é permitido excluir o administrador corporativo principal." });
+      if (verifiedTargetLower === "claudioshekina34@gmail.com") {
+        return res.status(400).json({ error: "Não é permitido excluir o proprietário principal do sistema." });
       }
 
-      if (requesterEmail.toLowerCase().trim() === verifiedTargetLower) {
+      if (requesterEmail === verifiedTargetLower) {
         return res.status(400).json({ error: "Você não pode excluir o seu próprio perfil administrativo ativo." });
       }
 
@@ -1136,11 +1143,15 @@ async function startServer() {
   app.post("/api/admin/approve-request", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
     const { clientId } = req.body;
+
+    const requesterEmail = String((req as any).adminUser?.email || "").toLowerCase().trim();
+    if (requesterEmail !== "claudioshekina34@gmail.com") {
+      return res.status(403).json({ error: "Sua conta não tem autorização para esta operação. Apenas o proprietário principal (claudioshekina34@gmail.com) pode aprovar novos administradores." });
+    }
+
     if (!clientId) {
       return res.status(400).json({ error: "O clientId do usuário é obrigatório para aprovação." });
     }
-
-    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
       const clientSnap = await secureGetDoc("clients", clientId);
@@ -1194,11 +1205,15 @@ async function startServer() {
   app.post("/api/admin/reject-request", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
     const { clientId } = req.body;
+
+    const requesterEmail = String((req as any).adminUser?.email || "").toLowerCase().trim();
+    if (requesterEmail !== "claudioshekina34@gmail.com") {
+      return res.status(403).json({ error: "Sua conta não tem autorização para esta operação. Apenas o proprietário principal (claudioshekina34@gmail.com) pode rejeitar solicitações de acesso." });
+    }
+
     if (!clientId) {
       return res.status(400).json({ error: "O clientId do usuário é obrigatório para rejeição." });
     }
-
-    const requesterEmail = (req as any).adminUser?.email || "divamodivah@gmail.com";
 
     try {
       const clientSnap = await secureGetDoc("clients", clientId);

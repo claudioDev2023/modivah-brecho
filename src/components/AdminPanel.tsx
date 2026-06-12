@@ -230,7 +230,7 @@ export default function AdminPanel({
 
   // Email & Password Authentication
   const [emailInput, setEmailInput] = useState(() => {
-    return localStorage.getItem('modivah_admin_email') || 'admin@modivah.com.br';
+    return localStorage.getItem('modivah_admin_email') || 'claudioshekina34@gmail.com';
   });
   const [passwordInput, setPasswordInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
