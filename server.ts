@@ -329,9 +329,11 @@ async function startServer() {
   }
 
   // Unified dynamic database helpers to prevent "7 PERMISSION_DENIED" failures
+  let isAdminDbDisabled = false;
+
   async function secureGetAdminCollection(collectionName: string, filterField?: string, filterValue?: any) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         let collRef: any = adminDb.collection(collectionName);
         if (filterField) {
           collRef = collRef.where(filterField, "==", filterValue);
@@ -341,6 +343,10 @@ async function startServer() {
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK get collection failed for ${collectionName}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -372,12 +378,16 @@ async function startServer() {
 
   async function secureUpdateDoc(collectionName: string, docId: string, updatePayload: any) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         await adminDb.collection(collectionName).doc(docId).update(updatePayload);
         return;
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK update failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -395,12 +405,16 @@ async function startServer() {
 
   async function secureAddDoc(collectionName: string, data: any) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         const docRef = await adminDb.collection(collectionName).add(data);
         return docRef.id;
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK add failed for ${collectionName}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -418,12 +432,16 @@ async function startServer() {
 
   async function secureDeleteDoc(collectionName: string, docId: string) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         await adminDb.collection(collectionName).doc(docId).delete();
         return;
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK delete failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -441,7 +459,7 @@ async function startServer() {
 
   async function secureSetDoc(collectionName: string, docId: string, data: any, merge: boolean = false) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         if (merge) {
           await adminDb.collection(collectionName).doc(docId).set(data, { merge: true });
         } else {
@@ -451,6 +469,10 @@ async function startServer() {
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK set failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -468,7 +490,7 @@ async function startServer() {
 
   async function secureGetDoc(collectionName: string, docId: string) {
     try {
-      if (adminDb) {
+      if (adminDb && !isAdminDbDisabled) {
         const snap = await adminDb.collection(collectionName).doc(docId).get();
         return {
           exists: snap.exists,
@@ -478,6 +500,10 @@ async function startServer() {
       }
     } catch (err: any) {
       console.warn(`[Fallback Warning] Admin SDK get doc failed for ${collectionName}/${docId}. Trying Client SDK... Error:`, err.message);
+      if (err.message && (err.message.includes("PERMISSION_DENIED") || err.message.includes("7") || err.message.includes("credential") || err.message.includes("permission"))) {
+        console.warn("[Firebase Admin Bypass] Automatically disabling Admin SDK due to permission constraints. Bypassing to Client SDK for all future operations.");
+        isAdminDbDisabled = true;
+      }
     }
 
     if (clientDb) {
@@ -560,31 +586,35 @@ async function startServer() {
 
   // Diagnostic API inside server context to evaluate database status
   app.get("/api/debug/database-info", async (req, res) => {
-    if (!adminDb) {
-      return res.status(503).json({ error: "Banco offline ou indisponível" });
-    }
     try {
-      const productsSnap = await adminDb.collection("products").get();
-      const categoriesSnap = await adminDb.collection("categories").get();
-      const clientsSnap = await adminDb.collection("clients").get();
-      const ordersSnap = await adminDb.collection("orders").get();
+      const productsSnap = await secureGetAdminCollection("products");
+      const categoriesSnap = await secureGetAdminCollection("categories");
+      const clientsSnap = await secureGetAdminCollection("clients");
+      const ordersSnap = await secureGetAdminCollection("orders");
       
       const products: any[] = [];
-      productsSnap.forEach(doc => {
+      const prodDocs = productsSnap && (productsSnap as any).docs ? (productsSnap as any).docs : [];
+      prodDocs.forEach((doc: any) => {
         const d = doc.data();
         products.push({ id: doc.id, title: d.title, category: d.category, status: d.status, active: d.active ?? true, visible: d.visible ?? true, stock: d.stock, image: d.image });
       });
 
       const categories: any[] = [];
-      categoriesSnap.forEach(doc => {
+      const catDocs = categoriesSnap && (categoriesSnap as any).docs ? (categoriesSnap as any).docs : [];
+      catDocs.forEach((doc: any) => {
         categories.push({ id: doc.id, ...doc.data() });
       });
 
+      const productsSize = prodDocs.length;
+      const categoriesSize = catDocs.length;
+      const clientsSize = clientsSnap && (clientsSnap as any).docs ? (clientsSnap as any).docs.length : 0;
+      const ordersSize = ordersSnap && (ordersSnap as any).docs ? (ordersSnap as any).docs.length : 0;
+
       return res.json({
-        productsCount: productsSnap.size,
-        categoriesCount: categoriesSnap.size,
-        clientsCount: clientsSnap.size,
-        ordersCount: ordersSnap.size,
+        productsCount: productsSize,
+        categoriesCount: categoriesSize,
+        clientsCount: clientsSize,
+        ordersCount: ordersSize,
         products: products,
         categories: categories
       });
@@ -1214,8 +1244,8 @@ async function startServer() {
   // ADD PRODUCT ENDPOINT
   app.post("/api/admin/add-product", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) {
-      return res.status(503).json({ error: "Serviço de banco de dados do Firebase Admin indisponível." });
+    if (!adminDb && !clientDb) {
+      return res.status(503).json({ error: "Serviço de banco de dados do Firebase indisponível." });
     }
 
     const val = validateProductPayload(req.body);
@@ -1245,7 +1275,7 @@ async function startServer() {
         createdAt: new Date().toISOString()
       };
 
-      await adminDb.collection("products").doc(cleanProduct.id).set(cleanProduct);
+      await secureSetDoc("products", cleanProduct.id, cleanProduct);
       auditLog("CADASTRO_PRODUTO", ip, `Produto Cadastrado: ${cleanProduct.title} (ID: ${cleanProduct.id})`);
       return res.json({ success: true, product: cleanProduct });
     } catch (e: any) {
@@ -1257,7 +1287,7 @@ async function startServer() {
   // UPDATE PRODUCT DETAILS ENDPOINT
   app.post("/api/admin/update-product", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) return res.status(503).json({ error: "Serviço de banco de dados inacessível." });
+    if (!adminDb && !clientDb) return res.status(503).json({ error: "Serviço de banco de dados inacessível." });
 
     const val = validateProductPayload(req.body);
     if (!val.isValid) return res.status(400).json({ error: val.error });
@@ -1293,7 +1323,7 @@ async function startServer() {
         }
       });
 
-      await adminDb.collection("products").doc(id).set(cleanProduct, { merge: true });
+      await secureSetDoc("products", id, cleanProduct, true);
       auditLog("ATUALIZACAO_PRODUTO", ip, `Produto Editado: ${cleanProduct.title} (ID: ${cleanProduct.id})`);
       return res.json({ success: true, product: cleanProduct });
     } catch (e: any) {
@@ -1315,10 +1345,10 @@ async function startServer() {
       return res.status(400).json({ error: "Status inválido." });
     }
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
+    if (!adminDb && !clientDb) return res.status(503).json({ error: "Serviço indisponível." });
 
     try {
-      await adminDb.collection("products").doc(productId).update({ status });
+      await secureUpdateDoc("products", productId, { status });
       auditLog("STATUS_PRODUTO_ATUALIZADO", ip, `ID: ${productId} -> Novo Status: ${status}`);
       return res.json({ success: true });
     } catch (e: any) {
@@ -1339,10 +1369,10 @@ async function startServer() {
       return res.status(400).json({ error: "Valor numérico inválido." });
     }
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
+    if (!adminDb && !clientDb) return res.status(503).json({ error: "Serviço indisponível." });
 
     try {
-      await adminDb.collection("products").doc(productId).update({ price: parsedPrice });
+      await secureUpdateDoc("products", productId, { price: parsedPrice });
       auditLog("PRECO_PRODUTO_ATUALIZADO", ip, `ID: ${productId} -> Novo Preço: R$ ${parsedPrice}`);
       return res.json({ success: true });
     } catch (e: any) {
@@ -1356,7 +1386,7 @@ async function startServer() {
     const { productId } = req.body;
     if (!productId) return res.status(400).json({ error: "ID do produto obrigatório." });
 
-    if (!adminDb) return res.status(503).json({ error: "Serviço indisponível." });
+    if (!adminDb && !clientDb) return res.status(503).json({ error: "Serviço indisponível." });
 
     // Helper to delete associated file
     const deleteUploadFile = (url: string) => {
@@ -1379,7 +1409,7 @@ async function startServer() {
 
     try {
       // Fetch product to find associated images to delete
-      const prodDoc = await adminDb.collection("products").doc(productId).get();
+      const prodDoc = await secureGetDoc("products", productId);
       if (prodDoc.exists) {
         const productData = prodDoc.data();
         if (productData) {
@@ -1394,7 +1424,7 @@ async function startServer() {
         }
       }
 
-      await adminDb.collection("products").doc(productId).delete();
+      await secureDeleteDoc("products", productId);
       auditLog("DELECAO_PRODUTO", ip, `Produto Deletado: ID ${productId}`);
       return res.json({ success: true });
     } catch (e: any) {
@@ -1424,8 +1454,9 @@ async function startServer() {
 
     try {
       // Validate category duplicate name
-      const querySnapshot = await adminDb.collection("categories").where("name", "==", payload.name).get();
-      const duplicateExists = querySnapshot.docs.some((doc: any) => doc.id !== catId);
+      const querySnapshot: any = await secureGetAdminCollection("categories", "name", payload.name);
+      const docs = querySnapshot && querySnapshot.docs ? querySnapshot.docs : [];
+      const duplicateExists = docs.some((doc: any) => doc.id !== catId);
       if (duplicateExists) {
         return res.status(400).json({ error: "Já existe uma categoria cadastrada com este nome." });
       }
@@ -1473,85 +1504,148 @@ async function startServer() {
   // FACTORY RESET INTEGRATED API ROUTE
   app.post("/api/admin/reset-database", requireAdmin, async (req, res) => {
     const ip = req.ip || "unknown";
-    if (!adminDb) return res.status(503).json({ error: "Banco offline." });
+    if (!adminDb && !clientDb) return res.status(503).json({ error: "Banco offline." });
 
     try {
       // 1. Fetch current list to clean up
-      const currentProducts = await adminDb.collection("products").get();
-      const batchClear = adminDb.batch();
-      currentProducts.forEach(doc => {
-        batchClear.delete(doc.ref);
-      });
-      await batchClear.commit();
+      const currentProductsSnap = await secureGetAdminCollection("products");
+      const prodDocs = currentProductsSnap && (currentProductsSnap as any).docs ? (currentProductsSnap as any).docs : [];
+      
+      const adminBatchUsed = adminDb && !isAdminDbDisabled;
 
-      // 2. Load clean initial static dataset
-      const batchSeed = adminDb.batch();
-      FULL_MOCK_ACERVO.forEach(p => {
-        const docRef = adminDb!.collection("products").doc(p.id);
-        batchSeed.set(docRef, p);
-      });
-      await batchSeed.commit();
+      if (adminBatchUsed) {
+        const batchClear = adminDb!.batch();
+        prodDocs.forEach((doc: any) => {
+          batchClear.delete(adminDb!.collection("products").doc(doc.id));
+        });
+        await batchClear.commit();
 
-      // 3. Clear and seed categories
-      const currentCategories = await adminDb.collection("categories").get();
-      const batchClearCats = adminDb.batch();
-      currentCategories.forEach(doc => {
-        batchClearCats.delete(doc.ref);
-      });
-      await batchClearCats.commit();
+        // 2. Load clean initial static dataset
+        const batchSeed = adminDb!.batch();
+        FULL_MOCK_ACERVO.forEach(p => {
+          const docRef = adminDb!.collection("products").doc(p.id);
+          batchSeed.set(docRef, p);
+        });
+        await batchSeed.commit();
 
-      const batchSeedCats = adminDb.batch();
-      const defaultCategories = [
-        { id: 'cat-acessorios', name: 'Acessórios', active: true, order: 1 },
-        { id: 'cat-bermudas', name: 'Bermudas', active: true, order: 2 },
-        { id: 'cat-bijuterias', name: 'Bijuterias', active: true, order: 3 },
-        { id: 'cat-blazers', name: 'Blazers', active: true, order: 4 },
-        { id: 'cat-blusas', name: 'Blusas', active: true, order: 5 },
-        { id: 'cat-bodys', name: 'Bodys', active: true, order: 6 },
-        { id: 'cat-bolsas', name: 'Bolsas', active: true, order: 7 },
-        { id: 'cat-botas', name: 'Botas', active: true, order: 8 },
-        { id: 'cat-calcas', name: 'Calças', active: true, order: 9 },
-        { id: 'cat-calcados', name: 'Calçados', active: true, order: 10 },
-        { id: 'cat-camisas', name: 'Camisas', active: true, order: 11 },
-        { id: 'cat-camisetas', name: 'Camisetas', active: true, order: 12 },
-        { id: 'cat-cardigans', name: 'Cardigans', active: true, order: 13 },
-        { id: 'cat-carteiras', name: 'Carteiras', active: true, order: 14 },
-        { id: 'cat-casacos', name: 'Casacos', active: true, order: 15 },
-        { id: 'cat-cintos', name: 'Cintos', active: true, order: 16 },
-        { id: 'cat-coletes', name: 'Coletes', active: true, order: 17 },
-        { id: 'cat-conjuntos', name: 'Conjuntos', active: true, order: 18 },
-        { id: 'cat-croppeds', name: 'Croppeds', active: true, order: 19 },
-        { id: 'cat-fitness', name: 'Fitness', active: true, order: 20 },
-        { id: 'cat-infantil', name: 'Infantil', active: true, order: 21 },
-        { id: 'cat-jaquetas', name: 'Jaquetas', active: true, order: 22 },
-        { id: 'cat-jeans', name: 'Jeans', active: true, order: 23 },
-        { id: 'cat-joias', name: 'Joias e Semijoias', active: true, order: 24 },
-        { id: 'cat-lencos', name: 'Lenços', active: true, order: 25 },
-        { id: 'cat-macacoes', name: 'Macacões', active: true, order: 26 },
-        { id: 'cat-macaquinhos', name: 'Macaquinhos', active: true, order: 27 },
-        { id: 'cat-malas-mochilas', name: 'Malas e Mochilas', active: true, order: 28 },
-        { id: 'cat-masculino', name: 'Masculino', active: true, order: 29 },
-        { id: 'cat-moda-praia', name: 'Moda Praia', active: true, order: 30 },
-        { id: 'cat-moletons', name: 'Moletons', active: true, order: 31 },
-        { id: 'cat-oculos', name: 'Óculos', active: true, order: 32 },
-        { id: 'cat-perfumes', name: 'Perfumes', active: true, order: 33 },
-        { id: 'cat-plus-size', name: 'Plus Size', active: true, order: 34 },
-        { id: 'cat-regatas', name: 'Regatas', active: true, order: 35 },
-        { id: 'cat-relogios', name: 'Relógios', active: true, order: 36 },
-        { id: 'cat-saias', name: 'Saias', active: true, order: 37 },
-        { id: 'cat-sandalias', name: 'Sandálias', active: true, order: 38 },
-        { id: 'cat-shorts', name: 'Shorts', active: true, order: 39 },
-        { id: 'cat-sueteres', name: 'Suéteres', active: true, order: 40 },
-        { id: 'cat-tenis', name: 'Tênis', active: true, order: 41 },
-        { id: 'cat-trench-coats', name: 'Trench Coats', active: true, order: 42 },
-        { id: 'cat-trico-croche', name: 'Tricô e Crochê', active: true, order: 43 },
-        { id: 'cat-vestidos', name: 'Vestidos', active: true, order: 44 }
-      ];
-      defaultCategories.forEach(cat => {
-        const docRef = adminDb!.collection("categories").doc(cat.id);
-        batchSeedCats.set(docRef, cat);
-      });
-      await batchSeedCats.commit();
+        // 3. Clear and seed categories
+        const currentCategoriesSnap = await secureGetAdminCollection("categories");
+        const catDocs = currentCategoriesSnap && (currentCategoriesSnap as any).docs ? (currentCategoriesSnap as any).docs : [];
+        const batchClearCats = adminDb!.batch();
+        catDocs.forEach((doc: any) => {
+          batchClearCats.delete(adminDb!.collection("categories").doc(doc.id));
+        });
+        await batchClearCats.commit();
+
+        const batchSeedCats = adminDb!.batch();
+        const defaultCategories = [
+          { id: 'cat-acessorios', name: 'Acessórios', active: true, order: 1 },
+          { id: 'cat-bermudas', name: 'Bermudas', active: true, order: 2 },
+          { id: 'cat-bijuterias', name: 'Bijuterias', active: true, order: 3 },
+          { id: 'cat-blazers', name: 'Blazers', active: true, order: 4 },
+          { id: 'cat-blusas', name: 'Blusas', active: true, order: 5 },
+          { id: 'cat-bodys', name: 'Bodys', active: true, order: 6 },
+          { id: 'cat-bolsas', name: 'Bolsas', active: true, order: 7 },
+          { id: 'cat-botas', name: 'Botas', active: true, order: 8 },
+          { id: 'cat-calcas', name: 'Calças', active: true, order: 9 },
+          { id: 'cat-calcados', name: 'Calçados', active: true, order: 10 },
+          { id: 'cat-camisas', name: 'Camisas', active: true, order: 11 },
+          { id: 'cat-camisetas', name: 'Camisetas', active: true, order: 12 },
+          { id: 'cat-cardigans', name: 'Cardigans', active: true, order: 13 },
+          { id: 'cat-carteiras', name: 'Carteiras', active: true, order: 14 },
+          { id: 'cat-casacos', name: 'Casacos', active: true, order: 15 },
+          { id: 'cat-cintos', name: 'Cintos', active: true, order: 16 },
+          { id: 'cat-coletes', name: 'Coletes', active: true, order: 17 },
+          { id: 'cat-conjuntos', name: 'Conjuntos', active: true, order: 18 },
+          { id: 'cat-croppeds', name: 'Croppeds', active: true, order: 19 },
+          { id: 'cat-fitness', name: 'Fitness', active: true, order: 20 },
+          { id: 'cat-infantil', name: 'Infantil', active: true, order: 21 },
+          { id: 'cat-jaquetas', name: 'Jaquetas', active: true, order: 22 },
+          { id: 'cat-jeans', name: 'Jeans', active: true, order: 23 },
+          { id: 'cat-joias', name: 'Joias e Semijoias', active: true, order: 24 },
+          { id: 'cat-lencos', name: 'Lenços', active: true, order: 25 },
+          { id: 'cat-macacoes', name: 'Macacões', active: true, order: 26 },
+          { id: 'cat-macaquinhos', name: 'Macaquinhos', active: true, order: 27 },
+          { id: 'cat-malas-mochilas', name: 'Malas e Mochilas', active: true, order: 28 },
+          { id: 'cat-masculino', name: 'Masculino', active: true, order: 29 },
+          { id: 'cat-moda-praia', name: 'Moda Praia', active: true, order: 30 },
+          { id: 'cat-moletons', name: 'Moletons', active: true, order: 31 },
+          { id: 'cat-oculos', name: 'Óculos', active: true, order: 32 },
+          { id: 'cat-perfumes', name: 'Perfumes', active: true, order: 33 },
+          { id: 'cat-plus-size', name: 'Plus Size', active: true, order: 34 },
+          { id: 'cat-regatas', name: 'Regatas', active: true, order: 35 },
+          { id: 'cat-relogios', name: 'Relógios', active: true, order: 36 },
+          { id: 'cat-saias', name: 'Saias', active: true, order: 37 },
+          { id: 'cat-sandalias', name: 'Sandálias', active: true, order: 38 },
+          { id: 'cat-shorts', name: 'Shorts', active: true, order: 39 },
+          { id: 'cat-sueteres', name: 'Suéteres', active: true, order: 40 },
+          { id: 'cat-tenis', name: 'Tênis', active: true, order: 41 },
+          { id: 'cat-trench-coats', name: 'Trench Coats', active: true, order: 42 },
+          { id: 'cat-trico-croche', name: 'Tricô e Crochê', active: true, order: 43 },
+          { id: 'cat-vestidos', name: 'Vestidos', active: true, order: 44 }
+        ];
+        defaultCategories.forEach(cat => {
+          const docRef = adminDb!.collection("categories").doc(cat.id);
+          batchSeedCats.set(docRef, cat);
+        });
+        await batchSeedCats.commit();
+      } else {
+        // Fallback: Clear and Seed categories using sequential/parallel secure helpers
+        await Promise.all(prodDocs.map((doc: any) => secureDeleteDoc("products", doc.id)));
+        await Promise.all(FULL_MOCK_ACERVO.map((p: any) => secureSetDoc("products", p.id, p)));
+
+        const currentCategoriesSnap = await secureGetAdminCollection("categories");
+        const catDocs = currentCategoriesSnap && (currentCategoriesSnap as any).docs ? (currentCategoriesSnap as any).docs : [];
+        await Promise.all(catDocs.map((doc: any) => secureDeleteDoc("categories", doc.id)));
+
+        const defaultCategories = [
+          { id: 'cat-acessorios', name: 'Acessórios', active: true, order: 1 },
+          { id: 'cat-bermudas', name: 'Bermudas', active: true, order: 2 },
+          { id: 'cat-bijuterias', name: 'Bijuterias', active: true, order: 3 },
+          { id: 'cat-blazers', name: 'Blazers', active: true, order: 4 },
+          { id: 'cat-blusas', name: 'Blusas', active: true, order: 5 },
+          { id: 'cat-bodys', name: 'Bodys', active: true, order: 6 },
+          { id: 'cat-bolsas', name: 'Bolsas', active: true, order: 7 },
+          { id: 'cat-botas', name: 'Botas', active: true, order: 8 },
+          { id: 'cat-calcas', name: 'Calças', active: true, order: 9 },
+          { id: 'cat-calcados', name: 'Calçados', active: true, order: 10 },
+          { id: 'cat-camisas', name: 'Camisas', active: true, order: 11 },
+          { id: 'cat-camisetas', name: 'Camisetas', active: true, order: 12 },
+          { id: 'cat-cardigans', name: 'Cardigans', active: true, order: 13 },
+          { id: 'cat-carteiras', name: 'Carteiras', active: true, order: 14 },
+          { id: 'cat-casacos', name: 'Casacos', active: true, order: 15 },
+          { id: 'cat-cintos', name: 'Cintos', active: true, order: 16 },
+          { id: 'cat-coletes', name: 'Coletes', active: true, order: 17 },
+          { id: 'cat-conjuntos', name: 'Conjuntos', active: true, order: 18 },
+          { id: 'cat-croppeds', name: 'Croppeds', active: true, order: 19 },
+          { id: 'cat-fitness', name: 'Fitness', active: true, order: 20 },
+          { id: 'cat-infantil', name: 'Infantil', active: true, order: 21 },
+          { id: 'cat-jaquetas', name: 'Jaquetas', active: true, order: 22 },
+          { id: 'cat-jeans', name: 'Jeans', active: true, order: 23 },
+          { id: 'cat-joias', name: 'Joias e Semijoias', active: true, order: 24 },
+          { id: 'cat-lencos', name: 'Lenços', active: true, order: 25 },
+          { id: 'cat-macacoes', name: 'Macacões', active: true, order: 26 },
+          { id: 'cat-macaquinhos', name: 'Macaquinhos', active: true, order: 27 },
+          { id: 'cat-malas-mochilas', name: 'Malas e Mochilas', active: true, order: 28 },
+          { id: 'cat-masculino', name: 'Masculino', active: true, order: 29 },
+          { id: 'cat-moda-praia', name: 'Moda Praia', active: true, order: 30 },
+          { id: 'cat-moletons', name: 'Moletons', active: true, order: 31 },
+          { id: 'cat-oculos', name: 'Óculos', active: true, order: 32 },
+          { id: 'cat-perfumes', name: 'Perfumes', active: true, order: 33 },
+          { id: 'cat-plus-size', name: 'Plus Size', active: true, order: 34 },
+          { id: 'cat-regatas', name: 'Regatas', active: true, order: 35 },
+          { id: 'cat-relogios', name: 'Relógios', active: true, order: 36 },
+          { id: 'cat-saias', name: 'Saias', active: true, order: 37 },
+          { id: 'cat-sandalias', name: 'Sandálias', active: true, order: 38 },
+          { id: 'cat-shorts', name: 'Shorts', active: true, order: 39 },
+          { id: 'cat-sueteres', name: 'Suéteres', active: true, order: 40 },
+          { id: 'cat-tenis', name: 'Tênis', active: true, order: 41 },
+          { id: 'cat-trench-coats', name: 'Trench Coats', active: true, order: 42 },
+          { id: 'cat-trico-croche', name: 'Tricô e Crochê', active: true, order: 43 },
+          { id: 'cat-vestidos', name: 'Vestidos', active: true, order: 44 }
+        ];
+        await Promise.all(defaultCategories.map((cat: any) => secureSetDoc("categories", cat.id, cat)));
+      }
 
       auditLog("RESTAURO_TOTAL_ESTOQUE", ip, "Configuração de fábrica do brechó restaurada.");
       return res.json({ success: true, message: "Banco de dados restaurado e semeado com sucesso." });

@@ -1279,38 +1279,20 @@ export default function AdminPanel({
     setAdminActionError(null);
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/list-admins', {
+      const data = await apiFetch<any>('/api/admin/list-admins', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
-      if (res.status === 401) {
-        handleSessionExpired();
-        return;
-      }
-      
-      const contentType = res.headers.get("content-type") || "";
-      if (res.ok) {
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          setAdminsList(data.admins || []);
-        } else {
-          const text = await res.text();
-          throw new Error(`Resposta inválida do servidor (HTML/Texto retornado em vez de JSON). Retorno: ${text.slice(0, 150)}`);
-        }
-      } else {
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          setAdminActionError(data.error || `Erro ao listar administradores (${res.status}).`);
-        } else {
-          const text = await res.text();
-          setAdminActionError(`Erro no servidor ao carregar administradores (${res.status}): ${text.slice(0, 150)}`);
-        }
-      }
+      setAdminsList(data.admins || []);
     } catch (err: any) {
       console.error("[fetchAdmins failure]", err);
-      setAdminActionError(`Falha na comunicação com o servidor: ${err.message || String(err)}`);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(`Falha na comunicação com o servidor: ${msg}`);
+      }
     } finally {
       setLoadingAdmins(false);
     }
@@ -1324,21 +1306,20 @@ export default function AdminPanel({
     setLoadingRequests(true);
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/pending-requests', {
+      const data = await apiFetch<any>('/api/admin/pending-requests', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      if (res.status === 401) {
-        handleSessionExpired();
-        return;
-      }
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         setPendingRequests(data.requests || []);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching pending requests:", err);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      }
     } finally {
       setLoadingRequests(false);
     }
@@ -1349,7 +1330,7 @@ export default function AdminPanel({
     setAdminActionSuccess(null);
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/approve-request', {
+      const data = await apiFetch<any>('/api/admin/approve-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1357,8 +1338,7 @@ export default function AdminPanel({
         },
         body: JSON.stringify({ clientId })
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         setAdminActionSuccess(data.message || "Solicitação de administrador aprovada com sucesso!");
         fetchPendingRequests();
         fetchAdmins();
@@ -1366,7 +1346,12 @@ export default function AdminPanel({
         setAdminActionError(data.error || "Erro ao aprovar solicitação.");
       }
     } catch (err: any) {
-      setAdminActionError(err.message || 'Erro ao aprovar solicitação.');
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(msg);
+      }
     }
   };
 
@@ -1375,7 +1360,7 @@ export default function AdminPanel({
     setAdminActionSuccess(null);
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/reject-request', {
+      const data = await apiFetch<any>('/api/admin/reject-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1383,15 +1368,19 @@ export default function AdminPanel({
         },
         body: JSON.stringify({ clientId })
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         setAdminActionSuccess(data.message || "Solicitação rejeitada com sucesso.");
         fetchPendingRequests();
       } else {
         setAdminActionError(data.error || "Erro ao rejeitar solicitação.");
       }
     } catch (err: any) {
-      setAdminActionError(err.message || 'Erro ao rejeitar solicitação.');
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(msg);
+      }
     }
   };
 
@@ -1416,7 +1405,7 @@ export default function AdminPanel({
 
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/add-admin', {
+      const data = await apiFetch<any>('/api/admin/add-admin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1429,34 +1418,23 @@ export default function AdminPanel({
         })
       });
 
-      const contentType = res.headers.get("content-type") || "";
-      if (res.ok) {
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          setAdminActionSuccess(data.message || `Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
-        } else {
-          setAdminActionSuccess(`Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
-        }
-        setAdminEmailInput('');
-        setAdminPasswordInput('');
-        setAdminNameInput('');
-        fetchAdmins();
-      } else {
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          setAdminActionError(data.error || `Erro ao cadastrar administrador (${res.status}).`);
-        } else {
-          const text = await res.text();
-          setAdminActionError(`Erro do servidor ao cadastrar (${res.status}): ${text.slice(0, 150)}`);
-        }
-      }
+      setAdminActionSuccess(data.message || `Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
+      setAdminEmailInput('');
+      setAdminPasswordInput('');
+      setAdminNameInput('');
+      fetchAdmins();
     } catch (err: any) {
       console.error("[handleAddAdmin failure]", err);
-      setAdminActionError(`Falha na comunicação/registro com o servidor: ${err.message || String(err)}`);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(`Falha na comunicação/registro com o servidor: ${msg}`);
+      }
     }
   };
 
-   const handleDeleteAdmin = async (id: string, email: string) => {
+  const handleDeleteAdmin = async (id: string, email: string) => {
     if (!window.confirm(`Tem certeza que deseja revogar de forma definitiva o acesso de ${email}?`)) {
       return;
     }
@@ -1466,7 +1444,7 @@ export default function AdminPanel({
 
     try {
       const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/delete-admin', {
+      const data = await apiFetch<any>('/api/admin/delete-admin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1475,18 +1453,17 @@ export default function AdminPanel({
         body: JSON.stringify({ id, email })
       });
 
-      const data = await res.json();
-      if (res.ok) {
-        alert(`Acesso revogado com sucesso para ${email}!`);
-        setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
-        fetchAdmins();
+      alert(`Acesso revogado com sucesso para ${email}!`);
+      setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
+      fetchAdmins();
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
       } else {
-        alert(`Erro: ${data.error || 'Não foi possível revogar o privilégio administrativo.'}`);
-        setAdminActionError(data.error || 'Erro ao revogar acesso administrativo.');
+        alert(`Erro: ${msg || 'Não foi possível revogar o privilégio administrativo.'}`);
+        setAdminActionError(msg || 'Erro ao revogar acesso administrativo.');
       }
-    } catch (err) {
-      alert('Ocorreu uma falha na tentativa de exclusão do administrador.');
-      setAdminActionError('Ocorreu uma falha ao tentar excluir o administrador.');
     }
   };
 
@@ -1716,7 +1693,7 @@ export default function AdminPanel({
 
           {/* 🗃️ RESPONSIVE TABS NAVIGATION BAR */}
           {/* Dropdown Selector for Mobile view (resolves invisible/cut-off tabs on phones) */}
-          <div className="bg-neutral-900 border-b border-white/10 px-4 py-3 block sm:hidden">
+          <div className="bg-neutral-900 border-b border-white/10 px-4 py-3 block lg:hidden">
             <label className="text-[9px] text-amber-400 font-mono uppercase tracking-wider block mb-1.5 font-bold">
               Painel de Navegação
             </label>
@@ -1736,7 +1713,7 @@ export default function AdminPanel({
           </div>
 
           {/* Traditional tabs row for Desktop and Tablet */}
-          <div className="hidden sm:flex bg-neutral-900 border-b border-white/10 items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
+          <div className="hidden lg:flex bg-neutral-900 border-b border-white/10 items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
             <button
               onClick={() => setActiveTab('inventory')}
               className={`flex-1 min-w-[110px] py-3 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
