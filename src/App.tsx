@@ -115,7 +115,9 @@ export default function App() {
   const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
 
   // Admin session flag
-  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(() => {
+    return localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
+  });
 
   const [currentClient, setCurrentClient] = useState<any | null>(() => {
     try {

@@ -157,3 +157,19 @@ html, body, #root {
 .animate-green-pulse {
   animation: green-pulse 2.2s infinite ease-in-out;
 }
+
+/* Custom scrollbar utility to show a thin, elegant, amber scrollbar for scrollable sections */
+.scrollbar-thin-amber::-webkit-scrollbar {
+  height: 5px;
+}
+.scrollbar-thin-amber::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+.scrollbar-thin-amber::-webkit-scrollbar-thumb {
+  background: #f59e0b;
+  border-radius: 9999px;
+}
+.scrollbar-thin-amber {
+  scrollbar-width: thin;
+  scrollbar-color: #f59e0b rgba(0, 0, 0, 0.3);
+}

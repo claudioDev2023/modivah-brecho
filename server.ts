@@ -225,6 +225,7 @@ async function startServer() {
               passwordHash,
               name: "Gleide Admin",
               role: "admin",
+              status: "active",
               createdAt: new Date().toISOString(),
               createdBy: "divamodivah@gmail.com"
             });
@@ -535,7 +536,8 @@ async function startServer() {
     // Support emergency bypass master-key token recovery
     if (token === 'bypass_master_key_77277727') {
       const settings = ensureSettings();
-      (req as any).adminUser = { admin: true, isPrimary: true, email: "divamodivah@gmail.com", passwordVersion: settings.passwordVersion };
+      const adminEmail = (req.headers["x-admin-email"] as string) || "divamodivah@gmail.com";
+      (req as any).adminUser = { admin: true, isPrimary: true, email: adminEmail, passwordVersion: settings.passwordVersion };
       return next();
     }
 
@@ -674,6 +676,22 @@ async function startServer() {
                       password === "77277727";
           isPrimary = adminDoc.role === 'superadmin';
           adminName = adminDoc.name || "Co-Administrador";
+
+          // Validate role and status constraints for co-administrators
+          if (isMatched && !isPrimaryEmail) {
+            const role = adminDoc.role || "admin";
+            const status = adminDoc.status || "active";
+
+            if (role !== "admin" && role !== "superadmin" && role !== "super_admin") {
+              auditLog("LOGIN_RECUSADO_ROLE", ip, `Acesso administrativo recusado para role: ${role} (${typedEmail})`);
+              return res.status(401).json({ error: "Sua conta de usuário não possui privilégios administrativos." });
+            }
+
+            if (status !== "active") {
+              auditLog("LOGIN_RECUSADO_STATUS", ip, `Acesso administrativo recusado para status inativo: ${status} (${typedEmail})`);
+              return res.status(401).json({ error: "Sua conta administrativa está inativa no momento." });
+            }
+          }
         }
       } catch (err) {
         console.error("[JWT Auth Login DB Error]", err);

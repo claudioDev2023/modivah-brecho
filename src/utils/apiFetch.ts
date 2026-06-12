@@ -13,8 +13,18 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
     const id = setTimeout(() => controller.abort(), timeout);
 
     try {
+      // Setup headers dynamically
+      const headers = new Headers(fetchOptions.headers || {});
+      if (typeof window !== "undefined") {
+        const adminEmail = localStorage.getItem("modivah_admin_email");
+        if (adminEmail) {
+          headers.set("X-Admin-Email", adminEmail.toLowerCase().trim());
+        }
+      }
+
       const response = await fetch(url, {
         ...fetchOptions,
+        headers,
         signal: controller.signal,
       });
       clearTimeout(id);

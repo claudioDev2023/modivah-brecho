@@ -1271,6 +1271,7 @@ export default function AdminPanel({
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminNameInput, setAdminNameInput] = useState('');
+  const [adminRoleInput, setAdminRoleInput] = useState('admin');
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
 
@@ -1393,12 +1394,14 @@ export default function AdminPanel({
     const nameTrimmed = adminNameInput.trim();
     const passTrimmed = adminPasswordInput;
 
-    if (!emailTrimmed || !nameTrimmed || !passTrimmed) {
-      setAdminActionError('Todos os campos são obrigatórios.');
+    const isEditingExisting = adminsList.some(adm => (adm.email || '').toLowerCase() === emailTrimmed);
+
+    if (!emailTrimmed || !nameTrimmed || (!isEditingExisting && !passTrimmed)) {
+      setAdminActionError('Por favor, preencha todos os campos obrigatórios.');
       return;
     }
 
-    if (passTrimmed.length < 6) {
+    if (passTrimmed && passTrimmed.length < 6) {
       setAdminActionError('A senha do novo administrador deve conter pelo menos 6 caracteres.');
       return;
     }
@@ -1414,7 +1417,8 @@ export default function AdminPanel({
         body: JSON.stringify({
           email: emailTrimmed,
           password: passTrimmed,
-          name: nameTrimmed
+          name: nameTrimmed,
+          role: adminRoleInput
         })
       });
 
@@ -1422,6 +1426,7 @@ export default function AdminPanel({
       setAdminEmailInput('');
       setAdminPasswordInput('');
       setAdminNameInput('');
+      setAdminRoleInput('admin');
       fetchAdmins();
     } catch (err: any) {
       console.error("[handleAddAdmin failure]", err);
@@ -1691,99 +1696,85 @@ export default function AdminPanel({
             </button>
           </div>
 
-          {/* 🗃️ RESPONSIVE TABS NAVIGATION BAR */}
-          {/* Dropdown Selector for Mobile view (resolves invisible/cut-off tabs on phones) */}
-          <div className="bg-neutral-900 border-b border-white/10 px-4 py-3 block lg:hidden">
-            <label className="text-[9px] text-amber-400 font-mono uppercase tracking-wider block mb-1.5 font-bold">
-              Painel de Navegação
-            </label>
-            <select
-              value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value as any)}
-              className="w-full bg-black/60 text-white font-mono text-xs font-bold py-3 px-3 rounded-lg border border-white/20 focus:outline-none focus:border-amber-400 uppercase cursor-pointer"
-            >
-              <option value="inventory">📦 Estoque</option>
-              <option value="analytics">📈 Dashboard de Vendas</option>
-              <option value="reports">📊 Clientes &amp; Relatórios</option>
-              <option value="comprovantes">📎 Comprovantes</option>
-              <option value="admins">🔑 Admins</option>
-              <option value="categories">🏷️ Categorias</option>
-              <option value="backup">💾 Backup &amp; Diagnóstico</option>
-            </select>
-          </div>
-
-          {/* Traditional tabs row for Desktop and Tablet */}
-          <div className="hidden lg:flex bg-neutral-900 border-b border-white/10 items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none">
+          {/* Traditional tabs row - ALWAYS visible and horizontally scrollable on mobile/tablet */}
+          <div className="flex bg-neutral-900 border-b border-white/10 items-stretch shrink-0 overflow-x-auto font-mono text-[10px] select-none whitespace-nowrap scrollbar-thin-amber scroll-smooth">
             <button
               onClick={() => setActiveTab('inventory')}
-              className={`flex-1 min-w-[110px] py-3 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'inventory'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              📦 Estoque
+              <span>📦</span>
+              <span>Estoque</span>
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'analytics'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              📈 Dashboard de Vendas
+              <span>📈</span>
+              <span>Dashboard de Vendas</span>
             </button>
             <button
               onClick={() => setActiveTab('reports')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'reports'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              📊 Clientes &amp; Relatórios
+              <span>📊</span>
+              <span>Clientes &amp; Relatórios</span>
             </button>
             <button
               onClick={() => setActiveTab('comprovantes')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'comprovantes'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              📎 Comprovantes
+              <span>📎</span>
+              <span>Comprovantes</span>
             </button>
             <button
               onClick={() => setActiveTab('admins')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'admins'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              🔑 Admins
+              <span>🔑</span>
+              <span>Admins</span>
             </button>
             <button
               onClick={() => setActiveTab('categories')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'categories'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
             >
-              🏷️ Categorias
+              <span>🏷️</span>
+              <span>Categorias</span>
             </button>
             <button
               onClick={() => setActiveTab('backup')}
-              className={`flex-1 min-w-[110px] py-3.5 px-2 text-center font-bold tracking-wider uppercase border-b-2 transition ${
+              className={`flex-grow flex-shrink-0 min-w-max px-4 py-3.5 flex items-center justify-center gap-1.5 font-bold tracking-wider uppercase border-b-2 transition whitespace-nowrap ${
                 activeTab === 'backup'
                   ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
                   : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.01]'
               }`}
               id="admin-tab-backup-btn"
             >
-              💾 Backup &amp; Diagnóstico
+              <span>💾</span>
+              <span>Backup &amp; Diagnóstico</span>
             </button>
           </div>
 
@@ -3260,6 +3251,34 @@ export default function AdminPanel({
                   </h4>
                   
                   <form onSubmit={handleAddAdmin} className="space-y-3.5">
+                    {/* NEW AUTOCOMPLETE CLIENT SELECT FIELD */}
+                    <div>
+                      <label className="text-[9px] text-amber-400 font-bold block mb-1 font-mono uppercase tracking-wider">
+                        Escolher a partir de um Cliente Cadastrado (Opcional - Preenchimento Rápido)
+                      </label>
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) {
+                            const found = clientsList.find(c => c.email === val);
+                            if (found) {
+                              setAdminEmailInput(found.email || '');
+                              setAdminNameInput(found.name || found.email || '');
+                            }
+                          }
+                        }}
+                        className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans cursor-pointer"
+                        id="admin-form-client-autocomplete"
+                      >
+                        <option value="">-- Selecione um cliente para preencher automaticamente --</option>
+                        {clientsList.map(c => (
+                          <option key={c.id || c.email} value={c.email}>
+                            {c.name || 'Sem nome'} ({c.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                       <div>
                         <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Nome do Administrador</label>
@@ -3284,7 +3303,7 @@ export default function AdminPanel({
                           className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans"
                           id="admin-form-email-input"
                         />
-                        {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) && (
+                        {adminsList.some(adm => (adm.email || '').toLowerCase() === adminEmailInput.trim().toLowerCase()) && (
                           <p className="text-[10px] text-amber-400 font-sans mt-1 leading-normal">
                             ⚠️ Este email já pertence a um co-administrador funcional. Enviar este formulário atualizará os privilégios, senha (se informada) e nome do co-administrador correspondente.
                           </p>
@@ -3292,19 +3311,34 @@ export default function AdminPanel({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">
-                        Senha de Acesso {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "(Opcional - Deixe em branco para manter a atual)" : "(Mínimo de 6 caracteres)"}
-                      </label>
-                      <input
-                        type="password"
-                        required={!adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase())}
-                        value={adminPasswordInput}
-                        onChange={(e) => setAdminPasswordInput(e.target.value)}
-                        placeholder={adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "Deixe em branco para manter original" : "••••••"}
-                        className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
-                        id="admin-form-pass-input"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">
+                          Senha de Acesso {adminsList.some(adm => (adm.email || '').toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "(Opcional - Deixe de branco para manter a atual)" : "(Mínimo de 6 caracteres)"}
+                        </label>
+                        <input
+                          type="password"
+                          required={!adminsList.some(adm => (adm.email || '').toLowerCase() === adminEmailInput.trim().toLowerCase())}
+                          value={adminPasswordInput}
+                          onChange={(e) => setAdminPasswordInput(e.target.value)}
+                          placeholder={adminsList.some(adm => (adm.email || '').toLowerCase() === adminEmailInput.trim().toLowerCase()) ? "Deixe em branco para manter original" : "••••••"}
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                          id="admin-form-pass-input"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Nível de Permissão (Função)</label>
+                        <select
+                          value={adminRoleInput}
+                          onChange={(e) => setAdminRoleInput(e.target.value)}
+                          className="w-full bg-neutral-900 border border-white/10 rounded-lg py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-400 font-sans cursor-pointer"
+                          id="admin-form-role-select"
+                        >
+                          <option value="admin">Co-Administrador (Acesso padrão)</option>
+                          <option value="superadmin">Administrador Geral / Proprietária (Acesso irrestrito)</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="pt-2">
@@ -3313,7 +3347,7 @@ export default function AdminPanel({
                         className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-black font-semibold rounded-lg text-xs transition cursor-pointer font-sans"
                         id="admin-form-submit-btn"
                       >
-                        {adminsList.some(adm => adm.email.toLowerCase() === adminEmailInput.trim().toLowerCase()) 
+                        {adminsList.some(adm => (adm.email || '').toLowerCase() === adminEmailInput.trim().toLowerCase()) 
                           ? "Atualizar Co-Administrador" 
                           : "Salvar Novo Administrador"}
                       </button>
@@ -3408,7 +3442,7 @@ export default function AdminPanel({
                       <div className="divide-y divide-white/5">
                         {adminsList.map((adm) => {
                           const isSuper = adm.role === 'superadmin';
-                          const isSelf = adm.email.toLowerCase() === (localStorage.getItem('modivah_admin_email') || '').toLowerCase();
+                          const isSelf = (adm.email || '').toLowerCase() === (localStorage.getItem('modivah_admin_email') || '').toLowerCase();
                           const formattedDate = adm.createdAt !== "Sempre Ativo" 
                             ? new Date(adm.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
                             : "Sempre Ativo";
