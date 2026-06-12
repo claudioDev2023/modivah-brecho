@@ -241,6 +241,19 @@ export default function AdminPanel({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
 
+  useEffect(() => {
+    const authFlag = localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
+    if (authFlag && !isAuthenticated) {
+      setIsAuthenticated(true);
+      const savedEmail = localStorage.getItem('modivah_admin_email');
+      if (savedEmail && savedEmail !== emailInput) {
+        setEmailInput(savedEmail);
+      }
+    } else if (!authFlag && isAuthenticated) {
+      setIsAuthenticated(false);
+    }
+  }, [isOpen, isAuthenticated, emailInput]);
+
   const handleSessionExpired = () => {
     sessionStorage.removeItem('modivah_admin_auth');
     sessionStorage.removeItem('modivah_admin_token');
