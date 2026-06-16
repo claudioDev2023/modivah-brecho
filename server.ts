@@ -34,7 +34,7 @@ import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./
 const app = express();
 export { app };
 
-async function startServer() {
+function startServer() {
   const PORT = 3000;
 
   // Let the server trust reverse proxy headers (Cloud Run setup)
@@ -2144,28 +2144,40 @@ Mantenha a resposta com cerca de 150 a 200 palavras em português pt-BR.`;
   });
 
   // Local static serving inside production, Vite middleware in development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-    console.log("[Developer Mode] Vite middleware active.");
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-    console.log("[Production Mode] Static asset serving active.");
-  }
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    // Run asynchronously to allow server.ts to export synchronously and avoid cold-start race conditions
+    (async () => {
+      try {
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+        console.log("[Developer Mode] Vite middleware active.");
 
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running securely on port ${PORT}...`);
-    });
+        app.listen(PORT, "0.0.0.0", () => {
+          console.log(`Server running securely on port ${PORT}...`);
+        });
+      } catch (err) {
+        console.error("Vite server failed to init asynchronously:", err);
+      }
+    })();
   } else {
-    console.log("[Production Vercel] Express server initialized in serverless handler context successfully.");
+    // Only register static files and catch-all if NOT on Vercel (Vercel routes everything automatically)
+    if (!process.env.VERCEL) {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+      console.log("[Production Mode] Static asset serving active.");
+
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running securely on port ${PORT}...`);
+      });
+    } else {
+      console.log("[Production Vercel] Express server initialized in serverless handler context successfully.");
+    }
   }
 }
 
@@ -2233,6 +2245,8 @@ O toque nobre do **${material}** confere uma assinatura tátil luxuosa ao visual
 Investir na circularidade premium com uma peça inteiramente curada e circular **${brand}** é a expressão mais pura de consumo inteligente, elegância atemporal e sustentabilidade de luxo! Você está absolutamente perfeita.`;
 }
 
-startServer().catch((err) => {
+try {
+  startServer();
+} catch (err) {
   console.error("Express failed to start:", err);
-});
+}

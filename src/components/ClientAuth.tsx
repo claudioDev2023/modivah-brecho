@@ -371,24 +371,24 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
   return (
     <div className="flex-1 w-full flex items-center justify-center p-4 py-16 xs:py-24" id="client-auth-container">
-      <div className="absolute inset-0 bg-[#070707] pointer-events-none" />
+      <div className="absolute inset-0 bg-[#FFFFFF] pointer-events-none" />
       
       {/* Decorative ambient visual background blur bubbles */}
-      <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] rounded-full bg-amber-500/[0.04] filter blur-[80px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-[#00f0ff]/[0.03] filter blur-[100px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] rounded-full bg-[#EE4D2D]/[0.03] filter blur-[80px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] rounded-full bg-[#EE4D2D]/[0.02] filter blur-[100px] pointer-events-none" />
  
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-lg bg-zinc-950/60 backdrop-blur-xl border border-white/10 p-6 md:p-8 rounded-3xl shadow-2xl relative z-10 font-sans text-white"
+        className="w-full max-w-lg bg-white border border-zinc-200 p-6 md:p-8 rounded-3xl shadow-xl relative z-10 font-sans text-zinc-800"
       >
         {/* Brand Logo at the top of the card */}
         <div className="flex justify-center mb-6">
           <img 
             src={logoImg} 
             alt="MODIVAH BRECHÓ Logo" 
-            className="h-12 w-auto object-contain brightness-105"
+            className="h-12 w-auto object-contain"
             referrerPolicy="no-referrer"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/favicon.png';
@@ -398,18 +398,18 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
         {/* Header Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 text-[10px] font-mono uppercase tracking-wider mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#EE4D2D]/10 border border-[#EE4D2D]/20 rounded-full text-[#EE4D2D] text-[10px] font-mono uppercase tracking-wider mb-4">
             <Shield className="h-3 w-3" />
             <span>Marketplace Premium Seguro</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-sans font-light tracking-wide text-white">
+          <h2 className="text-xl md:text-2xl font-bold tracking-wide text-zinc-850">
             {isRecoveryView 
               ? 'Recuperação de Senha'
               : isLoginView 
                 ? 'Seja bem-vinda de volta' 
                 : 'Crie seu acesso exclusivo'}
           </h2>
-          <p className="text-xs text-neutral-400 mt-2.5 leading-relaxed">
+          <p className="text-xs text-zinc-500 mt-2.5 leading-relaxed font-semibold">
             {isRecoveryView 
               ? 'Insira o seu e-mail cadastrado para enviarmos as instruções de redefinição de acesso segura.'
               : isLoginView 
@@ -419,21 +419,19 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
           </p>
         </div>
 
-
-
         {errorText && (
-          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-xl text-xs text-red-300 mb-6 space-y-3 font-sans">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 mb-6 space-y-3 font-sans font-bold">
             <div className="flex items-start gap-2">
-              <span className="font-bold shrink-0">Atenção:</span>
+              <span className="shrink-0">Atenção:</span>
               <span className="text-justify leading-relaxed">{errorText}</span>
             </div>
           </div>
         )}
 
-        {/* Dynamic Display Success Message */}
+        {/* Dynamic Display Display Success Message */}
         {successText && (
-          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 mb-6 flex items-start gap-2">
-            <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-600 mb-6 flex items-start gap-2 font-bold">
+            <Check className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{successText}</span>
           </div>
         )}
@@ -445,20 +443,20 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
             <motion.div 
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              className="space-y-4 overflow-hidden"
+              className="space-y-4 overflow-hidden font-sans"
             >
               {/* Full name input */}
               <div>
-                <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Nome Completo</label>
+                <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">Nome Completo</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><User className="h-4 w-4" /></span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><User className="h-4 w-4" /></span>
                   <input
                     type="text"
                     required
                     placeholder="Seu nome completo"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition"
                   />
                 </div>
               </div>
@@ -466,30 +464,30 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
               {/* Grid cell phone and whatsapp */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Telefone Celular</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">Telefone Celular</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Phone className="h-4 w-4" /></span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Phone className="h-4 w-4" /></span>
                     <input
                       type="tel"
                       required
                       placeholder="(DD) 99999-9999"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition font-mono"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">WhatsApp para Contato</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">WhatsApp para Contato</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><MessageSquare className="h-4 w-4" /></span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><MessageSquare className="h-4 w-4" /></span>
                     <input
                       type="tel"
                       required
                       placeholder="(DD) 99999-9999"
                       value={whatsapp}
                       onChange={(e) => setWhatsapp(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition font-mono"
                     />
                   </div>
                 </div>
@@ -498,26 +496,26 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
               {/* Grid city & state */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="col-span-3">
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Cidade</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">Cidade</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><MapPin className="h-4 w-4" /></span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><MapPin className="h-4 w-4" /></span>
                     <input
                       type="text"
                       required
                       placeholder="Sua cidade"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Estado</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold font-sans">Estado</label>
                   <select
                     required={!isLoginView && !isRecoveryView}
                     value={state}
                     onChange={(e) => setState(e.target.value)}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-2 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-2 py-2.5 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D] focus:bg-white"
                   >
                     <option value="" disabled>UF</option>
                     {statesOfBrazil.map(st => (
@@ -531,16 +529,16 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
           {/* Core Sign-in/Sign-up/Recovery inputs: Email */}
           <div>
-            <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Endereço de E-mail</label>
+            <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">Endereço de E-mail</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Mail className="h-4 w-4" /></span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Mail className="h-4 w-4" /></span>
               <input
                 type="email"
                 required
                 placeholder="exemplo@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition"
               />
             </div>
           </div>
@@ -550,7 +548,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between items-baseline mb-1.5">
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider font-mono">Senha de Acesso</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Senha de Acesso</label>
                   {isLoginView && (
                     <button
                       type="button"
@@ -559,26 +557,26 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                         setSuccessText(null);
                         setIsRecoveryView(true);
                       }}
-                      className="text-[9px] font-mono text-amber-400 hover:underline cursor-pointer bg-transparent border-none"
+                      className="text-[9px] font-sans font-bold text-[#EE4D2D] hover:underline cursor-pointer bg-transparent border-none"
                     >
                       Esqueceu a senha?
                     </button>
                   )}
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Lock className="h-4 w-4" /></span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Lock className="h-4 w-4" /></span>
                   <input
                     type={showPassword ? "text" : "password"}
                     required
                     placeholder={isLoginView ? "Sua senha" : "Defina a sua senha (mínimo 6 dígitos)"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-650 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -587,21 +585,21 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
               {!isLoginView && (
                 <div>
-                  <label className="text-[10px] text-neutral-400 uppercase tracking-wider block mb-1.5 font-mono">Confirmar Senha</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1.5 font-bold">Confirmar Senha</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><Lock className="h-4 w-4" /></span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><Lock className="h-4 w-4" /></span>
                     <input
                       type={showConfirmPassword ? "text" : "password"}
                       required
                       placeholder="Repita a senha informada"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08] transition"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-10 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D] focus:bg-white transition font-sans"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-650 cursor-pointer"
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -613,40 +611,40 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
 
           {/* LGPD Safety & Consent Clause Box (Mandatory Checkbox) */}
           {!isLoginView && !isRecoveryView && (
-            <div className="bg-black/40 border border-zinc-800 p-4 rounded-2xl space-y-3 mt-2" id="client-consent-and-admin-req-box">
+            <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-2xl space-y-3 mt-2" id="client-consent-and-admin-req-box font-sans">
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="consentCheckbox"
                   checked={consent}
                   onChange={(e) => setConsent(e.target.checked)}
-                  className="mt-0.5 rounded text-amber-500 focus:ring-amber-500 bg-zinc-950 cursor-pointer border-white/10"
+                  className="mt-0.5 rounded text-[#EE4D2D] focus:ring-[#EE4D2D] bg-white cursor-pointer border-zinc-300"
                 />
-                <label htmlFor="consentCheckbox" className="text-[10px] leading-relaxed text-neutral-400 cursor-pointer select-none text-justify">
+                <label htmlFor="consentCheckbox" className="text-[10px] leading-relaxed text-zinc-500 cursor-pointer select-none text-justify">
                   Concordo em receber comunicações, ofertas, avisos de pedidos e recuperação de carrinho através de WhatsApp, e-mail e outros canais.
                 </label>
               </div>
 
               {/* SOLICITAR PRIVILÉGIOS DE ADMINISTRADOR SELECTION */}
-              <div className="border-t border-white/5 pt-2 flex items-start gap-3">
+              <div className="border-t border-zinc-200 pt-2 flex items-start gap-3 animate-in fade-in">
                 <input
                   type="checkbox"
                   id="adminRequestCheckbox"
                   checked={isRequestingAdmin}
                   onChange={(e) => setIsRequestingAdmin(e.target.checked)}
-                  className="mt-0.5 rounded text-amber-500 focus:ring-amber-500 bg-zinc-950 cursor-pointer border-white/10"
+                  className="mt-0.5 rounded text-[#EE4D2D] focus:ring-[#EE4D2D] bg-white cursor-pointer border-zinc-300"
                 />
                 <div className="flex flex-col">
-                  <label htmlFor="adminRequestCheckbox" className="text-[10.5px] font-bold text-amber-300 cursor-pointer select-none">
+                  <label htmlFor="adminRequestCheckbox" className="text-[10.5px] font-bold text-[#EE4D2D] cursor-pointer select-none">
                     🔑 Solicitar Acesso de Co-Administrador
                   </label>
-                  <p className="text-[9.5px] text-neutral-500 mt-0.5 leading-normal">
+                  <p className="text-[9.5px] text-zinc-400 mt-0.5 leading-normal">
                     Selecione esta opção se você for membro da equipe e precisa de privilégios de acesso administrativo. Sua conta precisará ser aprovada pela proprietária.
                   </p>
                 </div>
               </div>
 
-              <div className="border-t border-white/5 pt-2 flex items-center gap-2 text-[9px] text-[#39ff14]/90 font-mono">
+              <div className="border-t border-zinc-200 pt-2 flex items-center gap-2 text-[9px] text-zinc-400 font-mono">
                 <Shield className="h-3 w-3" />
                 <span>Em plena conformidade legal com a LGPD.</span>
               </div>
@@ -657,7 +655,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 mt-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-semibold uppercase tracking-wider text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer border border-amber-300/30"
+            className="w-full py-3 mt-4 bg-[#EE4D2D] hover:bg-[#FF6A4D] text-white font-bold uppercase tracking-wider text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
               <Loader className="h-4 w-4 animate-spin" />
@@ -678,7 +676,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
         </form>
 
         {/* View Switch Link */}
-        <div className="text-center mt-6 text-xs text-neutral-400 space-y-2">
+        <div className="text-center mt-6 text-xs text-zinc-500 space-y-2">
           {isRecoveryView ? (
             <p>
               Ir para o{' '}
@@ -690,7 +688,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setIsRecoveryView(false);
                   setIsLoginView(true);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
+                className="text-[#EE4D2D] font-bold underline hover:text-[#FF6A4D] cursor-pointer bg-transparent border-none"
               >
                 Login
               </button>
@@ -703,7 +701,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setIsRecoveryView(false);
                   setIsLoginView(false);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
+                className="text-[#EE4D2D] font-bold underline hover:text-[#FF6A4D] cursor-pointer bg-transparent border-none"
               >
                 Cadastre-se grátis
               </button>
@@ -718,7 +716,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setSuccessText(null);
                   setIsLoginView(false);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
+                className="text-[#EE4D2D] font-bold underline hover:text-[#FF6A4D] cursor-pointer bg-transparent border-none"
               >
                 Cadastre-se grátis
               </button>
@@ -733,7 +731,7 @@ export default function ClientAuth({ onAuthSuccess }: ClientAuthProps) {
                   setSuccessText(null);
                   setIsLoginView(true);
                 }}
-                className="text-amber-400 font-semibold underline hover:text-amber-300 cursor-pointer bg-transparent border-none"
+                className="text-[#EE4D2D] font-bold underline hover:text-[#FF6A4D] cursor-pointer bg-transparent border-none"
               >
                 Faça o seu login
               </button>

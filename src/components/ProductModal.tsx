@@ -9,6 +9,26 @@ interface ProductModalProps {
   initialViewMode?: 'image' | 'video'; // kept for backward compatibility signature
 }
 
+const getSingularCategoryName = (name: string): string => {
+  const trimmed = (name || "").trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'bermudas') return 'Bermuda';
+  if (lower === 'blusas') return 'Blusa';
+  if (lower === 'blazers') return 'Blazer';
+  if (lower === 'bolsas') return 'Bolsa';
+  if (lower === 'calçados' || lower === 'calcados') return 'Calçado';
+  if (lower === 'camisas') return 'Camisa';
+  if (lower === 'conjuntos') return 'Conjunto';
+  if (lower === 'cintos') return 'Cinto';
+  if (lower === 'vestidos') return 'Vestido';
+  if (lower === 'saias') return 'Saia';
+  if (lower === 'shorts') return 'Short';
+  if (lower === 'casacos') return 'Casaco';
+  if (lower === 'jaquetas') return 'Jaqueta';
+  if (lower === 'sapatos') return 'Sapato';
+  return trimmed;
+};
+
 export default function ProductModal({ product, onClose, onAddToCart }: ProductModalProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [showDirectForm, setShowDirectForm] = useState(false);
@@ -103,40 +123,40 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
     <div id="product-modal-scroll" className={`fixed inset-0 z-50 overflow-y-auto flex items-start justify-center p-4 py-6 md:py-10 ${isVisible ? '' : 'hidden pointer-events-none'}`}>
       {/* Dark backdrop */}
       <div 
-        className="fixed inset-0 bg-black/85 backdrop-blur-sm" 
+        className="fixed inset-0 bg-zinc-900/60 backdrop-blur-sm" 
         onClick={onClose}
       />
       
       {/* Modal Dialog Container */}
-      <div className="relative w-full max-w-2xl bg-white border border-zinc-200 rounded-2xl shadow-2xl flex flex-col z-10 animate-in fade-in zoom-in duration-200 text-zinc-900">
+      <div className="relative w-full max-w-2xl bg-white border border-[#FF6A4D]/40 rounded-2xl shadow-[0_4px_30px_rgba(244,81,30,0.1)] flex flex-col z-10 animate-in fade-in zoom-in duration-200 text-zinc-900">
         
         {/* Close Button inside modal header as fallback */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 p-2.5 bg-zinc-100 hover:bg-zinc-200 text-[#111111] rounded-full border border-zinc-200 transition cursor-pointer shadow-lg active:scale-95"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30 p-2.5 bg-white hover:bg-zinc-100 text-zinc-600 hover:text-[#F4511E] rounded-full border border-zinc-200 transition cursor-pointer shadow-md active:scale-95 duration-200"
           aria-label="Voltar para a loja"
         >
           <X className="h-5 w-5" />
         </button>
 
         {/* Product Image Panel (Top) */}
-        <div className="w-full flex flex-col aspect-[4/5] shrink-0 relative bg-zinc-50 overflow-hidden rounded-t-2xl select-none group">
+        <div className="w-full flex flex-col aspect-[4/5] shrink-0 relative bg-zinc-50 overflow-hidden rounded-t-2xl select-none group border-b border-zinc-100">
           
           {/* Main Selected Image */}
-          <div className="flex-1 relative h-full w-full overflow-hidden flex items-center justify-center bg-zinc-100">
+          <div className="flex-1 relative h-full w-full overflow-hidden flex items-center justify-center bg-zinc-50">
             {/* Intelligent Outpainted Concept Background Backdrop to prevent empty margins or white spaces */}
             <div className="absolute inset-0 w-full h-full overflow-hidden select-none pointer-events-none">
               <img
                 src={allImages[activeImageIndex] || activeProduct.image}
                 alt=""
                 referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full object-cover filter blur-[24px] opacity-55 scale-110 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover filter blur-[24px] opacity-10 scale-110 pointer-events-none"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
               />
               {/* Soft overlay to match light luxury presentation */}
-              <div className="absolute inset-0 bg-white/45 pointer-events-none" />
+              <div className="absolute inset-0 bg-white/40 pointer-events-none" />
             </div>
 
             <div className="w-full h-full overflow-hidden flex items-center justify-center relative z-10 p-1">
@@ -167,7 +187,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                     e.stopPropagation();
                     setActiveImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
                   }}
-                  className="absolute left-4 z-30 p-2.5 rounded-full bg-white/90 hover:bg-black hover:text-white text-black border border-zinc-250 transition-all shadow-lg active:scale-95 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 sm:opacity-100 duration-300"
+                  className="absolute left-4 z-30 p-2.5 rounded-full bg-white/95 hover:bg-white hover:text-[#F4511E] text-zinc-700 border border-zinc-200 transition-all shadow-md active:scale-95 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 sm:opacity-100 duration-300"
                   aria-label="Foto anterior"
                 >
                   <ChevronLeft className="h-5 w-5" />
@@ -178,7 +198,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                     e.stopPropagation();
                     setActiveImageIndex((prev) => (prev + 1) % allImages.length);
                   }}
-                  className="absolute right-4 z-30 p-2.5 rounded-full bg-white/90 hover:bg-black hover:text-white text-black border border-zinc-250 transition-all shadow-lg active:scale-95 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 sm:opacity-100 duration-300"
+                  className="absolute right-4 z-30 p-2.5 rounded-full bg-white/95 hover:bg-white hover:text-[#F4511E] text-zinc-700 border border-zinc-200 transition-all shadow-md active:scale-95 cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 sm:opacity-100 duration-300"
                   aria-label="Próxima foto"
                 >
                   <ChevronRight className="h-5 w-5" />
@@ -188,21 +208,21 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
 
             {/* Premium Indicator Badge */}
             {allImages.length > 1 && (
-              <div className="absolute top-4 right-14 z-20 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-xl border border-zinc-200 text-[10px] uppercase font-bold text-neutral-800 tracking-wider flex items-center gap-1.5 shadow-md">
-                <ImageIcon className="h-3.5 w-3.5 text-amber-600" />
+              <div className="absolute top-4 right-14 z-20 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-xl border border-zinc-200 text-[10px] uppercase font-bold text-zinc-700 tracking-wider flex items-center gap-1.5 shadow-md">
+                <ImageIcon className="h-3.5 w-3.5 text-[#FF5A36]" />
                 <span>Ver Fotos ({activeImageIndex + 1}/{allImages.length})</span>
               </div>
             )}
 
             {activeProduct.tag && (
-              <span className="absolute top-4 left-4 z-10 px-3 py-1.5 bg-amber-500 font-bold text-black text-[11px] uppercase tracking-widest rounded-full shadow-lg">
+              <span className="absolute top-4 left-4 z-10 px-3 py-1.5 bg-[#FF5A36] font-bold text-white text-[11px] uppercase tracking-widest rounded-full shadow-lg">
                 {activeProduct.tag}
               </span>
             )}
             
             {isSold && (
               <div className="absolute inset-0 bg-black/75 backdrop-blur-[2.5px] flex items-center justify-center p-0 overflow-hidden z-10">
-                <div className="w-full bg-red-600 text-white text-base font-black uppercase tracking-wider py-4 border-y border-red-500 shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
+                <div className="w-full bg-[#FF5A36] text-white text-base font-black uppercase tracking-wider py-4 border-y border-[#FF5A36] shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
                   JÁ VENDIDO 💔
                 </div>
               </div>
@@ -210,7 +230,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
 
             {/* Responsive glass horizontal carousel for thumbs */}
             {allImages.length > 1 && (
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl border border-zinc-250 max-w-[90%] overflow-x-auto select-none no-scrollbar shadow-lg">
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 bg-white/95 backdrop-blur-md px-3 py-2 rounded-xl border border-zinc-200 max-w-[90%] overflow-x-auto select-none no-scrollbar shadow-lg">
                 {allImages.map((imgUrl, idx) => (
                   <button
                     type="button"
@@ -220,7 +240,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                     }}
                     className={`w-9 h-9 rounded-lg border overflow-hidden transition-all duration-200 cursor-pointer shrink-0 ${
                       activeImageIndex === idx 
-                        ? 'border-amber-600 bg-amber-500/10 scale-105' 
+                        ? 'border-[#F4511E] scale-105' 
                         : 'border-zinc-200 hover:border-zinc-400'
                     }`}
                   >
@@ -244,19 +264,19 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
             {/* Quick mobile-only back link to prevent scrolling downwards */}
             <button
               onClick={onClose}
-              className="md:hidden w-full py-3.5 bg-zinc-100 hover:bg-zinc-200 text-[#111111] border border-zinc-250 rounded-xl text-base font-bold uppercase tracking-widest transition flex items-center justify-center gap-1.5 cursor-pointer mb-5"
+              className="md:hidden w-full py-3.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 rounded-xl text-base font-bold uppercase tracking-widest transition flex items-center justify-center gap-1.5 cursor-pointer mb-5 duration-200"
             >
               <span>← Voltar para a Loja</span>
             </button>
             {/* Condition badge only */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs text-neutral-600 bg-zinc-50 px-3 py-1.5 rounded border border-zinc-200 font-medium">
+              <span className="text-xs text-[#EE4D2D] bg-[#FFF5F5] px-3 py-1.5 rounded border border-[#FF6A4D]/40 font-semibold uppercase tracking-wider">
                 Estado: {activeProduct.condition}
               </span>
             </div>
 
             {/* Product Title - MINIMUM 18px */}
-            <h2 className="text-2xl md:text-3xl font-sans font-bold text-[#111111] mb-4 leading-tight">
+            <h2 className="text-2xl md:text-3xl font-sans font-bold text-black mb-4 leading-tight tracking-tight">
               {activeProduct.title}
             </h2>
 
@@ -268,24 +288,24 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
               return (
                 <div className="flex flex-col mb-6 space-y-1.5">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-[#DC2626] line-through font-mono font-bold text-base sm:text-lg">
+                    <span className="text-zinc-500 line-through font-mono font-bold text-base sm:text-lg">
                       De: R$ {origVal.toFixed(2)}
                     </span>
-                    <span className="text-xs text-emerald-650 font-bold uppercase tracking-wider bg-zinc-50 px-2 py-0.5 rounded border border-zinc-200">
+                    <span className="text-xs text-[#EE4D2D] font-bold uppercase tracking-wider bg-[#FFF5F5] px-2.5 py-1 rounded border border-[#FF6A4D]/40">
                       Desconto Especial ✨
                     </span>
                   </div>
                   <div className="flex flex-wrap items-baseline gap-2 mt-1">
-                    <span className="text-3xl md:text-4xl font-mono text-[#0fa33a] font-black tracking-tight block">
+                    <span className="text-3xl md:text-4xl font-sans text-[#EE4D2D] font-extrabold tracking-tight block">
                       Por: R$ {Number(activeProduct.price).toFixed(2)}
                     </span>
-                    <span className="text-xs text-emerald-600 font-bold flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded border border-emerald-100">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-xs text-zinc-700 font-bold flex items-center gap-1 bg-zinc-50 px-3 py-1.5 rounded border border-zinc-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#EE4D2D] animate-pulse"></span>
                       Pagamento via PIX
                     </span>
                   </div>
                   {maxSavingsVal > 0 && (
-                    <div className="flex items-center gap-1 text-xs font-black text-[#0ea137] bg-emerald-50 border border-emerald-150 px-3 py-2 rounded-xl w-fit uppercase tracking-widest mt-2">
+                    <div className="flex items-center gap-1 text-xs font-black text-[#EE4D2D] bg-[#FFF5F5] border border-[#FF6A4D]/35 px-3 py-2 rounded-xl w-fit uppercase tracking-widest mt-2 shadow-[0_2px_8px_rgba(255,90,54,0.04)]">
                       <span>✨ Você economiza R$ {maxSavingsVal.toFixed(2)} ({percentVal}% OFF)</span>
                     </div>
                   )}
@@ -297,21 +317,21 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
             <div className="space-y-4 bg-zinc-50 border border-zinc-200 p-5 rounded-xl mb-6">
               <div className="grid grid-cols-2 gap-4 text-base">
                 <div>
-                  <span className="text-[#444444] font-medium block text-xs uppercase tracking-wider">Tamanho</span>
-                  <span className="text-[#111111] font-bold text-lg">{activeProduct.size}</span>
+                  <span className="text-zinc-550 font-medium block text-xs uppercase tracking-wider">Tamanho</span>
+                  <span className="text-zinc-900 font-bold text-lg">{activeProduct.size}</span>
                 </div>
                 <div>
-                  <span className="text-[#444444] font-medium block text-xs uppercase tracking-wider">Categoria</span>
-                  <span className="text-[#111111] font-bold text-lg">{activeProduct.category}</span>
+                  <span className="text-zinc-550 font-medium block text-xs uppercase tracking-wider">Categoria</span>
+                  <span className="text-[#EE4D2D] font-bold text-lg">{getSingularCategoryName(activeProduct.category)}</span>
                 </div>
               </div>
               <div className="pt-3.5 border-t border-zinc-200 flex flex-col gap-2 text-base">
-                <span className="text-[#222222] font-semibold text-sm uppercase tracking-wider">Disponibilidade</span>
+                <span className="text-zinc-805 font-semibold text-sm uppercase tracking-wider">Disponibilidade</span>
                 
                 {(() => {
                   if (activeProduct.stock <= 0) {
                     return (
-                      <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-650 text-xs font-bold rounded-lg leading-relaxed shadow-sm">
+                      <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-100 border border-zinc-200 text-zinc-400 text-xs font-bold rounded-lg leading-relaxed shadow-sm">
                         <span>❌</span>
                         <span>Estoque Esgotado</span>
                       </div>
@@ -319,16 +339,16 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                   }
                   if (activeProduct.stock <= 5) {
                     const textFormatted = activeProduct.stock === 1 
-                      ? "🔥 Última unidade disponível (Resta apenas 1!)" 
-                      : `🔥 Últimas ${activeProduct.stock} unidades disponíveis`;
+                       ? "🔥 Última unidade disponível (Resta apenas 1!)" 
+                       : `🔥 Últimas ${activeProduct.stock} unidades disponíveis`;
                     return (
-                      <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-xs font-extrabold rounded-lg leading-relaxed shadow-sm animate-pulse uppercase tracking-wider">
+                      <div className="flex items-center gap-1.5 px-3 py-2 bg-[#FFF5F5] border border-[#FF6A4D]/50 shadow-[0_2px_10px_rgba(255,90,54,0.08)] text-[#EE4D2D] text-xs font-extrabold rounded-lg leading-relaxed shadow-sm animate-pulse uppercase tracking-wider">
                         <span>{textFormatted}</span>
                       </div>
                     );
                   }
                   return (
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-950 text-xs font-bold rounded-lg leading-relaxed shadow-sm">
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-zinc-50 border border-zinc-200 text-zinc-700 text-xs font-bold rounded-lg leading-relaxed shadow-sm">
                       <span>📦</span>
                       <span>Restam apenas {activeProduct.stock} unidades em estoque</span>
                     </div>
@@ -339,27 +359,27 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
 
             {/* Rich Narrative / Description - MINIMUM 16px */}
             <div className="mb-6">
-              <h4 className="text-sm text-[#111111] uppercase tracking-wider font-bold mb-2">Descrição do Produto</h4>
-              <p className="text-base text-[#222222] leading-relaxed mb-3 text-justify whitespace-pre-line font-normal">
+              <h4 className="text-sm text-[#EE4D2D] uppercase tracking-wider font-bold mb-2">Descrição do Produto</h4>
+              <p className="text-base text-zinc-650 leading-relaxed mb-3 text-justify whitespace-pre-line font-normal">
                 {activeProduct.description}
               </p>
             </div>
           </div>
 
           {/* Action Footer - MINIMUM 16px buttons and forms */}
-          <div className="space-y-3 pt-4 border-t border-zinc-150">
+          <div className="space-y-3 pt-4 border-t border-zinc-200">
             {isAvailable ? (
               showDirectForm ? (
                 <div className="bg-zinc-50 p-5 rounded-xl border border-zinc-200 space-y-4 animate-in fade-in slide-in-from-bottom duration-200">
                   <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
-                    <span className="text-xs font-bold text-neutral-800 uppercase tracking-widest flex items-center gap-1.5">
-                      <MessageSquare className="h-4 w-4 text-amber-600 animate-pulse" />
+                    <span className="text-xs font-bold text-[#FF5A36] uppercase tracking-widest flex items-center gap-1.5">
+                      <MessageSquare className="h-4 w-4 text-[#FF5A36] animate-pulse" />
                       Atendimento WhatsApp
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowDirectForm(false)}
-                      className="text-xs text-neutral-500 hover:text-black underline uppercase tracking-wider font-bold cursor-pointer"
+                      className="text-xs text-zinc-550 hover:text-zinc-805 underline uppercase tracking-wider font-bold cursor-pointer"
                     >
                       Cancelar
                     </button>
@@ -367,35 +387,35 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
 
                   <form onSubmit={handleDirectWhatsAppSubmit} className="space-y-4 text-left">
                     <div>
-                      <label className="text-xs text-[#222222] font-semibold block mb-1">Nome Completo</label>
+                      <label className="text-xs text-zinc-700 font-semibold block mb-1">Nome Completo</label>
                       <input
                         type="text"
                         required
                         value={clientName}
                         onChange={(e) => setClientName(e.target.value)}
-                        className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-900 focus:outline-none focus:border-amber-500 font-semibold"
+                        className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-90 w font-semibold focus:outline-none focus:border-[#FF5A36]"
                         placeholder="Ex: CLAÚDIA SILVA"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-[#222222] font-semibold block mb-1">Telefone / Whats</label>
+                        <label className="text-xs text-zinc-700 font-semibold block mb-1">Telefone / Whats</label>
                         <input
-                          type="tel"
-                          required
-                          value={clientPhone}
-                          onChange={(e) => setClientPhone(e.target.value)}
-                          className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-900 focus:outline-none focus:border-amber-500 font-mono"
-                          placeholder="Ex: 27988226654"
+                           type="tel"
+                           required
+                           value={clientPhone}
+                           onChange={(e) => setClientPhone(e.target.value)}
+                           className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-90 w font-mono focus:outline-none focus:border-[#FF5A36]"
+                           placeholder="Ex: 27988226654"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-[#222222] font-semibold block mb-1">Seu Objetivo</label>
+                        <label className="text-xs text-zinc-700 font-semibold block mb-1">Seu Objetivo</label>
                         <select
                           value={interactionType}
                           onChange={(e) => setInteractionType(e.target.value as 'compra' | 'duvida')}
-                          className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-900 focus:outline-none focus:border-amber-500 font-medium"
+                          className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-90 w font-medium focus:outline-none focus:border-[#FF5A36]"
                         >
                           <option value="compra">Reservar Peça 🛍️</option>
                           <option value="duvida">Tirar Dúvida ❓</option>
@@ -404,13 +424,13 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                     </div>
 
                     <div>
-                      <label className="text-xs text-[#222222] font-semibold block mb-1">Endereço Completo</label>
+                      <label className="text-xs text-zinc-700 font-semibold block mb-1">Endereço Completo</label>
                       <textarea
                         rows={2}
                         required
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-900 focus:outline-none focus:border-amber-500 leading-normal resize-none font-normal"
+                        className="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-base text-zinc-90 w leading-normal resize-none font-normal focus:outline-none focus:border-[#FF5A36]"
                         placeholder="RUA DA VITÓRIA, 914, PRESIDENTE MEDICI, CARIACICA-ES"
                       />
                     </div>
@@ -432,7 +452,7 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                         onAddToCart(activeProduct);
                         onClose();
                       }}
-                      className="py-4 px-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black text-[13px] sm:text-base font-black uppercase tracking-wider rounded-lg cursor-pointer transition flex items-center justify-center gap-2 animate-pulse-scale shadow-lg shadow-[#39ff14]/15"
+                      className="py-4 px-3 bg-[#EE4D2D] hover:bg-[#FF6A4D] text-white text-[13px] sm:text-base font-black uppercase tracking-wider rounded-lg cursor-pointer transition flex items-center justify-center gap-2 shadow-[0_2px_12px_rgba(238,77,45,0.15)] hover:shadow-[0_4px_20px_rgba(238,77,45,0.3)] duration-200"
                     >
                       <ShoppingBag className="h-5 w-5 stroke-[3]" />
                       <span>Colocar no Carrinho</span>
@@ -457,28 +477,28 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
                       setInteractionType('duvida');
                       setShowDirectForm(true);
                     }}
-                    className="w-full py-3.5 border border-zinc-300 hover:border-amber-500/50 text-neutral-600 hover:text-amber-700 text-sm uppercase font-bold tracking-widest rounded-lg transition duration-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full py-3.5 border border-zinc-250 hover:border-[#FF5A36]/60 text-zinc-650 hover:text-[#FF5A36] text-sm uppercase font-bold tracking-widest rounded-lg transition duration-200 flex items-center justify-center gap-1.5 cursor-pointer bg-zinc-50 hover:shadow-[0_2px_8px_rgba(0,0,0,0.03)]"
                   >
                     <HelpCircle className="h-4 w-4" />
                     <span>Dúvida? Perguntar à Atendente sobre esta Peça 💬</span>
                   </button>
 
-                  <div className="flex items-center gap-2 text-xs text-neutral-500 justify-center pt-1.5">
-                    <Shield className="h-4.5 w-4.5 text-neutral-500 shrink-0" />
+                  <div className="flex items-center gap-2 text-xs text-zinc-505 justify-center pt-1.5">
+                    <Shield className="h-4.5 w-4.5 text-[#FF5A36] shrink-0" />
                     <span>Curadoria Modivah: Peça legítima e fotos reais</span>
                   </div>
                 </>
               )
             ) : (
-              <div className="w-full py-4 px-4 bg-red-650 border border-red-500 text-white text-base font-bold uppercase tracking-wider rounded-lg text-center select-none bg-red-600 shadow-lg">
+              <div className="w-full py-4 px-4 bg-zinc-100 border border-zinc-205 text-zinc-400 text-base font-bold uppercase tracking-wider rounded-lg text-center select-none shadow-md">
                 JÁ VENDIDO. 💔
               </div>
             )}
 
             {/* Prominent Back Button (Botão Voltar) */}
             <button
-              onClick={onClose}
-              className="w-full py-4 bg-zinc-100 hover:bg-zinc-200 text-[#111111] border border-zinc-300 rounded-xl text-base font-bold uppercase tracking-widest transition flex items-center justify-center gap-2 cursor-pointer mt-4 duration-200 shadow-md"
+               onClick={onClose}
+               className="w-full py-4 bg-zinc-50 hover:bg-zinc-100 text-zinc-650 hover:text-[#EE4D2D] border border-zinc-250 rounded-xl text-base font-bold uppercase tracking-widest transition flex items-center justify-center gap-2 cursor-pointer mt-4 duration-200 shadow-md"
             >
               <span>← Voltar para a Loja</span>
             </button>

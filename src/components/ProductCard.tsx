@@ -9,6 +9,26 @@ interface ProductCardProps {
   onAddToCart: (product: Product) => void;
 }
 
+const getSingularCategoryName = (name: string): string => {
+  const trimmed = (name || "").trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'bermudas') return 'Bermuda';
+  if (lower === 'blusas') return 'Blusa';
+  if (lower === 'blazers') return 'Blazer';
+  if (lower === 'bolsas') return 'Bolsa';
+  if (lower === 'calçados' || lower === 'calcados') return 'Calçado';
+  if (lower === 'camisas') return 'Camisa';
+  if (lower === 'conjuntos') return 'Conjunto';
+  if (lower === 'cintos') return 'Cinto';
+  if (lower === 'vestidos') return 'Vestido';
+  if (lower === 'saias') return 'Saia';
+  if (lower === 'shorts') return 'Short';
+  if (lower === 'casacos') return 'Casaco';
+  if (lower === 'jaquetas') return 'Jaqueta';
+  if (lower === 'sapatos') return 'Sapato';
+  return trimmed;
+};
+
 const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
   const isSold = product.stock <= 0;
   const isReserved = product.status === 'reserved' && !isSold;
@@ -33,22 +53,20 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
   };
 
   // Helper calculation for original price fallback to ensure pre-sale price exists
-  const origVal = Number(product.originalPrice) || (Math.round((Number(product.price) * 1.5) / 10) * 10);
-
-  return (
+  const origVal = Number(product.originalPrice) || (Math.round((Number(product.price) * 1.5) / 10) * 10);  return (
     <div 
-      className="group relative flex flex-col bg-white border border-neutral-100 hover:border-neutral-200/80 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-2xl w-full h-[585px] sm:h-[625px]"
+      className="group relative flex flex-col bg-white border border-[#FF6A4D]/40 hover:border-[#EE4D2D] rounded-2xl overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md w-full h-[585px] sm:h-[625px]"
       id={`product-card-${product.id}`}
     >
       {/* 1. AREA DA IMAGEM PRINCIPAL (53% of card height) */}
       <div 
         onClick={() => onViewDetails(product)}
-        className="relative h-[53%] w-full bg-neutral-50 overflow-hidden cursor-pointer group/img border-b border-neutral-100 z-0 select-none"
+        className="relative h-[53%] w-full bg-zinc-50 overflow-hidden cursor-pointer group/img border-b border-zinc-100 z-0 select-none rounded-t-2xl"
         title="Clique para ver todos os detalhes desta peça"
       >
         {/* EXPANSÃO INTELIGENTE DE FUNDO / FUNDO COMPLEMENTAR
             A blurred ambient background constructed from the product photo itself to avoid empty spaces or black bars */}
-        <div className="absolute inset-0 select-none pointer-events-none scale-108 blur-xl opacity-30 overflow-hidden">
+        <div className="absolute inset-0 select-none pointer-events-none scale-108 blur-xl opacity-10 overflow-hidden">
           <img
             src={product.image}
             alt=""
@@ -71,7 +89,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         {/* Outer Dark Overlay for Sold or Out of Stock Items */}
         {isSold && (
           <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-[2px] flex items-center justify-center p-0 overflow-hidden">
-            <div className="w-full bg-red-600 text-white text-base font-black uppercase tracking-wider py-4 border-y border-red-500 shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
+            <div className="w-full bg-[#EE4D2D] text-white text-base font-black uppercase tracking-wider py-4 border-y border-[#EE4D2D] shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
               JÁ VENDIDO 💔
             </div>
           </div>
@@ -80,18 +98,18 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         {/* Outer Dark Overlay for Reserved Items */}
         {isReserved && (
           <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-[1.5px] flex flex-col items-center justify-center">
-            <span className="px-5 py-2.5 bg-amber-500 text-black text-[13px] font-black uppercase tracking-widest rounded-full shadow-lg">
+            <span className="px-5 py-2.5 bg-[#EE4D2D] text-white text-[13px] font-black uppercase tracking-widest rounded-full shadow-lg border border-[#EE4D2D]">
               Reservado
             </span>
-            <span className="text-xs text-neutral-200 mt-2 font-mono font-bold">Aguardando pagamento</span>
+            <span className="text-xs text-zinc-350 mt-2 font-mono font-bold">Aguardando pagamento</span>
           </div>
         )}
 
         {/* Hover Action Highlight */}
         {isAvailable && !isSold && !isReserved && (
           <div className="absolute inset-0 z-10 bg-black/10 opacity-0 group-hover/img:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <span className="bg-white text-neutral-900 text-xs font-bold tracking-wider uppercase px-5 py-2.5 rounded-full border border-neutral-150 flex items-center gap-1.5 shadow-lg select-none">
-              <Eye className="h-4 w-4 text-orange-500 animate-pulse" />
+            <span className="bg-white/95 text-[#EE4D2D] text-xs font-bold tracking-wider uppercase px-5 py-2.5 rounded-full border border-[#FF6A4D]/40 flex items-center gap-1.5 shadow-lg select-none">
+              <Eye className="h-4 w-4 text-[#EE4D2D] animate-pulse" />
               <span>Ver Produto Completo</span>
             </span>
           </div>
@@ -99,12 +117,12 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
 
         {/* FLOATING BADGES - High Priority Layer (z-20), above style layer, never hidden or cut */}
         {/* Upper Left: Status Badge */}
-        <div className="absolute top-3 left-3 z-20 px-3.5 py-1.5 bg-white text-neutral-950 text-[10px] sm:text-xs uppercase tracking-wider font-extrabold rounded-full shadow-md border border-neutral-100/90 pointer-events-none select-none">
+        <div className="absolute top-3 left-3 z-20 px-3.5 py-1.5 bg-[#EE4D2D] text-white text-[10px] sm:text-xs uppercase tracking-wider font-extrabold rounded-full shadow-md pointer-events-none select-none">
           {leftTag}
         </div>
 
         {/* Upper Right: Size Badge */}
-        <div className="absolute top-3 right-3 z-20 px-3.5 py-1.5 bg-white text-neutral-950 text-[10px] sm:text-xs font-mono font-extrabold rounded-full shadow-md border border-neutral-100/90 uppercase pointer-events-none select-none">
+        <div className="absolute top-3 right-3 z-20 px-3.5 py-1.5 bg-zinc-100 text-zinc-700 text-[10px] sm:text-xs font-mono font-extrabold rounded-full shadow-sm border border-zinc-200 uppercase pointer-events-none select-none">
           {formatSize(product.size)}
         </div>
       </div>
@@ -118,26 +136,22 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           {/* Label "NOVO / SEMINOVO" & Estado do produto / Category - Soft theme */}
           <div className="flex items-center justify-between gap-1.5">
             <div className="flex items-center gap-1.5 overflow-hidden">
-              <span className={`inline-block px-2.5 py-1 text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider rounded-md leading-none ${
-                isNew 
-                  ? "bg-[#E8F8F5] text-[#117A65] border border-[#D1F2EB]" 
-                  : "bg-[#FFF2E9] text-[#E67E22] border border-[#FEE3D0]"
-              }`}>
+              <span className="inline-block px-2.5 py-1 text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider rounded-md leading-none bg-[#EE4D2D] text-white">
                 {isNew ? 'NOVO' : 'SEMINOVO'}
               </span>
-              <span className="text-[10px] text-neutral-400 font-bold hidden xs:inline truncate">
+              <span className="text-[10px] text-zinc-600 font-bold hidden xs:inline truncate">
                 {product.condition || 'Seminovo'}
               </span>
             </div>
-            <span className="text-[10.5px] font-bold text-neutral-400 capitalize max-w-[100px] truncate shrink-0">
-              {product.category}
+            <span className="text-[10.5px] font-bold text-[#EE4D2D] capitalize max-w-[100px] truncate shrink-0">
+              {getSingularCategoryName(product.category)}
             </span>
           </div>
 
           {/* Product Title - Big dark readable bold text, max 2 lines, avoids cropped titles */}
           <h3 
             onClick={() => onViewDetails(product)}
-            className="text-[15px] sm:text-[17px] font-sans font-extrabold text-neutral-950 hover:text-orange-600 transition-colors duration-150 line-clamp-2 leading-tight cursor-pointer"
+            className="text-[16px] sm:text-[18px] font-sans font-bold text-black hover:text-[#EE4D2D] transition-colors duration-150 line-clamp-2 leading-tight cursor-pointer tracking-tight"
             title={displayTitle}
           >
             {displayTitle}
@@ -146,7 +160,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           {/* Product Description - Line-clamped, elegant secondary style */}
           {displayDesc && (
             <p 
-              className="text-neutral-500 text-xs font-normal leading-relaxed line-clamp-2 sm:line-clamp-3 overflow-hidden text-ellipsis break-words cursor-pointer"
+              className="text-zinc-600 text-xs font-normal leading-relaxed line-clamp-2 sm:line-clamp-3 overflow-hidden text-ellipsis break-words cursor-pointer opacity-90"
               style={{ wordBreak: 'break-word' }}
               onClick={() => onViewDetails(product)}
             >
@@ -158,32 +172,24 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
         {/* Middle Segment: Stock Info & Urgent Warnings */}
         <div className="space-y-1 my-1">
           {/* Stock Availability - Strong/Bold Rich Green and prominent size */}
-          <div className="text-[#0fa33a] font-extrabold text-[12.5px] sm:text-[13.5px] flex items-center gap-1.5 line-none">
-            <span className="inline-block w-2 h-2 rounded-full bg-[#0fa33a]" />
-            <span>Quantidade em estoque: {isSold ? '0' : product.stock}</span>
+          <div className="text-zinc-700 font-extrabold text-[12.5px] sm:text-[13.5px] flex items-center gap-1.5 line-none">
+            <span className="inline-block w-2 h-2 rounded-full bg-[#EE4D2D]" />
+            <span>Quantidade em estoque: <strong className="text-[#EE4D2D] font-black">{isSold ? '0' : product.stock}</strong></span>
           </div>
-
-          {/* Urgent message for final unit - Soft red-light warning background */}
-          {product.stock === 1 && !isSold && !isReserved && (
-            <div className="flex flex-col items-center justify-center py-1.5 bg-[#FFF0F0] border border-[#FADBD8] text-red-650 rounded-lg text-[10px] sm:text-[10.5px] font-black uppercase tracking-wider leading-tight text-center">
-              <span>🔥 ÚLTIMA UNIDADE DISPONÍVEL</span>
-              <span className="text-red-700 font-extrabold text-[9px] sm:text-[9.5px] mt-0.5">(RESTA APENAS 1)</span>
-            </div>
-          )}
         </div>
 
         {/* Bottom Segment: Price Block & Dynamic Interaction Buttons */}
-        <div className="pt-2 border-t border-neutral-150 flex flex-col gap-2">
+        <div className="pt-2 border-t border-zinc-100 flex flex-col gap-2">
           
           {/* Price Layout */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex flex-col">
-              <span className="text-[11px] sm:text-[12px] text-red-505 font-bold line-through ml-0.5 text-neutral-400">
+              <span className="text-[11px] sm:text-[12px] font-semibold line-through ml-0.5 text-zinc-400">
                 De R$ {origVal.toFixed(2)}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[17px] sm:text-[21px] text-[#0fa33a] font-mono font-black tracking-tight leading-none">
+              <span className="text-[19px] sm:text-[23px] text-[#EE4D2D] font-sans font-black tracking-tight leading-none">
                 Por R$ {Number(product.price).toFixed(2)}
               </span>
             </div>
@@ -193,7 +199,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           {!isAvailable ? (
             <button
               onClick={() => onViewDetails(product)}
-              className="w-full py-2.5 bg-neutral-100 text-neutral-500 border border-neutral-200 rounded-xl text-xs sm:text-[13px] uppercase font-bold hover:bg-neutral-150 hover:text-neutral-750 transition duration-150"
+              className="w-full py-2.5 bg-[#F5F5F5] hover:bg-[#EEEEEE] text-[#666666] hover:text-[#333333] border border-[#D9D9D9] rounded-xl text-xs sm:text-[13px] uppercase font-bold transition duration-150"
             >
               Sem estoque (Detalhes)
             </button>
@@ -203,16 +209,16 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
               <button
                 id={`add-to-cart-btn-${product.id}`}
                 onClick={() => onAddToCart(product)}
-                className="col-span-3 py-2.5 bg-[#39ff14] hover:bg-[#2ae00a] text-black rounded-lg cursor-pointer font-black text-[11px] sm:text-xs uppercase tracking-wider animate-pulse-scale flex items-center justify-center gap-1.5 transition-transform hover:shadow-md border border-emerald-500/15"
+                className="col-span-3 py-2.5 bg-[#EE4D2D] hover:bg-[#FF6A4D] text-white rounded-lg cursor-pointer font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all duration-200"
                 title="Comprar agora"
               >
-                <ShoppingBag className="h-3.5 w-3.5 stroke-[3.2] shrink-0" />
+                <ShoppingBag className="h-3.5 w-3.5 stroke-[3.2] shrink-0 text-white" />
                 <span>COMPRAR</span>
               </button>
 
               <button
                 onClick={() => onViewDetails(product)}
-                className="col-span-2 py-2.5 bg-neutral-50 hover:bg-neutral-100 text-[#111111] border border-neutral-200 rounded-lg text-[10px] sm:text-[11px] uppercase tracking-wider font-extrabold cursor-pointer transition flex items-center justify-center text-center"
+                className="col-span-2 py-2.5 bg-[#F5F5F5] hover:bg-[#EEEEEE] text-[#666666] hover:text-[#333333] border border-[#D9D9D9] rounded-lg text-[10px] sm:text-[11px] uppercase tracking-wider font-bold cursor-pointer transition flex items-center justify-center text-center duration-200"
                 title="Informações detalhadas"
               >
                 Detalhes

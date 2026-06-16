@@ -126,7 +126,6 @@ export default function CartDrawer({
   const [copiedKey, setCopiedKey] = useState(false);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const [showUploadField, setShowUploadField] = useState(false);
 
   const totalCost = cart.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
   const finalTotal = totalCost;
@@ -171,7 +170,6 @@ export default function CartDrawer({
     }
 
     const orderId = `ord-${Date.now()}-${Math.floor(1000 + Math.random() * 9500)}`;
-    const receiptUrl = `${window.location.origin}/?view_receipt=${orderId}`;
 
     let text = `Olá, segue comprovante referente ao pedido nº ${orderId}.\n\n`;
     text += `Cliente: ${clientName.trim()}\n`;
@@ -324,17 +322,17 @@ export default function CartDrawer({
     <div className="fixed inset-0 z-50 overflow-hidden" id="cart-drawer-container">
       {/* Drawer Overlay backdrop with highlighted products on the left for Desktop */}
       <div 
-        className="absolute inset-0 bg-black/85 backdrop-blur-sm transition-opacity flex items-center justify-start pr-12 md:pr-[450px]" 
+        className="absolute inset-0 bg-[#000000]/40 backdrop-blur-sm transition-opacity flex items-center justify-start pr-12 md:pr-[450px]" 
         onClick={onClose}
       >
         {cart.length > 0 && (
           <div className="hidden md:flex flex-col gap-5 p-8 overflow-y-auto h-full max-w-xl flex-grow items-center justify-center pointer-events-none select-none">
             <div className="text-center space-y-1.5 mb-2">
-              <span className="px-3 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold uppercase tracking-widest rounded-full animate-pulse">
+              <span className="px-3 py-1 bg-[#EE4D2D]/10 border border-[#EE4D2D]/20 text-[#EE4D2D] text-[10px] font-bold uppercase tracking-widest rounded-full animate-pulse">
                 ✨ Peças na sua Sacola Premium
               </span>
-              <p className="text-xs text-neutral-400 font-light max-w-sm">
-                Confira abaixo as peças que estão no seu carrinho em tamanho real de capa:
+              <p className="text-xs text-zinc-500 font-normal max-w-sm">
+                Confira abaixo as peças que estão no seu carrinho:
               </p>
             </div>
             
@@ -342,10 +340,9 @@ export default function CartDrawer({
               {cart.map((item) => (
                 <div 
                   key={`drawer-left-${item.product.id}`}
-                  className="bg-neutral-950 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+                  className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-lg flex flex-col"
                 >
-                  <div className="aspect-[4/5] relative bg-neutral-950 w-full overflow-hidden flex items-center justify-center">
-                    {/* Minimal color ambient background for checkout thumbnail */}
+                  <div className="aspect-[4/5] relative bg-zinc-50 w-full overflow-hidden flex items-center justify-center">
                     <div className="absolute inset-0 select-none pointer-events-none scale-110 blur-md opacity-30">
                       <img src={item.product.image} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                     </div>
@@ -355,22 +352,22 @@ export default function CartDrawer({
                       className="relative z-10 max-h-full max-w-full object-contain"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-md border border-amber-500/30 rounded-md px-2 py-0.5 text-[9px] font-mono text-amber-300 font-bold uppercase">
+                    <div className="absolute top-3 left-3 bg-[#EE4D2D] rounded px-1.5 py-0.5 text-[9px] font-mono text-white font-bold uppercase">
                       {item.product.brand}
                     </div>
-                    <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md border border-white/10 rounded-md px-2 py-0.5 text-[10px] font-mono text-white">
+                    <div className="absolute bottom-3 right-3 bg-zinc-200 border border-zinc-300 rounded px-1.5 py-0.5 text-[9px] font-mono text-zinc-700 font-bold uppercase">
                       TAM {item.product.size}
                     </div>
                   </div>
-                  <div className="p-3 bg-neutral-950 border-t border-neutral-900">
-                    <h4 className="text-[11px] text-white font-medium truncate mb-1">
+                  <div className="p-3 bg-white border-t border-zinc-100">
+                    <h4 className="text-[11px] text-zinc-800 font-bold truncate mb-1">
                       {item.product.title}
                     </h4>
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-[#39ff14] font-mono font-black">
+                      <span className="text-[11px] text-[#EE4D2D] font-mono font-bold">
                         R$ {Number(item.product.price).toFixed(2)}
                       </span>
-                      <span className="text-[10px] text-neutral-400 font-mono">
+                      <span className="text-[10px] text-zinc-500 font-mono">
                         Qtd: {item.quantity}
                       </span>
                     </div>
@@ -384,76 +381,76 @@ export default function CartDrawer({
 
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
         {/* Slidin panel content container */}
-        <div className="w-screen max-w-md bg-neutral-955 border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className="w-screen max-w-md bg-white border-l border-zinc-250 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
           
           {/* Header section */}
-          <div className="p-6 border-b border-white/10 flex items-center justify-between">
+          <div className="p-6 border-b border-zinc-200 flex items-center justify-between">
             <button
               onClick={onClose}
-              className="flex items-center gap-1 text-xs text-neutral-400 hover:text-white transition cursor-pointer font-medium uppercase tracking-wider bg-white/5 px-2.5 py-1 rounded"
+              className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 transition cursor-pointer font-bold uppercase tracking-wider bg-zinc-100 px-2.5 py-1 rounded"
               id="cart-back-btn"
             >
               <span>← Voltar</span>
             </button>
 
             <div className="flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-amber-300" />
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-white">Meu Carrinho</h2>
-              <span className="px-2 py-0.5 bg-white/5 rounded-full text-xs font-mono text-neutral-400 border border-white/5">
+              <ShoppingBag className="h-4 w-4 text-[#EE4D2D]" />
+              <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-800">Meu Carrinho</h2>
+              <span className="px-2 py-0.5 bg-[#EE4D2D]/10 rounded-full text-xs font-mono font-bold text-[#EE4D2D] border border-[#EE4D2D]/20">
                 {cart.length}
               </span>
             </div>
             
             <button
               onClick={onClose}
-              className="p-1.5 hover:bg-white/10 text-neutral-400 hover:text-white rounded-md cursor-pointer transition"
+              className="p-1.5 hover:bg-zinc-100 text-zinc-400 hover:text-zinc-800 rounded-md cursor-pointer transition"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {orderCompletedData ? (
-            <div className="flex-1 flex flex-col justify-between overflow-y-auto p-6 space-y-6 text-neutral-300" id="order-completed-view">
+            <div className="flex-1 flex flex-col justify-between overflow-y-auto p-6 space-y-6 text-zinc-700" id="order-completed-view">
               <div className="space-y-6">
                 <div className="text-center space-y-3 pt-6 animate-in zoom-in-95 duration-200">
-                  <div className="mx-auto w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-600">
                     <CheckCircle className="h-7 w-7 stroke-[2.5]" />
                   </div>
-                  <h3 className="text-sm font-bold tracking-widest uppercase text-white">PEDIDO REALIZADO!</h3>
-                  <p className="text-xs text-neutral-400 font-light max-w-xs mx-auto">
-                    Obrigado, <span className="text-neutral-200 font-bold">{orderCompletedData.name}</span>. Seu pedido foi processado com sucesso.
+                  <h3 className="text-sm font-bold tracking-widest uppercase text-[#EE4D2D]">PEDIDO REALIZADO!</h3>
+                  <p className="text-xs text-zinc-500 font-normal max-w-xs mx-auto">
+                    Obrigado, <span className="text-zinc-850 font-bold">{orderCompletedData.name}</span>. Seu pedido foi processado com sucesso.
                   </p>
                 </div>
 
-                <div className="bg-white/[0.02] border border-white/5 p-4 rounded-xl space-y-2.5 font-mono text-[11px]">
-                  <div className="flex justify-between items-center py-1 border-b border-white/5">
-                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">ID Pedido</span>
-                    <span className="text-white font-bold">#{orderCompletedData.id}</span>
+                <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-xl space-y-2.5 font-mono text-[11px]">
+                  <div className="flex justify-between items-center py-1 border-b border-zinc-200">
+                    <span className="text-zinc-400 uppercase tracking-widest text-[9px]">ID Pedido</span>
+                    <span className="text-zinc-800 font-bold">#{orderCompletedData.id}</span>
                   </div>
-                  <div className="flex justify-between items-center py-1 border-b border-white/5">
-                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">Valor Total</span>
-                    <span className="text-[#39ff14]/90 font-bold">R$ {orderCompletedData.total.toFixed(2)}</span>
+                  <div className="flex justify-between items-center py-1 border-b border-zinc-200">
+                    <span className="text-zinc-400 uppercase tracking-widest text-[9px]">Valor Total</span>
+                    <span className="text-[#EE4D2D] font-bold">R$ {orderCompletedData.total.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center py-1">
-                    <span className="text-neutral-500 uppercase tracking-widest text-[9px]">Data da Compra</span>
-                    <span className="text-neutral-300">{orderCompletedData.date}</span>
+                    <span className="text-zinc-400 uppercase tracking-widest text-[9px]">Data da Compra</span>
+                    <span className="text-zinc-600">{orderCompletedData.date}</span>
                   </div>
                 </div>
 
-                <div className="bg-amber-500/[0.02] border border-amber-500/10 p-4 rounded-xl">
-                  <p className="text-[10.5px] text-amber-300/80 leading-relaxed text-left text-justify">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                  <p className="text-[10.5px] text-amber-800 leading-relaxed text-justify">
                     <strong>Aviso de Comprovante:</strong> O sistema abriu automaticamente o WhatsApp para o primeiro parceiro de atendimento. Envie também no segundo número para agilizar a liberação rápida do seu frete!
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-3 pt-4 border-t border-white/5 shrink-0">
+              <div className="space-y-3 pt-4 border-t border-zinc-200 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     triggerWhatsApp('5527988084694', orderCompletedData.waText);
                   }}
-                  className="w-full py-3.5 bg-[#25d366] hover:bg-[#20ba59] text-black font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg shadow-[#25d366]/10 active:scale-95 duration-150"
+                  className="w-full py-3.5 bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg active:scale-95 duration-150"
                 >
                   <MessageSquare className="h-4 w-4 stroke-[3]" />
                   <span>Enviar p/ Suporte 1 (27 98808-4694)</span>
@@ -464,7 +461,7 @@ export default function CartDrawer({
                   onClick={() => {
                     triggerWhatsApp('5527988226654', orderCompletedData.waText);
                   }}
-                  className="w-full py-3.5 bg-neutral-900 hover:bg-neutral-850 border border-white/10 text-emerald-400 font-black text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg active:scale-95 duration-150"
+                  className="w-full py-3.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-[#25D366] font-bold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-sm active:scale-95 duration-150"
                 >
                   <MessageSquare className="h-4 w-4 stroke-[3]" />
                   <span>Enviar p/ Suporte 2 (27 98822-6654)</span>
@@ -477,7 +474,7 @@ export default function CartDrawer({
                     setShowPaymentScreen(false);
                     onClose();
                   }}
-                  className="w-full py-3 bg-white text-black font-bold text-xs uppercase tracking-widest rounded-xl cursor-pointer hover:bg-neutral-200 transition text-center block"
+                  className="w-full py-3 bg-zinc-100 text-zinc-800 font-bold text-xs uppercase tracking-widest rounded-xl cursor-pointer hover:bg-zinc-200 transition text-center block"
                 >
                   Continuar Navegando
                 </button>
@@ -486,27 +483,27 @@ export default function CartDrawer({
           ) : showPaymentScreen ? (
             <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-6" id="pix-payment-screen">
               {/* Go Back Header */}
-              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+              <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
                 <button 
                   onClick={() => setShowPaymentScreen(false)}
-                  className="text-xs text-neutral-400 hover:text-white flex items-center gap-1 cursor-pointer font-medium uppercase tracking-wider"
+                  className="text-xs text-zinc-400 hover:text-zinc-800 flex items-center gap-1 cursor-pointer font-bold uppercase tracking-wider"
                 >
                   <span>← Corrigir Dados / Carrinho</span>
                 </button>
-                <span className="text-[10px] text-amber-300 font-mono tracking-wider uppercase font-bold px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/10">PASSO 2 DE 2</span>
+                <span className="text-[10px] text-[#EE4D2D] font-mono tracking-wider uppercase font-bold px-2 py-0.5 rounded bg-[#EE4D2D]/10 border border-[#EE4D2D]/10">PASSO 2 DE 2</span>
               </div>
 
                {/* Title PIX */}
               <div className="text-center space-y-1">
-                <h3 className="text-sm font-bold text-white tracking-wide uppercase">Confirmar Pagamento PIX</h3>
-                <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
+                <h3 className="text-sm font-bold text-zinc-850 tracking-wide uppercase">Confirmar Pagamento PIX</h3>
+                <p className="text-[11px] text-zinc-500 font-normal leading-relaxed">
                   Realize a transferência escaneando o QR Code abaixo ou insira a chave manual no aplicativo do seu banco.
                 </p>
               </div>
 
               {/* Elegant QR Code Frame */}
-              <div className="flex flex-col items-center justify-center py-4 px-6 bg-neutral-900 border border-white/5 rounded-2xl relative shadow-inner animate-in zoom-in-95 duration-250">
-                <div className="relative p-2 bg-white rounded-lg mb-2 shadow-xl">
+              <div className="flex flex-col items-center justify-center py-4 px-6 bg-zinc-50 border border-zinc-200 rounded-2xl relative shadow-inner animate-in zoom-in-95 duration-250">
+                <div className="relative p-2 bg-white rounded-lg mb-2 shadow-xl border border-zinc-200">
                   <img 
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&color=0a0a0a&bgcolor=ffffff&data=${encodeURIComponent(
                       getPixQrCodePayload(finalTotal)
@@ -514,26 +511,25 @@ export default function CartDrawer({
                     alt="QR Code de Pagamento PIX"
                     className="w-36 h-36 object-contain"
                   />
-                  {/* Dynamic decorative visual indicators */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-emerald-500 rounded flex items-center justify-center shadow-lg border-2 border-white">
-                    <span className="text-[8px] font-black text-black">PIX</span>
+                    <span className="text-[8px] font-black text-white">PIX</span>
                   </div>
                 </div>
                 
                 {/* Dynamic pricing tags */}
-                <span className="text-lg font-mono text-amber-300 font-bold tracking-tight">R$ {finalTotal.toFixed(2)}</span>
-                <span className="text-[9px] uppercase tracking-wider text-emerald-400 font-medium mt-0.5">Claudio de Souza Silva</span>
+                <span className="text-lg font-mono text-[#EE4D2D] font-bold tracking-tight">R$ {finalTotal.toFixed(2)}</span>
+                <span className="text-[9px] uppercase tracking-wider text-emerald-600 font-bold mt-0.5">Claudio de Souza Silva</span>
               </div>
 
               {/* PIX Details card */}
-              <div className="space-y-3 bg-white/[0.02] border border-white/5 p-4 rounded-xl">
+              <div className="space-y-3 bg-zinc-50 border border-zinc-200 p-4 rounded-xl">
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-1 border-b border-white/5">
+                  <div className="flex justify-between items-center py-1 border-b border-zinc-200">
                     <div>
-                      <span className="text-[9px] text-neutral-500 block font-light uppercase">Banco / Destinatário</span>
-                      <span className="text-neutral-200 font-medium">Claudio de Souza Silva</span>
+                      <span className="text-[9px] text-zinc-400 block font-light uppercase">Banco / Destinatário</span>
+                      <span className="text-zinc-800 font-bold">Claudio de Souza Silva</span>
                     </div>
-                    <span className="text-[10px] text-neutral-400 font-mono font-medium">PIX Seguro</span>
+                    <span className="text-[10px] text-zinc-500 font-mono font-medium">PIX Seguro</span>
                   </div>
 
                   <div className="flex flex-col items-stretch py-1.5">
@@ -544,7 +540,7 @@ export default function CartDrawer({
                         setCopiedKey(true);
                         setTimeout(() => setCopiedKey(false), 3000);
                       }}
-                      className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-black font-semibold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-lg font-semibold uppercase tracking-wider"
+                      className="w-full py-3 px-4 bg-[#EE4D2D] hover:bg-[#FF6A4D] active:scale-[0.98] text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer transition shadow-md uppercase tracking-wider"
                     >
                       {copiedKey ? (
                         <>
@@ -564,11 +560,11 @@ export default function CartDrawer({
 
               {/* Mandatory Image/PDF Upload dropzone area */}
               <div className="space-y-3">
-                <div className="bg-neutral-900 border border-white/10 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
-                  <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest text-center">
+                <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
+                  <div className="text-[11px] font-bold text-[#EE4D2D] uppercase tracking-widest text-center">
                     📎 Envio de Comprovante Obrigatório
                   </div>
-                  <label className="block text-center cursor-pointer border-2 border-dashed border-white/10 hover:border-emerald-500/30 p-5 rounded-lg transition duration-200 bg-black/20">
+                  <label className="block text-center cursor-pointer border-2 border-dashed border-zinc-300 hover:border-[#EE4D2D]/50 p-5 rounded-lg transition duration-200 bg-white">
                     <input 
                       type="file" 
                       accept=".jpg,.jpeg,.png,.pdf,image/png,image/jpeg,image/jpg,application/pdf" 
@@ -597,24 +593,24 @@ export default function CartDrawer({
                       className="hidden"
                     />
                     <div className="flex flex-col items-center justify-center space-y-1">
-                      <Upload className="h-5 w-5 text-neutral-400" />
-                      <span className="text-xs text-white">Anexar comprovante de pagamento</span>
-                      <span className="text-[9px] text-neutral-500 font-light">Formatos suportados: JPG, JPEG, PNG, PDF</span>
+                      <Upload className="h-5 w-5 text-zinc-400" />
+                      <span className="text-xs text-zinc-800 font-bold">Anexar comprovante de pagamento</span>
+                      <span className="text-[9px] text-zinc-500 font-light">Formatos suportados: JPG, JPEG, PNG, PDF</span>
                     </div>
                   </label>
 
                   {/* If file is attached */}
                   {receiptFile && (
-                    <div className="bg-white/[0.02] border border-white/5 p-3 rounded-lg flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2">
+                    <div className="bg-white border border-zinc-200 p-3 rounded-lg flex items-center justify-between gap-3 animate-in slide-in-from-bottom-2">
                       <div className="flex items-center gap-2 min-w-0">
                         {receiptPreview ? (
-                          <img src={receiptPreview} alt="Comprovante" className="h-10 w-10 object-cover rounded border border-white/10" />
+                          <img src={receiptPreview} alt="Comprovante" className="h-10 w-10 object-cover rounded border border-zinc-200" />
                         ) : (
-                          <Image className="h-5 w-5 text-neutral-500" />
+                          <Image className="h-5 w-5 text-zinc-500" />
                         )}
                         <div className="min-w-0">
-                          <p className="text-xs text-white font-medium truncate">{receiptFile.name}</p>
-                          <p className="text-[10px] text-neutral-500 font-mono">{(receiptFile.size / 1024).toFixed(0)} KB</p>
+                          <p className="text-xs text-zinc-800 font-semibold truncate">{receiptFile.name}</p>
+                           <p className="text-[10px] text-zinc-500 font-mono">{(receiptFile.size / 1024).toFixed(0)} KB</p>
                         </div>
                       </div>
                       <button 
@@ -623,7 +619,7 @@ export default function CartDrawer({
                           setReceiptFile(null);
                           setReceiptPreview(null);
                         }}
-                        className="text-xs text-neutral-500 hover:text-red-400 font-bold px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+                        className="text-xs text-zinc-500 hover:text-[#EE4D2D] font-bold px-1.5 py-0.5 rounded hover:bg-zinc-100 cursor-pointer"
                       >
                         Limpar
                       </button>
@@ -635,14 +631,14 @@ export default function CartDrawer({
               {/* Final submit button */}
               <div className="pt-2 space-y-3">
                 {checkoutError && (
-                  <div className="p-3 bg-red-950/40 border border-red-500 rounded-lg text-xs text-red-300 font-bold text-center leading-relaxed">
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-bold text-center leading-relaxed">
                     😞 {checkoutError}
                   </div>
                 )}
 
                 {/* Validation Info Alert Message */}
                 {!receiptFile && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-amber-300 text-xs font-semibold animate-pulse font-sans">
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center text-amber-800 text-xs font-semibold animate-pulse font-sans">
                     ⚠️ Anexe o comprovante de pagamento para continuar.
                   </div>
                 )}
@@ -650,11 +646,11 @@ export default function CartDrawer({
                 <button
                   onClick={handleSendFinalReceiptWhatsApp}
                   disabled={isCheckingStock || !receiptFile}
-                  className="w-full py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-[#39ff14]/15 active:scale-95 duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-3 bg-[#EE4D2D] hover:bg-[#ff5131] text-white rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-md active:scale-95 duration-200 disabled:opacity-45 disabled:cursor-not-allowed"
                 >
                   {isCheckingStock ? (
                     <>
-                      <RefreshCw className="h-4 w-4 animate-spin text-black" />
+                      <RefreshCw className="h-4 w-4 animate-spin text-white" />
                       <span>Verificando estoque...</span>
                     </>
                   ) : (
@@ -665,7 +661,7 @@ export default function CartDrawer({
                   )}
                 </button>
                 <div className="text-center mt-2.5">
-                  <p className="text-[9px] text-neutral-500 leading-normal text-justify">
+                  <p className="text-[9px] text-zinc-400 leading-normal">
                     Após anexar o arquivo válido, o envio será habilitado. Ao clicar, abriremos seu WhatsApp automaticamente enviando o comprovante diretamente para nosso suporte oficial no número **27 98808-4694**!
                   </p>
                 </div>
@@ -675,16 +671,16 @@ export default function CartDrawer({
             <div className="flex-grow flex flex-col overflow-y-auto" id="cart-items-list-container">
               {cart.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-6 min-h-[300px]">
-                  <div className="p-4 bg-white/5 rounded-full mb-4">
-                    <ShoppingBag className="h-8 w-8 text-neutral-600" />
+                  <div className="p-4 bg-zinc-100 rounded-full mb-4 border border-zinc-200">
+                    <ShoppingBag className="h-8 w-8 text-zinc-400" />
                   </div>
-                  <h3 className="text-sm font-medium text-white mb-1">Seu carrinho está vazio</h3>
-                  <p className="text-xs text-neutral-500 max-w-xs leading-relaxed text-justify sm:text-center">
+                  <h3 className="text-sm font-bold text-zinc-800 mb-1">Seu carrinho está vazio</h3>
+                  <p className="text-xs text-zinc-500 max-w-xs leading-relaxed text-justify sm:text-center">
                     Explore nossa curadoria premium e selecione roupas que traduzam sua identidade autêntica.
                   </p>
                   <button
                     onClick={onClose}
-                    className="mt-6 px-5 py-2.5 bg-white text-black font-medium text-xs uppercase tracking-widest rounded-full cursor-pointer hover:bg-neutral-200 transition"
+                    className="mt-6 px-5 py-2.5 bg-[#EE4D2D] text-white hover:bg-[#FF6A4D] font-bold text-xs uppercase tracking-widest rounded-full cursor-pointer transition"
                   >
                     ← Voltar para os Produtos
                   </button>
@@ -692,7 +688,7 @@ export default function CartDrawer({
               ) : (
                 <div className="flex flex-col">
                   {/* Cart Item Listing Section */}
-                  <div className="p-6 space-y-4 border-b border-white/5">
+                  <div className="p-6 space-y-4 border-b border-zinc-200">
                     {cart.map((item) => {
                       const itemOrigPrice = Number(item.product.originalPrice) || (Math.round((Number(item.product.price) * 2.5) / 10) * 10);
                       const isEcoNew = item.product.condition === 'Novo com Etiqueta';
@@ -701,12 +697,11 @@ export default function CartDrawer({
                       return (
                         <div 
                           key={item.product.id}
-                          className="flex gap-4 p-3 bg-zinc-900 border border-zinc-800 rounded-2xl hover:border-zinc-700 transition-all duration-300 group shadow-md"
+                          className="flex gap-4 p-4 bg-white border border-zinc-200 rounded-2xl hover:border-zinc-300 transition-all duration-300 group shadow-sm"
                         >
                           {/* Thumbnail */}
-                          <div className="relative aspect-[4/5] w-24 sm:w-28 bg-neutral-950 border border-white/10 rounded-xl overflow-hidden shrink-0 shadow-lg group-hover:border-white/20 transition duration-300 flex items-center justify-center">
-                            {/* Ambient colorful backdrop blur for thumbnail */}
-                            <div className="absolute inset-0 select-none pointer-events-none scale-110 blur-md opacity-35">
+                          <div className="relative aspect-[4/5] w-24 sm:w-28 bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden shrink-0 shadow-sm flex items-center justify-center">
+                            <div className="absolute inset-0 select-none pointer-events-none scale-110 blur-md opacity-30">
                               <img src={item.product.image} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
                             </div>
                             <img 
@@ -721,43 +716,43 @@ export default function CartDrawer({
                           </div>
 
                           {/* Highlighted Descriptions block & Luxury metadata */}
-                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5 bg-zinc-950 p-3 rounded-xl border border-zinc-850">
+                          <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5 bg-zinc-50 p-3 rounded-xl border border-zinc-200">
                             <div>
                               <div className="flex justify-between items-start gap-1 mb-1">
-                                <span className="text-[9px] uppercase tracking-widest text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                                <span className="text-[9px] uppercase tracking-widest text-[#EE4D2D] font-bold bg-[#EE4D2D]/10 border border-[#EE4D2D]/20 px-2 py-0.5 rounded-md">
                                   {item.product.brand}
                                 </span>
                                 
                                 {/* Remove item button */}
                                 <button
                                   onClick={() => onRemoveItem(item.product.id)}
-                                  className="text-neutral-500 hover:text-red-400 p-1 cursor-pointer transform hover:scale-110 transition rounded hover:bg-white/5"
+                                  className="text-zinc-400 hover:text-[#EE4D2D] p-1 cursor-pointer transform hover:scale-110 transition rounded hover:bg-zinc-100"
                                   title="Remover item"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
                               
-                              <h4 className="text-xs font-medium text-white hover:text-amber-200 transition-colors line-clamp-1 whitespace-normal leading-tight font-sans">
+                              <h4 className="text-xs font-bold text-zinc-800 hover:text-[#EE4D2D] transition-colors line-clamp-1 whitespace-normal leading-tight font-sans">
                                 {item.product.title}
                               </h4>
                               
                               {/* Rich info badges instead of plain text */}
                               <div className="flex flex-wrap gap-1.5 items-center mt-2">
-                                <span className="bg-white/5 border border-white/10 text-white text-[8px] font-mono font-medium px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                <span className="bg-zinc-200 border border-zinc-300 text-zinc-700 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
                                   TAM {item.product.size}
                                 </span>
-                                <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded border ${
+                                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${
                                   isEcoNew 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
                                     : isExcellent
-                                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                                      : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                                      : 'bg-orange-50 text-orange-600 border-orange-200'
                                 }`}>
                                   {item.product.condition}
                                 </span>
                                 {item.product.stock !== undefined && item.product.stock <= 1 && (
-                                  <span className="text-[8px] font-bold px-1.5 py-0.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded uppercase tracking-wide animate-pulse">
+                                  <span className="text-[8px] font-bold px-1.5 py-0.5 bg-red-50 border border-red-200 text-red-500 rounded uppercase tracking-wide animate-pulse">
                                     Última Peça! 🏷️
                                   </span>
                                 )}
@@ -765,21 +760,21 @@ export default function CartDrawer({
                             </div>
 
                             {/* Subtotal highlights + Original-price comparative details */}
-                            <div className="mt-3 pt-2 border-t border-white/5 flex items-end justify-between">
-                              <div className="flex items-center bg-white/5 border border-white/10 rounded-lg p-0.5">
+                            <div className="mt-3 pt-2 border-t border-zinc-200 flex items-end justify-between">
+                              <div className="flex items-center bg-zinc-100 border border-zinc-200 rounded-lg p-0.5">
                                 <button
                                   onClick={() => onUpdateQuantity(item.product.id, -1)}
-                                  className="px-1.5 py-0.5 text-neutral-400 hover:text-white cursor-pointer hover:bg-white/5 rounded transition"
+                                  className="px-1.5 py-0.5 text-zinc-400 hover:text-zinc-800 cursor-pointer hover:bg-zinc-200 rounded transition"
                                   title="Diminuir"
                                 >
                                   <Minus className="h-2.5 w-2.5" />
                                 </button>
-                                <span className="text-[10px] text-white font-mono min-w-[12px] text-center font-bold px-1">
+                                <span className="text-[10px] text-zinc-800 font-mono min-w-[12px] text-center font-bold px-1">
                                   {item.quantity}
                                 </span>
                                 <button
                                   onClick={() => onUpdateQuantity(item.product.id, 1)}
-                                  className="px-1.5 py-0.5 text-neutral-400 hover:text-white cursor-pointer hover:bg-white/5 rounded transition"
+                                  className="px-1.5 py-0.5 text-zinc-400 hover:text-zinc-800 cursor-pointer hover:bg-zinc-200 rounded transition"
                                   title="Aumentar"
                                 >
                                   <Plus className="h-2.5 w-2.5" />
@@ -788,11 +783,11 @@ export default function CartDrawer({
 
                               <div className="text-right flex flex-col">
                                 {/* Comparative Pricing */}
-                                <span className="text-[8px] text-neutral-500 line-through font-mono">
+                                <span className="text-[8px] text-zinc-400 line-through font-mono">
                                   R$ {(itemOrigPrice * item.quantity).toFixed(2)}
                                 </span>
-                                <span className="text-[11px] text-[#39ff14] font-mono font-black tracking-tight flex items-center justify-end gap-1">
-                                  <span className="text-[7px] text-[#39ff14]/70 font-sans uppercase animate-pulse">Modivah</span>
+                                <span className="text-[11px] text-[#EE4D2D] font-mono font-bold tracking-tight flex items-center justify-end gap-1">
+                                  <span className="text-[7px] text-zinc-400 font-sans uppercase">Brechó</span>
                                   <span>R$ {(Number(item.product.price) * item.quantity).toFixed(2)}</span>
                                 </span>
                               </div>
@@ -804,87 +799,87 @@ export default function CartDrawer({
                   </div>
 
                   {/* Checkout Pricing Form */}
-                  <div className="p-6 bg-neutral-900/50 space-y-4">
+                  <div className="p-6 bg-zinc-50 border-t border-zinc-200 space-y-4">
                     {/* Form de Dados do Cliente */}
-                    <div className="space-y-3 pb-3 border-b border-white/5">
+                    <div className="space-y-3 pb-3 border-b border-zinc-200">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Recibo & Entrega</h4>
-                        <span className="text-[9px] text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/10 font-mono font-bold uppercase border border-emerald-500/25">Automático</span>
+                        <h4 className="text-[10px] text-[#EE4D2D] font-bold uppercase tracking-wider">Recibo & Entrega</h4>
+                        <span className="text-[9px] text-[#25D366] px-1.5 py-0.5 rounded bg-emerald-50 font-mono font-bold uppercase border border-emerald-200">Automático</span>
                       </div>
                       
-                      <div className="space-y-3">
+                      <div className="space-y-3 font-sans">
                         <div>
-                          <label className="text-[9px] text-neutral-400 block mb-0.5 font-medium">Nome Completo</label>
+                          <label className="text-[9px] text-zinc-500 block mb-0.5 font-bold">Nome Completo</label>
                           <input
                             type="text"
                             value={clientName}
                             onChange={(e) => setClientName(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                            className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D] font-semibold"
                             placeholder="Ex: CLAUDIO SILVA"
                           />
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-[9px] text-neutral-400 block mb-0.5 font-medium">Telefone de Contato</label>
+                            <label className="text-[9px] text-zinc-500 block mb-0.5 font-bold">Telefone de Contato</label>
                             <input
                               type="tel"
                               value={clientPhone}
                               onChange={(e) => setClientPhone(e.target.value)}
-                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                              className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D] font-mono"
                               placeholder="Ex: 27 988226654"
                             />
                           </div>
                           <div>
-                            <label className="text-[9px] text-neutral-400 block mb-0.5 font-medium">Método de Pagamento</label>
+                            <label className="text-[9px] text-zinc-500 block mb-0.5 font-bold">Método de Pagamento</label>
                             <select
                               value={paymentMethod}
                               onChange={(e) => setPaymentMethod(e.target.value)}
-                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                              className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D] font-semibold"
                             >
-                              <option className="bg-neutral-900 text-white" value="PIX">PIX</option>
-                              <option className="bg-neutral-900 text-white" value="Outras Formas (Falar como Atendente)">Outras Formas (Falar com Atendente)</option>
+                              <option value="PIX">PIX</option>
+                              <option value="Outras Formas (Falar como Atendente)">Outras Formas (Falar com Atendente)</option>
                             </select>
                           </div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[9px] text-neutral-400 block mb-0.5 font-medium">Endereço Completo</label>
+                        <label className="text-[9px] text-zinc-500 block mb-0.5 font-bold">Endereço Completo</label>
                         <textarea
                           rows={2}
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500 leading-normal resize-none font-light"
+                          className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D] leading-normal resize-none font-semibold"
                           placeholder="RUA DA VITORIA, 914, PRESIDENTE MEDICE, CARIACICA-ES"
                         />
                       </div>
 
                       <div>
-                        <label className="text-[9px] text-amber-300 block mb-0.5 font-semibold">Envio / Frete</label>
-                        <div className="w-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold rounded-lg px-2.5 py-1.5 flex items-center justify-center uppercase tracking-wider">
+                        <label className="text-[9px] text-zinc-500 block mb-0.5 font-bold">Envio / Frete</label>
+                        <div className="w-full bg-orange-50 border border-orange-200 text-[#EE4D2D] text-xs font-bold rounded-lg px-2.5 py-1.5 flex items-center justify-center uppercase tracking-wider">
                           🤝 NEGOCIAR FRETE VIA WHATSAPP
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex justify-between text-xs text-neutral-400">
+                    <div className="flex justify-between text-xs text-zinc-500">
                       <span>Subtotal ({cart.length} itens)</span>
-                      <span className="font-mono">R$ {totalCost.toFixed(2)}</span>
+                      <span className="font-mono text-zinc-800 font-semibold">R$ {totalCost.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-neutral-400">
+                    <div className="flex justify-between text-xs text-zinc-500">
                       <span>Frete (Envio)</span>
-                      <span className="text-xs text-amber-300 font-medium uppercase font-sans">A negociar</span>
+                      <span className="text-xs text-[#EE4D2D] font-bold uppercase font-sans">A negociar</span>
                     </div>
                     
-                    <div className="pt-4 border-t border-white/5 flex justify-between items-baseline">
-                      <span className="text-sm font-light text-white">Total Geral (Peças)</span>
+                    <div className="pt-4 border-t border-zinc-200 flex justify-between items-baseline">
+                      <span className="text-sm font-semibold text-zinc-850">Total Geral (Peças)</span>
                       <div className="text-right">
-                        <span className="text-xl font-mono text-amber-300 font-bold tracking-tight">
+                        <span className="text-xl font-mono text-[#EE4D2D] font-bold tracking-tight">
                           R$ {finalTotal.toFixed(2)}
                         </span>
-                        <p className="text-[10px] text-emerald-400 font-medium">Pagamento à vista via PIX</p>
-                        <p className="text-[9px] text-neutral-400 mt-0.5 font-light leading-tight">Frete a combinar posteriormente com o atendente</p>
+                        <p className="text-[10px] text-emerald-600 font-bold">Pagamento à vista via PIX</p>
+                        <p className="text-[9px] text-zinc-400 mt-0.5 font-light leading-tight">Frete a combinar posteriormente com o atendente</p>
                       </div>
                     </div>
 
@@ -893,7 +888,7 @@ export default function CartDrawer({
                       <button
                         id="cart-checkout-whatsapp-btn"
                         onClick={handleCheckoutWhatsApp}
-                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10 active:scale-95 duration-200"
+                        className="w-full py-3 bg-[#EE4D2D] hover:bg-[#FF6A4D] text-white rounded-lg text-xs font-bold uppercase tracking-widest cursor-pointer transition flex items-center justify-center gap-2 shadow-md active:scale-95 duration-200"
                       >
                         <MessageSquare className="h-4 w-4" />
                         <span>Ir para Pagamento PIX</span>
@@ -901,14 +896,14 @@ export default function CartDrawer({
                       
                       <button
                         onClick={onClearCart}
-                        className="w-full py-2 border border-white/5 hover:border-white/10 text-neutral-500 hover:text-white rounded-lg text-[10px] uppercase tracking-wider transition font-medium cursor-pointer"
+                        className="w-full py-2 border border-zinc-200 hover:bg-zinc-100 text-zinc-500 hover:text-zinc-800 rounded-lg text-[10px] uppercase tracking-wider transition font-semibold cursor-pointer"
                       >
                         Limpar Todo o Carrinho
                       </button>
                     </div>
 
                     <div className="text-center">
-                      <p className="text-[9px] text-neutral-500 leading-normal">
+                      <p className="text-[9px] text-zinc-500 leading-normal">
                         Ao clicar em prosseguir, você visualizará a chave PIX e local para anexar o comprovante do seu pedido.
                       </p>
                     </div>
@@ -922,14 +917,14 @@ export default function CartDrawer({
       </div>
 
       {whatsappNotFound && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-white/10 p-6 rounded-2xl max-w-sm w-full space-y-4 text-center shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="mx-auto w-12 h-12 bg-rose-500/15 border border-rose-500/30 rounded-full flex items-center justify-center text-rose-400">
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 p-6 rounded-2xl max-w-sm w-full space-y-4 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto w-12 h-12 bg-rose-100 border border-rose-200 rounded-full flex items-center justify-center text-rose-600">
               <AlertCircle className="h-6 w-6 stroke-[2.5]" />
             </div>
             <div className="space-y-1.5">
-              <h4 className="text-sm font-bold text-white uppercase font-mono tracking-wider">WhatsApp não encontrado</h4>
-              <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
+              <h4 className="text-sm font-bold text-zinc-800 uppercase font-mono tracking-wider">WhatsApp não encontrado</h4>
+              <p className="text-[11px] text-zinc-500 font-normal leading-relaxed">
                 Não conseguimos abrir o aplicativo WhatsApp instalado neste celular/computador automaticamente. Por favor, certifique-se de que ele está instalado.
               </p>
             </div>
@@ -938,14 +933,14 @@ export default function CartDrawer({
                 href="https://www.whatsapp.com/download" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="w-full py-2.5 bg-[#25d366] hover:bg-[#20ba59] text-black text-xs font-black uppercase tracking-widest rounded-xl transition text-center block font-mono cursor-pointer"
+                className="w-full py-2.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold uppercase tracking-widest rounded-xl transition text-center block cursor-pointer"
               >
                 Instalar WhatsApp
               </a>
               <button 
                 type="button"
                 onClick={() => setWhatsAppNotFound(false)}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-neutral-300 text-xs font-semibold hover:text-white transition font-mono uppercase cursor-pointer"
+                className="w-full py-2 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-700 text-xs font-semibold hover:text-zinc-800 transition font-mono uppercase cursor-pointer"
               >
                 Voltar e Fechar
               </button>

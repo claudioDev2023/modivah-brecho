@@ -184,7 +184,7 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
                   <div className="flex items-baseline gap-4">
                     <div>
                       <span className="text-[10px] text-neutral-500 block uppercase font-mono tracking-wider">Garimpo Modivah</span>
-                      <span className="text-lg sm:text-2xl font-mono font-bold text-[#39ff14] tracking-tight">
+                      <span className="text-lg sm:text-2xl font-mono font-bold text-[#FFD700] tracking-tight">
                         R$ {Number(currentItem.price).toFixed(2)}
                       </span>
                     </div>
@@ -202,7 +202,7 @@ export default function ProductCarousel({ products, onViewDetails, onAddToCart }
                   <div className="flex gap-2.5">
                     <button
                       onClick={() => onAddToCart(currentItem)}
-                      className="px-5 py-3 bg-[#39ff14] hover:bg-[#2ee60d] text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-200 active:scale-95 flex items-center gap-1.5 shadow-[0_0_15px_rgba(57,255,20,0.15)] hover:shadow-[0_0_20px_rgba(57,255,20,0.35)] cursor-pointer"
+                      className="px-5 py-3 bg-[#D4AF37] hover:bg-[#E5C150] text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-200 active:scale-95 flex items-center gap-1.5 shadow-[0_0_15px_rgba(212,175,55,0.25)] hover:shadow-[0_0_20px_rgba(212,175,55,0.45)] cursor-pointer"
                     >
                       <ShoppingBag className="h-3.5 w-3.5 stroke-[2.5]" />
                       <span>Comprar</span>

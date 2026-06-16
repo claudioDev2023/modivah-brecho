@@ -113,6 +113,7 @@ export default function App() {
     }
   });
   const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   // Admin session flag
   const [isAdminMode, setIsAdminMode] = useState(() => {
@@ -1044,13 +1045,59 @@ export default function App() {
     }
   };
 
+  // Helper to convert any category to standard singular name
+  const getSingularDisplayName = (name: string): string => {
+    const trimmed = (name || "").trim();
+    const lower = trimmed.toLowerCase();
+    
+    if (lower === 'bermudas') return 'Bermuda';
+    if (lower === 'blusas') return 'Blusa';
+    if (lower === 'blazers') return 'Blazer';
+    if (lower === 'bolsas') return 'Bolsa';
+    if (lower === 'calçados' || lower === 'calcados') return 'Calçado';
+    if (lower === 'camisas') return 'Camisa';
+    if (lower === 'conjuntos') return 'Conjunto';
+    if (lower === 'cintos') return 'Cinto';
+    if (lower === 'vestidos') return 'Vestido';
+    if (lower === 'saias') return 'Saia';
+    if (lower === 'shorts') return 'Short';
+    if (lower === 'casacos') return 'Casaco';
+    if (lower === 'jaquetas') return 'Jaqueta';
+    if (lower === 'sapatos') return 'Sapato';
+    
+    return trimmed;
+  };
+
+  // Helper to normalize category name for exact deduplication and group matching
+  const normalizeForGrouping = (name: string): string => {
+    const singular = getSingularDisplayName(name);
+    return singular
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .toLowerCase()
+      .replace(/\s+/g, " "); // collapse spacing and extra spaces
+  };
+
   // FILTERS IMPLEMENTATIONS
+  const getDeduplicatedCategoriesList = (): string[] => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    (categoriesList || []).forEach(c => {
+      if (c && c.active && c.name) {
+        const singularName = getSingularDisplayName(c.name);
+        const norm = normalizeForGrouping(singularName);
+        if (!seen.has(norm)) {
+          seen.add(norm);
+          list.push(singularName);
+        }
+      }
+    });
+    return list.sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' }));
+  };
+
   const categories = [
     'Tudo',
-    ...([...(categoriesList || [])]
-      .filter(c => c.active)
-      .map(c => c.name)
-      .sort((a, b) => a.localeCompare(b, 'pt', { sensitivity: 'base' })))
+    ...getDeduplicatedCategoriesList()
   ];
   const sizes = ['Todos', 'P', 'M', 'G', 'GG', '36', '38', '40', 'Único'];
 
@@ -1058,8 +1105,8 @@ export default function App() {
     // 0. Favorites filter
     if (isFavoritesOnly && !favorites.includes(p.id)) return false;
 
-    // 1. Category comparison
-    const matchesCategory = selectedCategory === 'Tudo' || p.category.toLowerCase() === selectedCategory.toLowerCase();
+    // 1. Category comparison with robust grouping
+    const matchesCategory = selectedCategory === 'Tudo' || normalizeForGrouping(p.category) === normalizeForGrouping(selectedCategory);
     
     // 2. Size comparison
     const matchesSize = selectedSize === 'Todos' || p.size.toUpperCase() === selectedSize.toUpperCase();
@@ -1115,16 +1162,16 @@ export default function App() {
   // Mandatory Client Registration / Login wall
   if (!currentClient && !isAdminOpen && !isAdminMode) {
     return (
-      <div className="min-h-screen bg-[#070707] text-white flex flex-col justify-between" id="client-auth-screen-wall">
-        <header className="border-b border-white/5 py-4 px-4 bg-black/40">
+      <div className="min-h-screen bg-white text-zinc-900 flex flex-col justify-between" id="client-auth-screen-wall">
+        <header className="border-b border-zinc-200 py-4 px-4 bg-white shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <span className="text-xs font-bold tracking-[0.25em] text-white">MODIVAH BRECHÓ</span>
+            <span className="text-xs font-bold tracking-[0.25em] text-zinc-800">MODIVAH BRECHÓ</span>
             <button 
               onClick={() => {
                 setIsAdminOpen(true);
                 setIsAdminMode(true);
               }}
-              className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 border border-white/10 hover:border-white/20 px-3 py-1.5 rounded-lg transition"
+              className="text-[10px] font-mono text-zinc-600 hover:text-[#EE4D2D] border border-zinc-200 px-3 py-1.5 rounded-lg transition"
             >
               Painel Admin
             </button>
@@ -1141,7 +1188,7 @@ export default function App() {
           />
         </main>
 
-        <footer className="py-6 border-t border-white/5 text-center text-[10px] text-zinc-600">
+        <footer className="py-6 border-t border-zinc-200 text-center text-[10px] text-zinc-500">
           <p>© 2026 MODIVAH BRECHÓ — Curadoria de Moda Circular Sustentável de Alto Padrão.</p>
         </footer>
       </div>
@@ -1149,10 +1196,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#0f0f0f] text-white/90 selection:bg-amber-500 selection:text-black font-sans flex flex-col antialiased">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#FFFFFF] text-zinc-800 selection:bg-[#EE4D2D] selection:text-white font-sans flex flex-col antialiased">
       
       {/* BILBOARD BRAND POSTER / CARTAZ FIXO NO TOPO COBRINDO DE UM LADO A OUTRO */}
-      <div className="w-full bg-black border-b-2 border-amber-500/15 relative overflow-hidden shrink-0 shadow-[0_10px_30px_rgba(0,0,0,0.8)]" id="marquee-brand-banner">
+      <div className="w-full bg-white border-b border-zinc-200 relative overflow-hidden shrink-0 shadow-sm" id="marquee-brand-banner">
         <img 
           src={logoImg} 
           alt="Banner Modivah Brechó" 
@@ -1162,24 +1209,24 @@ export default function App() {
             (e.target as HTMLImageElement).src = '/favicon.png';
           }}
         />
-        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-[#39ff14] to-transparent shadow-[0_0_15px_rgba(57,255,20,0.5)]" />
+        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#EE4D2D]" />
       </div>
 
       {/* Visual Welcome Ribbon for Authenticated Clients */}
       {currentClient && (
-        <div className="w-full bg-[#121212] border-b border-white/5 py-2 px-6 flex items-center justify-between text-xs transition duration-200" id="welcome-client-ribbon">
+        <div className="w-full bg-[#FAFAFA] border-b border-zinc-200 py-2 px-6 flex items-center justify-between text-xs transition duration-200" id="welcome-client-ribbon">
           <div className="flex items-center gap-2.5">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#39ff14]/80 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#39ff14]"></span>
             </span>
-            <span className="text-zinc-300 font-medium">
-              Bem-vindo(a), <span className="text-amber-400 font-bold">{currentClient.name}</span>
+            <span className="text-zinc-650 font-medium">
+              Bem-vindo(a), <span className="text-[#EE4D2D] font-bold">{currentClient.name}</span>
             </span>
           </div>
           <button
             onClick={handleClientLogout}
-            className="text-[9px] uppercase tracking-widest text-[#ff3b30] hover:text-red-300 font-black bg-red-500/5 hover:bg-red-500/10 border border-red-500/15 hover:border-red-500/30 px-3 py-1 rounded-lg transition duration-200 flex items-center gap-1 cursor-pointer"
+            className="text-[9px] uppercase tracking-widest text-[#ff3b30] hover:text-red-700 font-black bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1 rounded-lg transition duration-200 flex items-center gap-1 cursor-pointer"
           >
             <span>Sair</span>
           </button>
@@ -1243,6 +1290,43 @@ export default function App() {
         isAdmin={isAdminMode}
       />
 
+      {/* Shopee-style Orange Gradient Promotion Header Band */}
+      <div className="w-full bg-gradient-to-r from-[#F4511E] to-[#FF8A3D] text-white py-8 px-4 sm:px-6 md:px-8 border-b border-orange-600/10 shadow-md relative overflow-hidden" id="shopee-gradient-header-band">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+          <div className="text-center md:text-left space-y-2">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-wider text-white uppercase drop-shadow-sm font-sans" style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
+              MODIVAH BRECHÓ
+            </h1>
+            <p className="text-xs sm:text-sm md:text-base text-white/95 font-medium leading-relaxed max-w-2xl">
+              Roupas conservadas, selecionadas uma a uma — beleza, qualidade e elegância em cada peça.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 justify-center">
+            <a
+              href="https://wa.me/5527988226654"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-6 py-3 bg-white text-[#25D366] font-sans text-xs font-extrabold uppercase tracking-widest rounded-xl hover:bg-zinc-50 transition duration-200 text-center shadow-md flex items-center justify-center gap-2 border border-zinc-100"
+              id="header-whatsapp-btn"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide shrink-0"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 .099.092 10 10 0 1 0-4.777-4.719"></path></svg>
+              WhatsApp
+            </a>
+            <button
+              onClick={() => setIsStylistOpen(true)}
+              className="w-full sm:w-auto px-6 py-3 bg-black text-white hover:bg-zinc-900 font-sans text-xs font-extrabold uppercase tracking-widest rounded-xl transition duration-200 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              id="header-moia-btn"
+            >
+              <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
+              Consultar Mo IA
+            </button>
+          </div>
+        </div>
+        {/* Subtle decorative Shopee-like floating circles */}
+        <div className="absolute -top-12 -left-12 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
+        <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-white/5 rounded-full pointer-events-none" />
+      </div>
+
       {/* Hero Curated Title Presentation Area */}
       <Hero onOpenStylist={() => setIsStylistOpen(true)} />
 
@@ -1254,37 +1338,37 @@ export default function App() {
       />
 
       {/* Main product showcase and category filter tabs section */}
-      <main className="max-w-7xl mx-auto px-4 py-12 w-full flex flex-col md:flex-row gap-8 grow shrink-0 min-h-0" id="storefront-main-grid">
+      <main className="max-w-none px-4 sm:px-6 md:px-8 py-12 w-full flex flex-col md:flex-row gap-6 md:gap-8 grow shrink-0 min-h-0" id="storefront-main-grid">
         
         {/* Dynamic Left sidebar panel for screens filter inputs */}
-        <aside className="w-full md:w-64 shrink-0 space-y-6">
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-2xl sticky top-28">
-            <h3 className="text-xs uppercase tracking-widest text-neutral-400 font-semibold mb-4 flex items-center gap-2">
-              <Filter className="h-3.5 w-3.5 text-amber-400" />
+        <aside className="hidden md:block md:w-64 shrink-0 space-y-6">
+          <div className="bg-white border border-zinc-200 p-6 rounded-2xl shadow-sm sticky top-28">
+            <h3 className="text-xs uppercase tracking-widest text-zinc-500 font-bold mb-4 flex items-center gap-2">
+              <Filter className="h-3.5 w-3.5 text-[#EE4D2D]" />
               <span>Garimpar Filtros</span>
             </h3>
 
             {/* Filter by Brand text Search box */}
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] text-neutral-500 uppercase tracking-wider block mb-1.5 font-mono">Pesquisa Chave</label>
+                <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-1.5 font-mono">Pesquisa Chave</label>
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="Zara, Farm, G, seda..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-3 pr-8 py-2 text-xs text-white focus:outline-none focus:border-white/30"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-lg pl-3 pr-8 py-2 text-xs text-zinc-800 focus:outline-none focus:border-[#EE4D2D]"
                   />
                   {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white text-xs">×</button>
+                    <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 text-xs">×</button>
                   )}
                 </div>
               </div>
 
               {/* Categorias links list vertical (Fluorescent blue active and hover effects) */}
               <div>
-                <label className="text-[10px] text-neutral-500 uppercase tracking-wider block mb-1.5 font-mono">Categorias</label>
+                <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-1.5 font-mono">Categorias</label>
                 <div className="flex flex-row flex-wrap md:flex-col md:flex-nowrap gap-1">
                   {categories.map((cat) => (
                     <button
@@ -1292,15 +1376,15 @@ export default function App() {
                       onClick={() => setSelectedCategory(cat)}
                       className={`text-left text-xs px-3 py-1.5 rounded-lg border transition-all duration-300 cursor-pointer flex items-center justify-between gap-2 ${
                         selectedCategory === cat
-                          ? 'bg-[#00f0ff]/15 text-[#00f0ff] border-[#00f0ff]/40 shadow-[0_0_15px_rgba(0,240,255,0.3)] font-bold'
-                          : 'bg-transparent text-neutral-400 border-transparent hover:text-[#00f0ff] hover:bg-[#00f0ff]/10 hover:border-[#00f0ff]/20 hover:shadow-[0_0_10px_rgba(0,240,255,0.15)]'
+                          ? 'bg-[#EE4D2D]/10 text-[#EE4D2D] border-[#EE4D2D]/35 font-bold shadow-sm'
+                          : 'bg-transparent text-zinc-650 border-transparent hover:text-[#EE4D2D] hover:bg-zinc-50'
                       }`}
                     >
                       <span>{cat}</span>
                       <span className="text-[10px] opacity-75 font-mono">
                         {cat === 'Tudo' 
                           ? products.length 
-                          : products.filter(p => (p.category || '').toLowerCase() === cat.toLowerCase()).length}
+                          : products.filter(p => normalizeForGrouping(p.category) === normalizeForGrouping(cat)).length}
                       </span>
                     </button>
                   ))}
@@ -1309,7 +1393,7 @@ export default function App() {
 
               {/* Tamanho grid box size filters */}
               <div>
-                <label className="text-[10px] text-neutral-500 uppercase tracking-wider block mb-2 font-mono">Tamanhos</label>
+                <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-2 font-mono">Tamanhos</label>
                 <div className="grid grid-cols-4 gap-1.5">
                   {sizes.map((sz) => (
                     <button
@@ -1317,8 +1401,8 @@ export default function App() {
                       onClick={() => setSelectedSize(sz)}
                       className={`text-center py-1 rounded text-xs transition border font-mono ${
                         selectedSize === sz
-                          ? 'bg-amber-300 text-black font-semibold border-amber-300'
-                          : 'bg-white/5 text-neutral-400 border-white/5 hover:text-white hover:bg-white/10'
+                          ? 'bg-[#EE4D2D] text-white font-bold border-[#EE4D2D]'
+                          : 'bg-zinc-50 text-zinc-500 border-zinc-200 hover:text-zinc-800 hover:bg-zinc-100'
                       }`}
                     >
                       {sz}
@@ -1335,7 +1419,7 @@ export default function App() {
                     setSelectedSize('Todos');
                     setSearchQuery('');
                   }}
-                  className="w-full align-center py-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg text-xs font-medium cursor-pointer transition flex items-center justify-center gap-1.5 mt-2"
+                  className="w-full align-center py-2 bg-zinc-55 hover:bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 mt-2"
                 >
                   <RotateCcw className="h-3 w-3" />
                   <span>Limpar Filtros</span>
@@ -1347,27 +1431,38 @@ export default function App() {
 
         {/* Right Product Grid Area */}
         <section className="flex-1 min-w-0 space-y-6">
-          <div className="flex items-baseline justify-between gap-4 border-b border-white/5 pb-4">
+          <div className="flex items-baseline justify-between gap-4 border-b border-zinc-200 pb-4">
             <div>
-              <span className="text-xs text-neutral-400 block font-light leading-snug">Exibindo peças únicas selecionadas</span>
-              <h2 className="text-lg md:text-xl font-sans font-light text-white mt-0.5">
+              <span className="text-xs text-zinc-500 block font-semibold leading-snug">Exibindo peças únicas selecionadas</span>
+              <h2 className="text-lg md:text-xl font-sans font-bold text-black mt-0.5">
                 {selectedCategory === 'Tudo' ? 'Nosso Acervo' : selectedCategory} 
                 {selectedSize !== 'Todos' && ` — Tam ${selectedSize}`}
               </h2>
             </div>
-            <span className="text-xs font-mono text-neutral-500">
+            <span className="text-xs font-mono text-zinc-500">
               {filteredProducts.length} {filteredProducts.length === 1 ? 'peça encontrada' : 'peças encontradas'}
             </span>
           </div>
 
+          {/* Mobile Filter Button (Shopee style: background white, border #EE4D2D, text #EE4D2D, rounded-full) */}
+          <div className="md:hidden py-1" id="mobile-filter-trigger-container">
+            <button
+              onClick={() => setIsMobileFiltersOpen(true)}
+              className="w-full py-3 bg-white border border-[#EE4D2D] text-[#EE4D2D] hover:bg-[#EE4D2D]/5 font-sans text-xs font-bold uppercase tracking-widest rounded-full transition-all duration-200 flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-[0.98]"
+            >
+              <Filter className="h-4 w-4" />
+              <span>☰ FILTROS</span>
+            </button>
+          </div>
+
           {/* Catalog Loading/Empty state conditional */}
           {filteredProducts.length === 0 ? (
-            <div className="py-20 text-center bg-white/[0.01] border border-white/5 rounded-2xl">
-              <div className="p-4 bg-white/5 rounded-full inline-block mb-3">
-                <Search className="h-6 w-6 text-neutral-500" />
+            <div className="py-20 text-center bg-zinc-50 border border-zinc-200 rounded-2xl">
+              <div className="p-4 bg-zinc-100 rounded-full inline-block mb-3">
+                <Search className="h-6 w-6 text-zinc-400" />
               </div>
-              <h3 className="text-sm font-medium text-white">Nenhuma peça coincide com sua busca</h3>
-              <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed mt-1.5 font-light text-justify md:text-center">
+              <h3 className="text-sm font-bold text-zinc-800">Nenhuma peça coincide com sua busca</h3>
+              <p className="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed mt-1.5 font-normal text-justify md:text-center">
                 Gosto refinado costuma ser único! Experimente limpar alguns filtros, expandir a busca por tamanhos, ou pergunte à **Mo IA** por alternativas similares.
               </p>
               <button
@@ -1376,14 +1471,14 @@ export default function App() {
                   setSelectedSize('Todos');
                   setSearchQuery('');
                 }}
-                className="mt-6 px-4 py-2 bg-white text-black font-semibold text-[10px] uppercase tracking-widest rounded-full cursor-pointer hover:bg-neutral-200 transition"
+                className="mt-6 px-4 py-2 bg-white text-zinc-800 border border-zinc-300 font-semibold text-[10px] uppercase tracking-widest rounded-full cursor-pointer hover:bg-zinc-100 transition"
               >
                 Limpar Todos os Filtros
               </button>
             </div>
           ) : (
             <motion.div 
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" 
+              className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4 sm:gap-6" 
               id="products-catalog-bento-grid"
               initial="hidden"
               animate="visible"
@@ -1421,26 +1516,74 @@ export default function App() {
       {/* Space for customer reviews and star evaluations */}
       <CommentsSection />
 
+      {/* RODAPÉ DOS BENEFÍCIOS */}
+      <section className="bg-white py-16 border-t border-zinc-200 border-b border-zinc-200">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+            
+            {/* Benefício 1: Compra segura */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm transition duration-300">
+              <div className="p-3 bg-[#EE4D2D]/10 text-[#EE4D2D] rounded-xl shrink-0">
+                <Lock className="h-6 w-6 stroke-[2]" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-[#EE4D2D] tracking-wider uppercase font-sans">Compra Segura</h3>
+                <p className="text-xs text-zinc-650 leading-relaxed font-normal text-justify md:text-left">
+                  Seus dados e pagamentos PIX são processados com total segurança e confirmação imediata.
+                </p>
+              </div>
+            </div>
+
+            {/* Benefício 2: Entrega rápida */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm transition duration-300">
+              <div className="p-3 bg-[#EE4D2D]/10 text-[#EE4D2D] rounded-xl shrink-0">
+                <Truck className="h-6 w-6 stroke-[2]" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-[#EE4D2D] tracking-wider uppercase font-sans">Entrega Rápida</h3>
+                <p className="text-xs text-zinc-650 leading-relaxed font-normal text-justify md:text-left">
+                  Enviamos via motoboy express ou correios rapidamente para que você desfrute do seu look de grife.
+                </p>
+              </div>
+            </div>
+
+            {/* Benefício 3: Qualidade garantida */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6 bg-zinc-50 border border-zinc-200 rounded-xl shadow-sm transition duration-300">
+              <div className="p-3 bg-[#EE4D2D]/10 text-[#EE4D2D] rounded-xl shrink-0">
+                <Award className="h-6 w-6 stroke-[2]" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-[#EE4D2D] tracking-wider uppercase font-sans">Qualidade Garantida</h3>
+                <p className="text-xs text-zinc-650 leading-relaxed font-normal text-justify md:text-left">
+                  Selo rigoroso de curadoria e higienização para peças 100% autênticas e em estado impecável.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* Exquisite Footer signature */}
-      <footer className="bg-black/60 border-t border-white/10 mt-28 py-12 text-center text-xs text-white/50 space-y-4">
+      <footer className="bg-white border-t border-zinc-200 mt-0 py-12 text-center text-xs text-zinc-500 space-y-4">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-left">
-            <span className="text-sm font-bold tracking-[0.2em] text-white">MODIVAH BRECHÓ</span>
-            <p className="text-[10px] text-neutral-500 mt-1 font-light">Curadoria Premium de Moda Circular Feminina Autêntica</p>
+            <span className="text-sm font-bold tracking-[0.2em] text-zinc-800">MODIVAH BRECHÓ</span>
+            <p className="text-[10px] text-zinc-400 mt-1 font-light">Curadoria Premium de Moda Circular Feminina Autêntica</p>
           </div>
           
           <div className="flex gap-4">
-            <a href="https://wa.me/5527988226654" target="_blank" rel="noopener noreferrer" className="hover:text-amber-200 transition">Atendimento WhatsApp</a>
+            <a href="https://wa.me/5527988226654" target="_blank" rel="noopener noreferrer" className="hover:text-[#EE4D2D] transition">Atendimento WhatsApp</a>
             <span>•</span>
-            <button onClick={() => setIsStylistOpen(true)} className="hover:text-amber-200 transition cursor-pointer">Fale com a Mo IA</button>
+            <button onClick={() => setIsStylistOpen(true)} className="hover:text-[#EE4D2D] transition cursor-pointer">Fale com a Mo IA</button>
             <span>•</span>
-            <button onClick={() => { setIsAdminOpen(true); setIsAdminMode(true); }} className="hover:text-amber-200 transition cursor-pointer">Painel Admin</button>
+            <button onClick={() => { setIsAdminOpen(true); setIsAdminMode(true); }} className="hover:text-[#EE4D2D] transition cursor-pointer">Painel Admin</button>
           </div>
         </div>
         
-        <div className="pt-6 border-t border-white/5 text-[10px] text-neutral-600 space-y-1">
+        <div className="pt-6 border-t border-zinc-200 text-[10px] text-zinc-400 space-y-1">
           <p>© 2026 MODIVAH BRECHÓ — Todos os direitos reservados Cariacica - ES, Brasil.</p>
-          <p className="text-[9px] text-neutral-700 tracking-wider">Criado por Claudio S. Silva</p>
+          <p className="text-[9px] text-zinc-400 tracking-wider">Criado por Claudio S. Silva</p>
         </div>
       </footer>
 
@@ -1610,6 +1753,139 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 📱 MOBILE FILTERS PANEL DRAWER (Animado de forma premium via motion/react) */}
+      <AnimatePresence>
+        {isMobileFiltersOpen && (
+          <div className="fixed inset-0 z-50 overflow-hidden md:hidden" id="mobile-filters-drawer-portal">
+            {/* Dark background backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black cursor-pointer"
+              onClick={() => setIsMobileFiltersOpen(false)}
+            />
+
+            {/* Panel sliding elegantly from the right */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+              className="absolute inset-y-0 right-0 max-w-sm w-full bg-white shadow-2xl flex flex-col z-10"
+            >
+              {/* Header with Close and Title */}
+              <div className="p-5 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
+                <h3 className="text-xs uppercase tracking-widest text-[#EE4D2D] font-bold flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span>Garimpar Filtros</span>
+                </h3>
+                <button
+                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="p-1.5 hover:bg-zinc-200/50 text-zinc-400 hover:text-zinc-700 rounded-md cursor-pointer transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Scrollable inputs space */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-8">
+                
+                {/* Search Term Box */}
+                <div>
+                  <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-2 font-mono">Pesquisa Chave</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Zara, Farm, G, seda..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-lg pl-3 pr-8 py-2.5 text-xs text-zinc-800 focus:outline-[none] focus:border-[#EE4D2D] focus:ring-1 focus:ring-[#EE4D2D]/30"
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 text-xs font-bold font-sans">×</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Categories */}
+                <div>
+                  <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-2 font-mono">Categorias</label>
+                  <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1 border border-zinc-100 p-2 rounded-xl bg-zinc-50/50">
+                    {categories.map((cat) => (
+                      <button
+                        key={`mob-${cat}`}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`text-left text-xs px-3 py-2 rounded-lg border transition-all duration-300 cursor-pointer flex items-center justify-between gap-2 ${
+                          selectedCategory === cat
+                            ? 'bg-[#EE4D2D]/10 text-[#EE4D2D] border-[#EE4D2D]/35 font-bold shadow-xs'
+                            : 'bg-white text-zinc-650 border-zinc-200 hover:text-[#EE4D2D] hover:bg-zinc-50'
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        <span className="text-[10px] opacity-75 font-mono">
+                          {cat === 'Tudo' 
+                            ? products.length 
+                            : products.filter(p => normalizeForGrouping(p.category) === normalizeForGrouping(cat)).length}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sizes selection */}
+                <div>
+                  <label className="text-[10px] text-zinc-400 uppercase tracking-wider block mb-2.5 font-mono">Tamanhos</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {sizes.map((sz) => (
+                      <button
+                        key={`mob-sz-${sz}`}
+                        onClick={() => setSelectedSize(sz)}
+                        className={`text-center py-2 rounded text-xs transition border font-mono cursor-pointer ${
+                          selectedSize === sz
+                            ? 'bg-[#EE4D2D] text-white font-bold border-[#EE4D2D] shadow-xs'
+                            : 'bg-zinc-50 text-zinc-500 border-zinc-200 hover:text-zinc-800 hover:bg-zinc-100'
+                        }`}
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reset filters action */}
+                {(selectedCategory !== 'Tudo' || selectedSize !== 'Todos' || searchQuery !== '') && (
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('Tudo');
+                      setSelectedSize('Todos');
+                      setSearchQuery('');
+                    }}
+                    className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 rounded-lg text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Limpar Filtros</span>
+                  </button>
+                )}
+
+              </div>
+
+              {/* Sticky bottom submit and review counts */}
+              <div className="p-4 border-t border-zinc-200 bg-zinc-50 space-y-2">
+                <button
+                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="w-full py-3 bg-[#EE4D2D] hover:bg-[#FF6A4D] text-white text-xs font-bold uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <span>Ver {filteredProducts.length} Peças</span>
+                </button>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

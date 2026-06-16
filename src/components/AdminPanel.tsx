@@ -1287,6 +1287,20 @@ export default function AdminPanel({
   const [adminRoleInput, setAdminRoleInput] = useState('admin');
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
+  const [diagnosticsLogs, setDiagnosticsLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setDiagnosticsLogs(window._adminApiDiagnostics || []);
+      const handleLogsUpdate = () => {
+        setDiagnosticsLogs([...(window._adminApiDiagnostics || [])]);
+      };
+      window.addEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
+      return () => {
+        window.removeEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
+      };
+    }
+  }, []);
 
   const fetchAdmins = async () => {
     setLoadingAdmins(true);
@@ -3255,6 +3269,85 @@ export default function AdminPanel({
                     <p className="font-sans leading-relaxed">{adminActionSuccess}</p>
                   </div>
                 )}
+
+                {/* Painel Temporário de Diagnóstico para Super Admin */}
+                {(() => {
+                  const currentAdminEmail = (localStorage.getItem('modivah_admin_email') || '').toLowerCase().trim();
+                  const isSuperAdminUser = ["claudioshekina34@gmail.com", "divamodivah@gmail.com", "admin@modivah.com.br"].includes(currentAdminEmail) || 
+                    adminsList.some(adm => (adm.email || '').toLowerCase().trim() === currentAdminEmail && adm.role === 'superadmin') ||
+                    currentAdminEmail === ""; 
+                  
+                  if (!isSuperAdminUser) return null;
+
+                  return (
+                    <div className="bg-neutral-950/80 border border-amber-500/30 rounded-xl p-4 space-y-3" id="admin-diagnostics-panel">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs">🛠️</span>
+                          <h4 className="text-[10px] font-bold text-white uppercase tracking-widest font-mono">
+                            Painel de Diagnóstico de APIs (Super Admin)
+                          </h4>
+                        </div>
+                        <span className="text-[8px] bg-amber-400 text-black font-extrabold px-1.5 py-0.5 rounded font-mono">
+                          DIAG-ACTIVE
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 font-sans leading-relaxed">
+                        Histórico de requisições de API disparadas a partir de agora nesta aba para depuração detalhada.
+                      </p>
+                      
+                      <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                        {diagnosticsLogs.length === 0 ? (
+                          <p className="text-[9px] text-neutral-500 font-mono italic">Aguardando requisições serem disparadas...</p>
+                        ) : (
+                          diagnosticsLogs.map((log) => {
+                            const isError = log.status !== 200 && log.status !== 201;
+                            const callTime = new Date(log.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            return (
+                              <div key={log.id} className={`p-2.5 rounded border text-[10px] font-mono bg-black/50 select-text ${isError ? 'border-red-500/30 bg-red-950/10' : 'border-white/5'}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-1 border-b border-white/5 pb-1 mb-1">
+                                  <div className="flex items-center gap-1">
+                                    <span className={`px-1 rounded text-[8px] font-bold ${log.method === 'GET' ? 'bg-blue-500/10 text-blue-400' : 'bg-green-500/10 text-green-400'}`}>
+                                      {log.method}
+                                    </span>
+                                    <span className="text-neutral-200 text-[9px] truncate max-w-[200px] sm:max-w-md">
+                                      {log.url}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`font-bold px-1 rounded text-[8px] ${isError ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                                      {log.status === 'FAILED' ? 'CON-FAILED' : `STATUS ${log.status}`}
+                                    </span>
+                                    <span className="text-[8px] text-neutral-500">
+                                      {callTime} ({log.durationMs}ms)
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="space-y-0.5 text-[9px] text-neutral-400 font-sans leading-normal">
+                                  {log.error && (
+                                    <p className="text-red-400 font-bold">
+                                      Erro: <span className="font-mono">{log.error}</span>
+                                    </p>
+                                  )}
+                                  {log.requestBody && (
+                                    <p className="truncate">
+                                      Enviado: <span className="text-neutral-500 font-mono text-[8px]">{JSON.stringify(log.requestBody)}</span>
+                                    </p>
+                                  )}
+                                  {log.responseBody && (
+                                    <p className="truncate">
+                                      Resposta: <span className="text-neutral-300 font-mono text-[8px]">{typeof log.responseBody === 'object' ? JSON.stringify(log.responseBody) : String(log.responseBody)}</span>
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Cadastrar Novo Administrador Form Box */}
                 <div className="bg-neutral-900/40 border border-white/5 rounded-xl p-5 space-y-4" id="add-admin-form-container">

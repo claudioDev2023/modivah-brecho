@@ -138,34 +138,34 @@ export default function CommentsSection() {
   };
 
   return (
-    <section className="mt-28 py-16 px-4 max-w-7xl mx-auto border-t border-white/5 relative shrink-0 w-full" id="customer-reviews-section">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[250px] rounded-full bg-amber-500/[0.02] filter blur-[120px] pointer-events-none" />
+    <section className="mt-28 py-16 px-4 max-w-7xl mx-auto border-t border-zinc-200 relative shrink-0 w-full" id="customer-reviews-section">
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[250px] rounded-full bg-[#EE4D2D]/[0.02] filter blur-[120px] pointer-events-none" />
       
       {/* Dynamic Title with Exquisite typography */}
       <div className="text-center mb-14">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-400 text-[10px] font-mono uppercase tracking-[0.2em] mb-3">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#EE4D2D]/10 border border-[#EE4D2D]/20 rounded-full text-[#EE4D2D] text-[10px] font-mono uppercase tracking-[0.2em] mb-3">
           <MessageSquare className="h-3.5 w-3.5" />
           <span>Feedbacks & Experiência</span>
         </div>
-        <h2 className="text-2xl md:text-3xl font-sans font-light tracking-wide text-white">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-wide text-zinc-800">
           Depoimentos do Acervo
         </h2>
-        <p className="text-xs text-neutral-400 max-w-md mx-auto leading-relaxed mt-2.5 font-light">
-          A curadoria de luxo sustentável da MODIVAH BRECHÓ é aprovada por quem entende de moda e preza por elegância e tecnologia.
+        <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed mt-2.5 font-semibold">
+          A curadoria de luxo sustentável da MODIVAH BRECHÓ é aprovada por quem entende de moda e preza por elegância e sustentabilidade.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start text-zinc-800">
         {/* Left Side: Create comment form */}
-        <div className="lg:col-span-5 bg-zinc-950/40 border border-white/5 p-6 rounded-2xl relative overflow-hidden backdrop-blur-md">
-          <div className="absolute top-0 right-0 p-3 text-amber-500/10">
+        <div className="lg:col-span-5 bg-zinc-50 border border-zinc-200 p-6 rounded-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-3 text-[#EE4D2D]/10">
             <Sparkles className="h-10 w-10" />
           </div>
 
-          <h3 className="text-sm font-sans uppercase tracking-widest text-amber-400 mb-4 font-semibold flex items-center gap-2">
+          <h3 className="text-sm font-bold uppercase tracking-widest text-[#EE4D2D] mb-4 flex items-center gap-2">
             Deixe sua Avaliação
           </h3>
-          <p className="text-xs text-neutral-400 font-light leading-relaxed mb-6">
+          <p className="text-xs text-zinc-500 font-semibold leading-relaxed mb-6">
             Sua opinião é vital para mantermos o padrão de excelência de Cariacica para todo o Brasil. Avalie sua jornada!
           </p>
 
@@ -176,7 +176,7 @@ export default function CommentsSection() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mb-5 p-3.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2"
+                className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-600 text-xs flex items-center gap-2 font-bold"
               >
                 <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
                 <span>Obrigado! Seu comentário foi publicado em tempo real com sucesso!</span>
@@ -187,33 +187,33 @@ export default function CommentsSection() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Input Name */}
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-neutral-400 font-mono block mb-1.5">Seu Nome Completo</label>
+              <label className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold block mb-1.5">Seu Nome Completo</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"><User className="h-3.5 w-3.5" /></span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"><User className="h-3.5 w-3.5" /></span>
                 <input
                   type="text"
                   required
                   placeholder="Ex: Mariana Albuquerque"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08]"
+                  className="w-full bg-white border border-zinc-200 rounded-xl pl-9 pr-4 py-2.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D]"
                 />
               </div>
             </div>
 
             {/* Selecting Category Category */}
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-neutral-400 font-mono block mb-1.5">O que está avaliando?</label>
+              <label className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold block mb-1.5">O que está avaliando?</label>
               <div className="grid grid-cols-3 gap-2">
                 {(['app', 'produto', 'ambos'] as const).map((cat) => (
                   <button
                     key={cat}
                     type="button"
                     onClick={() => setFormCategory(cat)}
-                    className={`py-2 px-1.5 rounded-lg text-[10px] font-semibold tracking-wider uppercase border transition cursor-pointer text-center ${
+                    className={`py-2 px-1.5 rounded-lg text-[10px] font-bold tracking-wider uppercase border transition cursor-pointer text-center ${
                       formCategory === cat
-                        ? 'bg-amber-400/10 border-amber-400 text-amber-300'
-                        : 'bg-black/20 border-white/5 text-neutral-400 hover:border-white/10'
+                        ? 'bg-[#EE4D2D]/10 border-[#EE4D2D] text-[#EE4D2D]'
+                        : 'bg-white border-zinc-200 text-zinc-500 hover:border-[#EE4D2D]/50'
                     }`}
                   >
                     {cat === 'app' ? 'App / IA' : cat === 'produto' ? 'Peças' : 'Ambos'}
@@ -224,7 +224,7 @@ export default function CommentsSection() {
 
             {/* Stars evaluation input section */}
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-neutral-400 font-mono block mb-1">Nota da Experiência</label>
+              <label className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold block mb-1">Nota da Experiência</label>
               <div className="flex items-center gap-1.5 py-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
@@ -238,13 +238,13 @@ export default function CommentsSection() {
                     <Star
                       className={`h-5 w-5 ${
                         star <= (hoverRating ?? formRating)
-                          ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.3)]'
-                          : 'text-neutral-600 hover:text-amber-400/60'
+                          ? 'fill-[#EE4D2D] text-[#EE4D2D]'
+                          : 'text-zinc-300 hover:text-[#EE4D2D]/60'
                       }`}
                     />
                   </button>
                 ))}
-                <span className="text-[10px] font-mono text-neutral-500 ml-2">
+                <span className="text-[10px] font-mono text-zinc-450 ml-2 font-bold">
                   {formRating}/5 Estrelas
                 </span>
               </div>
@@ -252,7 +252,7 @@ export default function CommentsSection() {
 
             {/* Comment Message Input Box */}
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-neutral-400 font-mono block mb-1.5">Seu Comentário</label>
+              <label className="text-[9px] uppercase tracking-wider text-zinc-500 font-bold block mb-1.5">Seu Comentário</label>
               <textarea
                 required
                 rows={3}
@@ -260,9 +260,9 @@ export default function CommentsSection() {
                 value={formText}
                 onChange={(e) => setFormText(e.target.value)}
                 maxLength={400}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-3.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-amber-400 focus:bg-white/[0.08]"
+                className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-3.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-[#EE4D2D]"
               />
-              <span className="text-[9px] text-neutral-500 text-right block mt-1">
+              <span className="text-[9px] text-zinc-400 text-right block mt-1">
                 Máximo 400 caracteres
               </span>
             </div>
@@ -271,7 +271,7 @@ export default function CommentsSection() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-black rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-400/10 active:scale-95 duration-150"
+              className="w-full py-2.5 bg-[#EE4D2D] hover:bg-[#FF6A4D] disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer transition flex items-center justify-center gap-2 shadow-md hover:shadow-[#EE4D2D]/10 active:scale-95 duration-150"
             >
               <Send className="h-3.5 w-3.5" />
               <span>Publicar Comentário</span>
@@ -280,7 +280,7 @@ export default function CommentsSection() {
         </div>
 
         {/* Right Side: Feed display with responsive grid layouts */}
-        <div className="lg:col-span-7 space-y-4 max-h-[580px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-white/10" id="comments-timeline-feed">
+        <div className="lg:col-span-7 space-y-4 max-h-[580px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-zinc-200" id="comments-timeline-feed">
           <AnimatePresence initial={false}>
             {comments.map((comment, index) => {
               const formattedDate = new Date(comment.createdAt).toLocaleDateString('pt-BR', {
@@ -295,21 +295,21 @@ export default function CommentsSection() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(index * 0.05, 0.4) }}
-                  className={`p-4 bg-zinc-900/30 border border-white/5 rounded-xl space-y-3 relative hover:border-white/10 transition leading-snug ${
-                    comment.isExample ? 'border-amber-500/5 bg-zinc-900/[0.15]' : ''
+                  className={`p-4 bg-white border border-zinc-200 rounded-xl space-y-3 relative hover:border-zinc-300 transition leading-snug ${
+                    comment.isExample ? 'bg-orange-50/30 border-orange-200' : ''
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex flex-wrap items-center gap-2">
+                      <h4 className="text-xs font-bold text-zinc-850 uppercase tracking-wider flex flex-wrap items-center gap-2">
                         <span>{comment.name}</span>
                         {comment.isExample && (
-                          <span className="px-1.5 py-0.5 bg-amber-400/5 border border-amber-400/10 rounded text-[8px] font-mono font-bold uppercase tracking-wider text-amber-400 inline-block">
+                          <span className="px-1.5 py-0.5 bg-[#EE4D2D]/10 border border-[#EE4D2D]/20 rounded text-[8px] font-mono font-bold uppercase tracking-wider text-[#EE4D2D] inline-block">
                             Depoimento Verificado ✨
                           </span>
                         )}
                       </h4>
-                      <p className="text-[9px] text-neutral-500 font-mono mt-0.5">
+                      <p className="text-[9px] text-zinc-400 font-mono mt-0.5">
                         Postado em {formattedDate}
                       </p>
                     </div>
@@ -321,8 +321,8 @@ export default function CommentsSection() {
                           key={i}
                           className={`h-3 w-3 ${
                             i < comment.rating 
-                              ? 'fill-amber-400 text-amber-400' 
-                              : 'text-neutral-700'
+                              ? 'fill-[#EE4D2D] text-[#EE4D2D]' 
+                              : 'text-zinc-200'
                           }`}
                         />
                       ))}
@@ -330,17 +330,17 @@ export default function CommentsSection() {
                   </div>
 
                   {/* Feedback description text */}
-                  <p className="text-xs text-neutral-300 font-light leading-relaxed text-justify">
+                  <p className="text-xs text-zinc-700 font-normal leading-relaxed text-justify">
                     {comment.text}
                   </p>
 
-                  <div className="flex items-center justify-between border-t border-white/[0.03] pt-2 mt-2">
-                    <span className="text-[9px] uppercase tracking-wider bg-white/5 border border-white/5 px-2 py-0.5 rounded text-neutral-400 font-mono">
+                  <div className="flex items-center justify-between border-t border-zinc-150 pt-2 mt-2">
+                    <span className="text-[9px] uppercase tracking-wider bg-zinc-100 border border-zinc-200 px-2 py-0.5 rounded text-zinc-500 font-mono font-bold">
                       Avaliou: {getCategoryLabel(comment.category)}
                     </span>
-                    <span className="text-[10px] text-neutral-500 flex items-center gap-1">
-                      <Award className="h-3 w-3 text-amber-500" />
-                      <span className="font-light text-[9px] font-mono">Curadoria MODIVAH</span>
+                    <span className="text-[10px] text-zinc-400 flex items-center gap-1">
+                      <Award className="h-3 w-3 text-[#EE4D2D]" />
+                      <span className="font-bold text-[9px] font-mono">Curadoria MODIVAH</span>
                     </span>
                   </div>
                 </motion.div>
