@@ -221,8 +221,8 @@ export default function ProductModal({ product, onClose, onAddToCart }: ProductM
             )}
             
             {isSold && (
-              <div className="absolute inset-0 bg-black/75 backdrop-blur-[2.5px] flex items-center justify-center p-0 overflow-hidden z-10">
-                <div className="w-full bg-[#FF5A36] text-white text-base font-black uppercase tracking-wider py-4 border-y border-[#FF5A36] shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
+              <div className="absolute inset-x-0 bottom-4 mx-4 z-20 flex items-center justify-center select-none pointer-events-none">
+                <div className="bg-[#EE4D2D] text-white text-sm sm:text-base font-black uppercase tracking-wider py-2.5 px-6 rounded-lg shadow-lg text-center border-2 border-white/95">
                   JÁ VENDIDO 💔
                 </div>
               </div>

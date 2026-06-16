@@ -88,8 +88,8 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
 
         {/* Outer Dark Overlay for Sold or Out of Stock Items */}
         {isSold && (
-          <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-[2px] flex items-center justify-center p-0 overflow-hidden">
-            <div className="w-full bg-[#EE4D2D] text-white text-base font-black uppercase tracking-wider py-4 border-y border-[#EE4D2D] shadow-2xl text-center select-none px-4 transform -rotate-12 scale-110">
+          <div className="absolute inset-x-0 bottom-4 mx-4 z-20 flex items-center justify-center select-none pointer-events-none">
+            <div className="w-full bg-[#EE4D2D] text-white text-xs sm:text-sm font-black uppercase tracking-wider py-2 px-3 rounded-lg shadow-lg text-center border-2 border-white/95">
               JÁ VENDIDO 💔
             </div>
           </div>
