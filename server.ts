@@ -1096,9 +1096,20 @@ function startServer() {
     }
   });
 
+  // Server-side memory storage to cache list of co-administrators and pending requests to prevent read quota exhaustion.
+  let serverCacheListAdmins: { data: any; timestamp: number } | null = null;
+  let serverCachePendingRequests: { data: any; timestamp: number } | null = null;
+  const SERVER_TTL_LIST_ADMINS = 30 * 60 * 1000; // 30 minutes
+  const SERVER_TTL_PENDING_REQUESTS = 10 * 60 * 1000; // 10 minutes
+
   // GET LIST OF ALL ADMINISTRATORS (DYNAMIC FROM FIRESTORE + PRIMARY ROOT SUPER-ADMIN)
   app.get("/api/admin/list-admins", requireAdmin, async (req, res) => {
     try {
+      if (serverCacheListAdmins && (Date.now() - serverCacheListAdmins.timestamp < SERVER_TTL_LIST_ADMINS)) {
+        console.log("[SERVER_CACHE] Serving list-admins from memory cache");
+        return res.json(serverCacheListAdmins.data);
+      }
+
       const snapshot = await secureGetAdminCollection("admins");
       const adminsList: any[] = [];
       
@@ -1131,7 +1142,13 @@ function startServer() {
         });
       }
 
-      return res.json({ admins: adminsList });
+      const responseObj = { admins: adminsList };
+      serverCacheListAdmins = {
+        data: responseObj,
+        timestamp: Date.now()
+      };
+
+      return res.json(responseObj);
     } catch (e: any) {
       console.error("[Admin API List Admins Fail]", e);
       return res.status(500).json({ error: "Erro interno ao listar administradores.", details: e.message });
@@ -1259,6 +1276,9 @@ function startServer() {
       const docId = await secureAddDoc("admins", newAdminDoc);
       auditLog("CADASTRO_ADMINISTRADOR", ip, `Novo Administrador Cadastrado: ${cleanEmail} por ${requesterEmail}`);
       
+      // Invalidate server co-admins list cache
+      serverCacheListAdmins = null;
+      
       return res.json({ 
         success: true, 
         admin: {
@@ -1376,6 +1396,9 @@ function startServer() {
 
       auditLog("EXCLUSAO_ADMINISTRADOR", ip, `Administrador Removido: ${verifiedTargetLower} por ${requesterEmail}`);
       
+      // Invalidate server co-admins list cache
+      serverCacheListAdmins = null;
+      
       return res.json({ success: true, message: `Administrador ${verifiedTargetLower} removido com sucesso!` });
     } catch (e: any) {
       console.error("[Admin API Delete Admin Fail]", e);
@@ -1390,6 +1413,11 @@ function startServer() {
   // GET LIST OF PENDING CO-ADMINISTRATOR REQUESTS (FROM CLIENTS COLLECTION)
   app.get("/api/admin/pending-requests", requireAdmin, async (req, res) => {
     try {
+      if (serverCachePendingRequests && (Date.now() - serverCachePendingRequests.timestamp < SERVER_TTL_PENDING_REQUESTS)) {
+        console.log("[SERVER_CACHE] Serving pending-requests from memory cache");
+        return res.json(serverCachePendingRequests.data);
+      }
+
       const snapshot = await secureGetAdminCollection("clients", "requestAdminAccess", true);
       const requests: any[] = [];
       
@@ -1414,7 +1442,13 @@ function startServer() {
       // Sort by request date descending
       requests.sort((a, b) => new Date(b.adminRequestDate).getTime() - new Date(a.adminRequestDate).getTime());
 
-      return res.json({ success: true, requests });
+      const responseObj = { success: true, requests };
+      serverCachePendingRequests = {
+        data: responseObj,
+        timestamp: Date.now()
+      };
+
+      return res.json(responseObj);
     } catch (e: any) {
       console.error("[Admin API List Pending Requests Fail]", e);
       return res.status(500).json({ error: "Erro interno ao listar solicitações pendentes.", details: e.message });
@@ -1476,6 +1510,10 @@ function startServer() {
       await secureAddDoc("admins", newAdminDoc);
       auditLog("APROVACAO_ADMINISTRADOR", ip, `Solicitação aprovada para: ${cleanEmail} por ${requesterEmail}`);
 
+      // Invalidate co-admin caches on approval mutation
+      serverCacheListAdmins = null;
+      serverCachePendingRequests = null;
+
       return res.json({ success: true, message: `Administrador ${cleanEmail} aprovado com sucesso!` });
     } catch (e: any) {
       console.error("[Admin API Approve Request Fail]", e);
@@ -1514,6 +1552,9 @@ function startServer() {
       });
 
       auditLog("REJEICAO_ADMINISTRADOR", ip, `Solicitação rejeitada para: ${cleanEmail} por ${requesterEmail}`);
+
+      // Invalidate co-admin requests cache on rejection mutation
+      serverCachePendingRequests = null;
 
       return res.json({ success: true, message: `Solicitação do usuário ${cleanEmail} rejeitada com sucesso.` });
     } catch (e: any) {
