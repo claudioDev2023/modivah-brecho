@@ -193,13 +193,13 @@ export default function App() {
               console.warn("[Admin Sync] Error querying admins collection on login: ", err);
             }
 
-            // Guarantee that claudioshekina34@gmail.com is always recognized as Super Administrador with total access
-            if (emailLower === 'claudioshekina34@gmail.com') {
+            // Guarantee that claudioshekina34@gmail.com and gleidefx38@gmail.com are always recognized as Super Administrador with total access
+            if (emailLower === 'claudioshekina34@gmail.com' || emailLower === 'gleidefx38@gmail.com') {
               if (!adminData) {
                 adminData = {
                   id: authUser.uid,
-                  email: 'claudioshekina34@gmail.com',
-                  name: 'Claudio Shekina',
+                  email: emailLower,
+                  name: emailLower === 'gleidefx38@gmail.com' ? 'Gleide' : 'Claudio Shekina',
                   role: 'superadmin',
                   createdAt: new Date().toISOString()
                 };
@@ -1343,6 +1343,16 @@ export default function App() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-wider text-white uppercase drop-shadow-sm font-sans" style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
               MODIVAH BRECHÓ
             </h1>
+            
+            {/* Elegant Brand Slogan */}
+            <div className="flex justify-center md:justify-start items-center gap-2 py-1 select-none animate-fadeIn" id="brand-official-slogan-wrapper">
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block" />
+              <p className="text-sm sm:text-base md:text-lg font-serif italic tracking-[0.25em] text-[#FFE8D6] font-semibold drop-shadow-md leading-none uppercase">
+                A MODA DAS DIVAS
+              </p>
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block" />
+            </div>
+
             <p className="text-xs sm:text-sm md:text-base text-white/95 font-medium leading-relaxed max-w-2xl">
               Roupas conservadas, selecionadas uma a uma — beleza, qualidade e elegância em cada peça.
             </p>

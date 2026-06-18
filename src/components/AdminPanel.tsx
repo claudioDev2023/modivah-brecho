@@ -1014,6 +1014,38 @@ export default function AdminPanel({
                     Confirmar
                   </button>
                 </div>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sessionStorage.removeItem('modivah_admin_auth');
+                      sessionStorage.removeItem('modivah_admin_token');
+                      localStorage.removeItem('modivah_admin_auth');
+                      localStorage.removeItem('modivah_admin_token');
+                      localStorage.removeItem('modivah_admin_email');
+                      
+                      if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.getRegistrations().then((registrations) => {
+                          for (const registration of registrations) {
+                            registration.unregister();
+                          }
+                        });
+                      }
+                      
+                      setEmailInput('');
+                      setPasswordInput('');
+                      setAuthError(false);
+                      setAuthErrorText('');
+                      setFailedAttemptsCount(0);
+                      
+                      window.location.reload();
+                    }}
+                    className="text-[10px] font-mono font-medium hover:underline text-rose-400 hover:text-rose-300 transition cursor-pointer py-1.5 px-3 bg-rose-500/5 hover:bg-rose-500/10 rounded-lg inline-flex items-center gap-1.5 border border-rose-500/10"
+                  >
+                    ⚠️ Limpar sessão e entrar novamente (Celular/Bypass Cache)
+                  </button>
+                </div>
               </form>
             </div>
 

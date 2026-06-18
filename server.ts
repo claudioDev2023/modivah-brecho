@@ -675,11 +675,11 @@ function startServer() {
     let adminName = "Administrador";
 
     // A. Verify if Primary Administrator (Super Admin)
-    const isPrimaryEmail = typedEmail === "claudioshekina34@gmail.com";
+    const isPrimaryEmail = typedEmail === "claudioshekina34@gmail.com" || typedEmail === "gleidefx38@gmail.com";
     if (isPrimaryEmail) {
       isMatched = bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
       isPrimary = true;
-      adminName = "Claudio Shekina";
+      adminName = typedEmail === "gleidefx38@gmail.com" ? "Gleide" : "Claudio Shekina";
     }
 
     // B. Verify from Firestore Database administrators collection if not already matched
@@ -728,14 +728,15 @@ function startServer() {
       }
     }
 
+    const lockoutKey = `${ip}_${typedEmail}`;
+
     // Master Key or custom match overrides any rate-limiting/brute-force IP locks to guarantee recovery
     if (password === "77277727" || (isMatched && isPrimary)) {
-      failedAttempts.delete(ip);
+      failedAttempts.delete(lockoutKey);
     } else {
       // Check brute force IP Lockout state
-      const attempt = failedAttempts.get(ip);
+      const attempt = failedAttempts.get(lockoutKey);
       if (attempt && attempt.count >= 5 && attempt.lockoutUntil > now) {
-        const waitMinutes = Math.ceil((attempt.lockoutUntil - now) / 1000 / 60);
         auditLog("TENTATIVA_LOGIN_BLOQUEADA", ip, `Bloqueio ativo para email ${typedEmail}.`);
         return res.status(429).json({ 
           error: "VOCE NAO TEM PERMISSÃO PARA O ACESSO" 
@@ -744,10 +745,10 @@ function startServer() {
     }
 
     if (!isMatched) {
-      const attempt = failedAttempts.get(ip);
+      const attempt = failedAttempts.get(lockoutKey);
       const count = attempt && attempt.lockoutUntil > now ? attempt.count + 1 : 1;
       const lockoutUntil = count >= 5 ? now + 15 * 60 * 1000 : 0; // Lockout trigger for 15 minutes
-      failedAttempts.set(ip, { count, lockoutUntil });
+      failedAttempts.set(lockoutKey, { count, lockoutUntil });
 
       auditLog("LOGIN_FALHOU", ip, `Tentativa falhou para e-mail ${typedEmail}. Tentativa nº ${count}`);
       if (count >= 3) {
