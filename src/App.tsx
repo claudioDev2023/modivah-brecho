@@ -1216,12 +1216,15 @@ export default function App() {
 
   // Mandatory Admin-Only check for /admin path
   const isUrlPathAdmin = currentPath === '/admin' || currentPath.startsWith('/admin/');
-  const isCurrentlyAdmin = isAdminMode || localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
 
-  if (isUrlPathAdmin && !isCurrentlyAdmin) {
+  if (isUrlPathAdmin) {
     return (
       <div className="min-h-screen bg-neutral-950 flex flex-col justify-between" id="admin-login-mandatory-block">
-        <Suspense fallback={null}>
+        <Suspense fallback={
+          <div className="min-h-screen bg-neutral-950 flex items-center justify-center font-mono text-xs text-amber-500">
+            Carregando Painel Administrativo...
+          </div>
+        }>
           <AdminPanel
             isOpen={true}
             onClose={handleCloseAdmin}
@@ -1345,16 +1348,16 @@ export default function App() {
             </h1>
             
             {/* Elegant Brand Slogan */}
-            <div className="flex justify-center md:justify-start items-center gap-2 py-1 select-none animate-fadeIn" id="brand-official-slogan-wrapper">
-              <span className="h-[1px] w-5 bg-white/30 hidden sm:block" />
-              <p className="text-sm sm:text-base md:text-lg font-serif italic tracking-[0.25em] text-[#FFE8D6] font-semibold drop-shadow-md leading-none uppercase">
+            <div className="flex justify-center md:justify-start items-center gap-2 py-1 select-none" id="brand-official-slogan-wrapper">
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block animate-pulse" />
+              <p className="text-sm sm:text-base md:text-lg font-serif italic tracking-[0.25em] text-[#FFE8D6] font-semibold drop-shadow-md leading-none uppercase animate-pulse">
                 A MODA DAS DIVAS
               </p>
-              <span className="h-[1px] w-5 bg-white/30 hidden sm:block" />
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block animate-pulse" />
             </div>
 
             <p className="text-xs sm:text-sm md:text-base text-white/95 font-medium leading-relaxed max-w-2xl">
-              Roupas conservadas, selecionadas uma a uma — beleza, qualidade e elegância em cada peça.
+              Roupas conservadas, selecionadas uma a uma, beleza, qualidade e elegância em cada peça.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 justify-center">
