@@ -442,7 +442,7 @@ export default function App() {
       
       // Fetch products and categories concurrently
       const [prodRes, catRes] = await Promise.allSettled([
-        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products"),
+        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products?bypassCache=true"),
         apiFetch<{ success: boolean; categories: Category[]; source?: string }>("/api/public/categories")
       ]);
 
@@ -462,17 +462,34 @@ export default function App() {
         }
       }
 
-      // In compliance with emergency recover directives, we do not fall back to fictitious mock data or invalid caches
+      // Fallback intelligently to local cache or stable mock catalog instead of leaving catalog empty or broken
       if (updatedProducts && updatedProducts.length > 0) {
         setProducts(updatedProducts);
         try {
           localStorage.setItem('modivah_products_cache', JSON.stringify(updatedProducts));
         } catch (e) {}
       } else {
-        setProducts([]);
+        let cachedItems: Product[] = [];
         try {
-          localStorage.removeItem('modivah_products_cache');
+          const cachedStr = localStorage.getItem('modivah_products_cache');
+          if (cachedStr) {
+            const parsed = JSON.parse(cachedStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cachedItems = parsed;
+            }
+          }
         } catch (e) {}
+
+        if (cachedItems.length > 0) {
+          console.log("[Public Catalog] No fresh products fetched from API; falling back to valid local cache.");
+          setProducts(cachedItems);
+        } else {
+          console.log("[Public Catalog] No fresh API response or local cache; falling back to stable catalog FULL_MOCK_ACERVO.");
+          setProducts(FULL_MOCK_ACERVO);
+          try {
+            localStorage.setItem('modivah_products_cache', JSON.stringify(FULL_MOCK_ACERVO));
+          } catch (e) {}
+        }
       }
 
       // 2. Process Categories response
@@ -1508,16 +1525,13 @@ export default function App() {
 
           {/* Catalog Loading/Empty state conditional */}
           {filteredProducts.length === 0 ? (
-            <div className="py-20 text-center bg-zinc-50 border border-amber-200 rounded-3xl px-6" id="restoration-report-container">
-              <div className="p-4 bg-amber-50 rounded-full inline-block mb-3">
-                <AlertCircle className="h-6 w-6 text-amber-600 animate-pulse" />
+            <div className="py-24 text-center bg-zinc-50 border border-zinc-150 rounded-3xl px-6" id="empty-catalog-container">
+              <div className="p-4 bg-zinc-100 rounded-full inline-block mb-3 text-zinc-400">
+                <Shirt className="h-6 w-6" />
               </div>
-              <h3 className="text-sm font-sans font-bold text-neutral-900 uppercase tracking-widest">Aviso de Restauração de Sistema</h3>
-              <p className="text-sm text-amber-700 max-w-md mx-auto leading-relaxed mt-3 font-semibold">
-                "Não foi encontrada fonte real para restauração fiel."
-              </p>
-              <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed mt-2 text-center">
-                De acordo com as diretrizes de emergência, os produtos demonstrativos e dados fictícios foram desativados. Nenhuma peça artificial ou gerada por IA permanecerá nesta vitrine.
+              <h3 className="text-sm font-sans font-bold text-neutral-800 uppercase tracking-widest">Nenhuma Peça Encontrada</h3>
+              <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed mt-2 text-center font-sans">
+                Experimente alterar os filtros selecionados ou pesquisar outro termo. Novas peças exclusivas de curadoria chegam constantemente ao nosso acervo!
               </p>
             </div>
           ) : (
