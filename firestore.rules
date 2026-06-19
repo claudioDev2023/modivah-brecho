@@ -66,9 +66,5 @@ service cloud.firestore {
     match /admins/{adminId} {
       allow read, write: if true;
     }
-
-    match /interested_customers/{customerId} {
-      allow read, write: if true;
-    }
   }
 }
