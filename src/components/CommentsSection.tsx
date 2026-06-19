@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, MessageSquare, Send, CheckCircle, Gift, Award, Sparkles, User } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy } from 'firebase/firestore';
 
 interface Comment {
   id: string;
@@ -72,31 +72,43 @@ export default function CommentsSection() {
   const [success, setSuccess] = useState(false);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
-  // Synchronize dynamic comments using Firestore snapshot
+  // Load dynamic comments once under demand with safe fallbacks (no real-time socket connections!)
   useEffect(() => {
-    const q = query(collection(db, 'comments'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const dbComments: Comment[] = [];
-      snapshot.forEach((doc) => {
-        dbComments.push({ id: doc.id, ...doc.data() } as Comment);
-      });
+    let active = true;
 
-      // Merge presets with database comments (preventing duplicates and maintaining reverse sorted order)
-      const merged = [...dbComments];
-      PRESET_COMMENTS.forEach(preset => {
-        if (!dbComments.some(dbC => dbC.name === preset.name && dbC.text === preset.text)) {
-          merged.push(preset);
-        }
-      });
+    const loadComments = async () => {
+      try {
+        const q = query(collection(db, 'comments'), orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        if (!active) return;
 
-      // Sort by date (descending)
-      merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setComments(merged);
-    }, (err) => {
-      console.warn("Firestore comments reading failed:", err);
-    });
+        const dbComments: Comment[] = [];
+        snapshot.forEach((doc) => {
+          dbComments.push({ id: doc.id, ...doc.data() } as Comment);
+        });
 
-    return () => unsubscribe();
+        // Merge presets with database comments (preventing duplicates and maintaining reverse sorted order)
+        const merged = [...dbComments];
+        PRESET_COMMENTS.forEach(preset => {
+          if (!dbComments.some(dbC => dbC.name === preset.name && dbC.text === preset.text)) {
+            merged.push(preset);
+          }
+        });
+
+        // Sort by date (descending)
+        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setComments(merged);
+      } catch (err) {
+        console.warn("[Comments Loader] Safe silent fallback to local preset feedback stories.", err);
+        setComments(PRESET_COMMENTS);
+      }
+    };
+
+    loadComments();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +125,14 @@ export default function CommentsSection() {
         createdAt: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'comments'), newComment);
+      const docRef = await addDoc(collection(db, 'comments'), newComment);
+      
+      // Local optimistic append to maintain instant response without onSnapshot
+      const addedComment: Comment = {
+        id: docRef.id || `comment-${Date.now()}`,
+        ...newComment
+      };
+      setComments(prev => [addedComment, ...prev]);
       
       // Clear controls
       setFormName('');
