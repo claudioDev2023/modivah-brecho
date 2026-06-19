@@ -89,12 +89,6 @@ function startServer() {
     passwordHash: string;
     passwordVersion: number;
     jwtSecret?: string;
-    resets?: {
-      [email: string]: {
-        token: string;
-        expiresAt: number;
-      };
-    };
   }
 
   // Ensure directory structures and security settings exist
@@ -681,11 +675,11 @@ function startServer() {
     let adminName = "Administrador";
 
     // A. Verify if Primary Administrator (Super Admin)
-    const isPrimaryEmail = typedEmail === "claudioshekina34@gmail.com" || typedEmail === "gleidefx38@gmail.com";
+    const isPrimaryEmail = typedEmail === "claudioshekina34@gmail.com";
     if (isPrimaryEmail) {
       isMatched = bcrypt.compareSync(password, settings.passwordHash) || password === "77277727";
       isPrimary = true;
-      adminName = typedEmail === "gleidefx38@gmail.com" ? "Gleide" : "Claudio Shekina";
+      adminName = "Claudio Shekina";
     }
 
     // B. Verify from Firestore Database administrators collection if not already matched
@@ -734,15 +728,14 @@ function startServer() {
       }
     }
 
-    const lockoutKey = `${ip}_${typedEmail}`;
-
     // Master Key or custom match overrides any rate-limiting/brute-force IP locks to guarantee recovery
     if (password === "77277727" || (isMatched && isPrimary)) {
-      failedAttempts.delete(lockoutKey);
+      failedAttempts.delete(ip);
     } else {
       // Check brute force IP Lockout state
-      const attempt = failedAttempts.get(lockoutKey);
+      const attempt = failedAttempts.get(ip);
       if (attempt && attempt.count >= 5 && attempt.lockoutUntil > now) {
+        const waitMinutes = Math.ceil((attempt.lockoutUntil - now) / 1000 / 60);
         auditLog("TENTATIVA_LOGIN_BLOQUEADA", ip, `Bloqueio ativo para email ${typedEmail}.`);
         return res.status(429).json({ 
           error: "VOCE NAO TEM PERMISSÃO PARA O ACESSO" 
@@ -751,10 +744,10 @@ function startServer() {
     }
 
     if (!isMatched) {
-      const attempt = failedAttempts.get(lockoutKey);
+      const attempt = failedAttempts.get(ip);
       const count = attempt && attempt.lockoutUntil > now ? attempt.count + 1 : 1;
       const lockoutUntil = count >= 5 ? now + 15 * 60 * 1000 : 0; // Lockout trigger for 15 minutes
-      failedAttempts.set(lockoutKey, { count, lockoutUntil });
+      failedAttempts.set(ip, { count, lockoutUntil });
 
       auditLog("LOGIN_FALHOU", ip, `Tentativa falhou para e-mail ${typedEmail}. Tentativa nº ${count}`);
       if (count >= 3) {
@@ -840,259 +833,6 @@ function startServer() {
       return res.json({ message: "Senha redefinida com sucesso para o padrão de fábrica definido no ambiente/padrão." });
     } catch (e) {
       return res.status(500).json({ error: "Não foi possível redefinir a senha." });
-    }
-  });
-
-  // SECURE FORGOT PASSWORD REQUEST
-  app.post("/api/auth/forgot-password", async (req, res) => {
-    const ip = req.ip || "unknown";
-    const { email } = req.body;
-
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "O e-mail é obrigatório." });
-    }
-
-    const typedEmail = email.toLowerCase().trim();
-
-    // Verify if email is a valid owner / superadmin
-    const isOwner = typedEmail === "claudioshekina34@gmail.com" || typedEmail === "gleidefx38@gmail.com";
-    
-    // Check in Firestore DB admins as well to see if they are a superadmin
-    let isDbSuperAdmin = false;
-    if (!isOwner) {
-      try {
-        const snapshot = await secureGetAdminCollection("admins", "email", typedEmail);
-        if (snapshot && !snapshot.empty) {
-          const docData = snapshot.docs[0].data();
-          if (docData.role === "superadmin" || docData.role === "super_admin") {
-            isDbSuperAdmin = true;
-          }
-        }
-      } catch (err) {
-        console.error("Error checking db admin during recovery:", err);
-      }
-    }
-
-    const isAuthorized = isOwner || isDbSuperAdmin;
-
-    // Safety: don't let attackers know if the email exists. We always return 200 success!
-    if (!isAuthorized) {
-      auditLog("RECUPERACAO_REJEITADA_NAO_AUTORIZADO", ip, `E-mail não-proprietário tentou recuperar: ${typedEmail}`);
-      return res.json({
-        success: true,
-        message: "Se o e-mail informado corresponder a uma conta administrativa principal ativa, uma mensagem segura de redefinição de senha foi gerada com sucesso."
-      });
-    }
-
-    // Generate secure reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
-
-    // Persist to settings
-    const settings = ensureSettings();
-    if (!settings.resets) {
-      settings.resets = {};
-    }
-    settings.resets[typedEmail] = {
-      token: resetToken,
-      expiresAt
-    };
-
-    try {
-      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
-      
-      // Also write to Firestore collection 'admin_resets' as dual-layer persistence
-      if (adminDb) {
-        try {
-          await adminDb.collection("admin_resets").doc(typedEmail).set({
-            token: resetToken,
-            expiresAt,
-            createdAt: new Date().toISOString()
-          });
-        } catch (dbErr) {
-          console.warn("Could not replicate reset token to Firestore, but saved on local disk:", dbErr);
-        }
-      }
-
-      // Generate the URL link
-      const origin = req.get("origin") || process.env.APP_URL || "https://modivah.com.br";
-      const resetLink = `${origin}/admin?resetToken=${resetToken}&email=${encodeURIComponent(typedEmail)}`;
-
-      auditLog("RECUPERACAO_SOLICITADA_OK", ip, `Recuperação autorizada para ${typedEmail}. Link seguro gerado.`);
-      
-      // Print link clearly to Server Console/Terminal so the owner is guaranteed to access it on preview/dev terminals
-      console.log("\n=========================================================================");
-      console.log("             🚨 CONTROLE DE SEGURANÇA MODIVAH BRECHÓ 🚨");
-      console.log(` LINK SEGURO DE REDEFINIÇÃO DE SENHA GERADO:`);
-      console.log(` ${resetLink}`);
-      console.log("=========================================================================\n");
-
-      // We explicitly return the link so that they can mock or copy it immediately on cellular/Preview without configuring an SMTP provider.
-      return res.json({
-        success: true,
-        message: "Link de redefinição de segurança gerado com sucesso! No ambiente de homologação, o link foi gerado e enviado (registrado com segurança no log do servidor e no banco de dados). Use o link de bypass exibido abaixo para efetuar a redefinição imediata no celular ou no computador.",
-        link: resetLink
-      });
-
-    } catch (e: any) {
-      console.error("Failed to process forgot password:", e);
-      return res.status(500).json({ error: "Erro interno do servidor ao gerar token seguro de redefinição." });
-    }
-  });
-
-  // SECURE VERIFY RESET TOKEN
-  app.post("/api/auth/verify-reset-token", async (req, res) => {
-    const { email, token } = req.body;
-
-    if (!email || !token) {
-      return res.status(400).json({ error: "E-mail e Token de segurança são obrigatórios." });
-    }
-
-    const typedEmail = String(email).toLowerCase().trim();
-    const typedToken = String(token).trim();
-
-    // 1. Check local secure-settings.json memory cache
-    const settings = ensureSettings();
-    let isValid = false;
-
-    if (settings.resets && settings.resets[typedEmail]) {
-      const pReset = settings.resets[typedEmail];
-      if (pReset.token === typedToken && pReset.expiresAt > Date.now()) {
-        isValid = true;
-      }
-    }
-
-    // 2. Check Firestore as dual-layer fallback
-    if (!isValid && adminDb) {
-      try {
-        const snap = await adminDb.collection("admin_resets").doc(typedEmail).get();
-        if (snap.exists) {
-          const dbReset = snap.data();
-          if (dbReset && dbReset.token === typedToken && dbReset.expiresAt > Date.now()) {
-            isValid = true;
-          }
-        }
-      } catch (e) {
-        console.error("Error reading reset confirmation from Firestore:", e);
-      }
-    }
-
-    if (!isValid) {
-      return res.status(400).json({ error: "Token de recuperação inválido, incorreto, ou expirado (validade de 15 minutos)." });
-    }
-
-    return res.json({ success: true, message: "Token de segurança verificado e válido!" });
-  });
-
-  // SECURE COMPLETE RESET PASSWORD
-  app.post("/api/auth/complete-reset-password", async (req, res) => {
-    const ip = req.ip || "unknown";
-    const { email, token, newPassword } = req.body;
-
-    if (!email || !token || !newPassword) {
-      return res.status(400).json({ error: "Todos os campos (e-mail, token de segurança e nova senha) são obrigatórios." });
-    }
-
-    const typedEmail = String(email).toLowerCase().trim();
-    const typedToken = String(token).trim();
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: "A nova senha deve ter no mínimo 8 caracteres por segurança corporativa." });
-    }
-
-    // 1. Re-validate token before writing changes
-    const settings = ensureSettings();
-    let isValid = false;
-
-    if (settings.resets && settings.resets[typedEmail]) {
-      const pReset = settings.resets[typedEmail];
-      if (pReset.token === typedToken && pReset.expiresAt > Date.now()) {
-        isValid = true;
-      }
-    }
-
-    if (!isValid && adminDb) {
-      try {
-        const snap = await adminDb.collection("admin_resets").doc(typedEmail).get();
-        if (snap.exists) {
-          const dbReset = snap.data();
-          if (dbReset && dbReset.token === typedToken && dbReset.expiresAt > Date.now()) {
-            isValid = true;
-          }
-        }
-      } catch (e) {
-        // block
-      }
-    }
-
-    if (!isValid) {
-      return res.status(400).json({ error: "Redefinição recusada. O token é inválido, expirou ou já foi utilizado." });
-    }
-
-    try {
-      // 2. Perform the update - Cryptographically Hash new password
-      const salt = bcrypt.genSaltSync(12);
-      settings.passwordHash = bcrypt.hashSync(newPassword, salt);
-      settings.passwordVersion += 1; // Auto rotate/terminate any compromised active JWT sessions
-
-      // Remove the used reset token from cache
-      if (settings.resets) {
-        delete settings.resets[typedEmail];
-      }
-
-      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf-8");
-
-      // Remove reset token from Firestore
-      if (adminDb) {
-        try {
-          await adminDb.collection("admin_resets").doc(typedEmail).delete();
-          
-          // Force update or restore admin model entry in Firestore admins database if needed,
-          // so that they have full superadmin permissions!
-          const isPrimary = typedEmail === "claudioshekina34@gmail.com" || typedEmail === "gleidefx38@gmail.com";
-          if (isPrimary) {
-            await adminDb.collection("admins").doc(typedEmail).set({
-              name: typedEmail === "gleidefx38@gmail.com" ? "Gleide" : "Claudio Shekina",
-              email: typedEmail,
-              role: "superadmin",
-              status: "active",
-              passwordHash: settings.passwordHash,
-              updatedAt: new Date().toISOString()
-            }, { merge: true });
-          }
-        } catch (dbErr) {
-          console.warn("Failed to update firestore admins collection on reset, but memory hash is safe:", dbErr);
-        }
-      }
-
-      // 3. Generate automatic super-admin JWT login so they log in instantly with maximum privileges restored!
-      const secret = getJWTSecret();
-      const isPrimary = typedEmail === "claudioshekina34@gmail.com" || typedEmail === "gleidefx38@gmail.com";
-      const adminName = typedEmail === "gleidefx38@gmail.com" ? "Gleide" : "Claudio Shekina";
-      const tokenPayload = {
-        admin: true,
-        email: typedEmail,
-        isPrimary,
-        name: adminName,
-        passwordVersion: settings.passwordVersion
-      };
-      
-      const loginToken = jwt.sign(tokenPayload, secret, { expiresIn: "10h" });
-
-      auditLog("TROCA_SENHA_REDEFINIDA_OK", ip, `Senha redefinida com sucesso para o proprietário ${typedEmail}.`);
-
-      return res.json({
-        success: true,
-        message: "Sua senha foi redefinida com sucesso! Todas os privilégios de Proprietário e Super Admin foram totalmente restaurados.",
-        token: loginToken,
-        email: typedEmail,
-        name: adminName,
-        isPrimary
-      });
-
-    } catch (e: any) {
-      console.error("Critical error in complete reset password:", e);
-      return res.status(500).json({ error: "Erro interno no servidor ao gravar nova credencial de segurança." });
     }
   });
 

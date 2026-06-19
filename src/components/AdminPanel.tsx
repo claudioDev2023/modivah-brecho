@@ -4,8 +4,7 @@ import {
   Video, BookOpen, AlertCircle, Database, Image as ImageIcon, Users, BarChart3, 
   LineChart, TrendingUp, DollarSign, ShoppingBag, Clock, Heart, Eye, ArrowUpRight, 
   MessageSquare, Calendar, Shield, Share2, Clipboard, Smartphone,
-  EyeOff, ArrowUp, ArrowDown, Shirt, Grid, Footprints, Gem, Award, Briefcase, Tag,
-  KeyRound
+  EyeOff, ArrowUp, ArrowDown, Shirt, Grid, Footprints, Gem, Award, Briefcase, Tag
 } from 'lucide-react';
 import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -212,77 +211,7 @@ interface AdminPanelProps {
   onLoginSuccess?: () => void;
 }
 
-class AdminErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[AdminErrorBoundary] Uncaught admin exception:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="max-w-md w-full bg-neutral-900 border border-red-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 bg-red-500/15 text-red-500 rounded-full flex items-center justify-center mx-auto mb-2 text-xl font-sans">
-              ⚠️
-            </div>
-            <h2 className="text-sm font-black tracking-widest text-white uppercase font-sans">
-              Falha na Interface Administrativa
-            </h2>
-            <p className="text-xs text-neutral-400 font-light leading-relaxed font-sans">
-              Ocorreu um erro inesperado ao carregar ou atualizar os dados do painel, possivelmente devido a uma sessão inválida, token expirado ou resposta instável do servidor.
-            </p>
-            
-            <div className="bg-black/40 border border-white/5 rounded-xl p-3 text-left font-mono text-[10px] text-red-400 max-h-32 overflow-y-auto w-full break-all">
-              <strong>Erro:</strong> {this.state.error?.message || "Erro desconhecido"}
-            </div>
-
-            <div className="pt-2 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  sessionStorage.removeItem('modivah_admin_auth');
-                  sessionStorage.removeItem('modivah_admin_token');
-                  localStorage.removeItem('modivah_admin_auth');
-                  localStorage.removeItem('modivah_admin_token');
-                  localStorage.removeItem('modivah_admin_email');
-                  window.location.href = '/admin';
-                }}
-                className="w-full py-2.5 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer font-sans"
-              >
-                Limpar Sessão e Fazer Login Novamente
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.reload();
-                }}
-                className="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer font-sans"
-              >
-                Recarregar Página
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
-function AdminPanelInner({
+export default function AdminPanel({
   isOpen,
   onClose,
   products,
@@ -302,7 +231,9 @@ function AdminPanelInner({
   if (!isOpen) return null;
 
   // Email & Password Authentication
-  const [emailInput, setEmailInput] = useState(''); // Completely clean inputs, no pre-fill
+  const [emailInput, setEmailInput] = useState(() => {
+    return localStorage.getItem('modivah_admin_email') || '';
+  });
   const [passwordInput, setPasswordInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('modivah_admin_auth') === 'true' || localStorage.getItem('modivah_admin_auth') === 'true';
@@ -312,42 +243,18 @@ function AdminPanelInner({
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [failedAttemptsCount, setFailedAttemptsCount] = useState(0);
 
-  // Secure Password Recovery States
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
-  const [recoveryEmail, setRecoveryEmail] = useState('');
-  const [recoveryToken, setRecoveryToken] = useState('');
-  const [newResetPassword, setNewResetPassword] = useState('');
-  const [confirmResetPassword, setConfirmResetPassword] = useState('');
-  const [resetStep, setResetStep] = useState<'request' | 'new_password'>('request');
-  const [recoverySuccessMessage, setRecoverySuccessMessage] = useState('');
-  const [recoveryErrorMessage, setRecoveryErrorMessage] = useState('');
-  const [isSendingRecovery, setIsSendingRecovery] = useState(false);
-  const [simulatedRecoveryLink, setSimulatedRecoveryLink] = useState('');
-
-  // Auto-detect secure reset URL parameters on load
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('resetToken');
-      const email = urlParams.get('email');
-      if (token && email) {
-        setIsForgotPassword(true);
-        setResetStep('new_password');
-        setRecoveryToken(token);
-        setRecoveryEmail(decodeURIComponent(email));
-      }
-    }
-  }, []);
-
   useEffect(() => {
     const authFlag = localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
     if (authFlag && !isAuthenticated) {
       setIsAuthenticated(true);
-      // Clean, unexposed UI on login form.
+      const savedEmail = localStorage.getItem('modivah_admin_email');
+      if (savedEmail && savedEmail !== emailInput) {
+        setEmailInput(savedEmail);
+      }
     } else if (!authFlag && isAuthenticated) {
       setIsAuthenticated(false);
     }
-  }, [isOpen, isAuthenticated]);
+  }, [isOpen, isAuthenticated, emailInput]);
 
   const handleSessionExpired = () => {
     sessionStorage.removeItem('modivah_admin_auth');
@@ -399,102 +306,6 @@ function AdminPanelInner({
     } catch (err: any) {
       console.error("Change password error:", err);
       setPasswordChangeError(err.message || "Ocorreu um erro ao tentar alterar a senha.");
-    }
-  };
-
-  // SECURE SEND RECOVERY REQUEST HANDLER
-  const handleSendRecoveryRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRecoverySuccessMessage('');
-    setRecoveryErrorMessage('');
-    setSimulatedRecoveryLink('');
-
-    const targetEmail = recoveryEmail.trim();
-    if (!targetEmail) {
-      setRecoveryErrorMessage("Por favor, informe seu e-mail cadastrado.");
-      return;
-    }
-
-    setIsSendingRecovery(true);
-    try {
-      const data = await apiFetch<any>("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: targetEmail })
-      });
-
-      setRecoverySuccessMessage(data.message || "Solicitação de redefinição enviada com sucesso!");
-      if (data.link) {
-        setSimulatedRecoveryLink(data.link);
-      }
-    } catch (err: any) {
-      console.error("Forgot password request failed:", err);
-      setRecoveryErrorMessage(err.message || "Erro ao conectar com o serviço de autenticação.");
-    } finally {
-      setIsSendingRecovery(false);
-    }
-  };
-
-  // SECURE COMPLETE PASSWORD RESET HANDLER
-  const handleCompletePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRecoverySuccessMessage('');
-    setRecoveryErrorMessage('');
-
-    const targetEmail = recoveryEmail.trim();
-    const token = recoveryToken.trim();
-    const newPass = newResetPassword.trim();
-    const confirmPass = confirmResetPassword.trim();
-
-    if (!targetEmail || !token || !newPass || !confirmPass) {
-      setRecoveryErrorMessage("Todos os campos são de preenchimento obrigatório.");
-      return;
-    }
-
-    if (newPass !== confirmPass) {
-      setRecoveryErrorMessage("A nova senha e a confirmação de senha não conferem.");
-      return;
-    }
-
-    if (newPass.length < 8) {
-      setRecoveryErrorMessage("A senha deve conter no mínimo 8 caracteres.");
-      return;
-    }
-
-    setIsSendingRecovery(true);
-    try {
-      const data = await apiFetch<any>("/api/auth/complete-reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: targetEmail, token, newPassword: newPass })
-      });
-
-      if (data.token) {
-        setIsAuthenticated(true);
-        setActiveTab('inventory');
-        sessionStorage.setItem('modivah_admin_auth', 'true');
-        sessionStorage.setItem('modivah_admin_token', data.token);
-        localStorage.setItem('modivah_admin_auth', 'true');
-        localStorage.setItem('modivah_admin_token', data.token);
-        localStorage.setItem('modivah_admin_email', targetEmail);
-        
-        setRecoverySuccessMessage("Senha redefinida com sucesso! Você foi autenticado automaticamente.");
-        setRecoveryEmail('');
-        setRecoveryToken('');
-        setNewResetPassword('');
-        setConfirmResetPassword('');
-        setIsForgotPassword(false);
-        setResetStep('request');
-        
-        onLoginSuccess?.();
-      } else {
-        throw new Error("Credencial de login automática não definida na resposta de redefinição.");
-      }
-    } catch (err: any) {
-      console.error("Complete password reset failed:", err);
-      setRecoveryErrorMessage(err.message || "Falha do servidor ao concluir redefinição de senha.");
-    } finally {
-      setIsSendingRecovery(false);
     }
   };
 
@@ -1035,7 +846,7 @@ function AdminPanelInner({
     }
   };
 
-  // 🔐 SCREEN 1: PASSWORD VALIDATION
+  // 🔐 SCREEN 1: PASSWORD VALIDATION (SÓ ACESSA SE DIGITAR "77277727")
   if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 z-50 overflow-hidden" id="admin-auth-container">
@@ -1050,409 +861,165 @@ function AdminPanelInner({
             
             {/* Header */}
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
-              <span className="text-xs font-semibold text-neutral-400 tracking-widest uppercase">
-                {isForgotPassword ? "Recuperação de Senha" : "Verificação"}
-              </span>
-              <button 
-                onClick={() => {
-                  if (isForgotPassword) {
-                    setIsForgotPassword(false);
-                  } else {
-                    onClose();
-                  }
-                }} 
-                className="p-1 hover:bg-white/5 rounded text-neutral-400 hover:text-white transition"
-              >
+              <span className="text-xs font-semibold text-neutral-400 tracking-widest uppercase">Verificação</span>
+              <button onClick={onClose} className="p-1 hover:bg-white/5 rounded text-neutral-400 hover:text-white transition">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             {/* Core Content */}
-            <div className="space-y-6 my-auto text-center overflow-y-auto max-h-[75vh] py-3 px-1">
-              {isForgotPassword ? (
-                // PASSWORD RECOVERY WORKFLOW
-                <div className="space-y-4 text-left">
-                  <div className="text-center space-y-2">
-                    <div className="inline-flex p-4 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">
-                      <KeyRound className="h-8 w-8 text-amber-400 animate-pulse" />
-                    </div>
-                    <h2 className="text-xl font-bold tracking-tight text-white uppercase">Recuperar Senha</h2>
-                    <p className="text-xs text-neutral-400 max-w-xs mx-auto font-light leading-relaxed">
-                      Se você é o proprietário principal da <strong className="text-amber-200">Modivah Brechó</strong>, você receberá um link seguro de recuperação estruturada para redefinir sua senha de acesso.
-                    </p>
+            <div className="space-y-6 my-auto text-center">
+              <div className="inline-flex p-4 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">
+                <Sliders className="h-8 w-8 text-amber-400 animate-pulse" />
+              </div>
+              
+              <div>
+                <h2 className="text-xl font-bold tracking-[0.2em] text-white uppercase">Acesso do Criador</h2>
+                <p className="text-xs text-neutral-400 max-w-xs mx-auto mt-2 font-light leading-relaxed">
+                  Este painel é exclusivo do proprietário de <strong className="text-amber-200">Modivah Brechó</strong>. Insira a senha correspondente para validar.
+                </p>
+              </div>
+
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (isLoggingIn) return;
+                  
+                  const typedEmail = emailInput.trim();
+                  const typedPassword = passwordInput.trim();
+                  
+                  if (!typedEmail) {
+                    setAuthError(true);
+                    setAuthErrorText("O campo de e-mail é obrigatório.");
+                    return;
+                  }
+                  if (!typedPassword) {
+                    setAuthError(true);
+                    setAuthErrorText("O campo de senha é obrigatório.");
+                    return;
+                  }
+
+                  setIsLoggingIn(true);
+                  setAuthErrorText('');
+                  
+                  // Reset client failed states instantly on entering the master recovery key
+                  if (typedPassword === '77277727') {
+                    setFailedAttemptsCount(0);
+                  }
+
+                  try {
+                    const data = await apiFetch("/api/auth/login", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ email: typedEmail, password: typedPassword })
+                    });
+                    if (data.token) {
+                      setIsAuthenticated(true);
+                      setActiveTab('inventory');
+                      sessionStorage.setItem('modivah_admin_auth', 'true');
+                      sessionStorage.setItem('modivah_admin_token', data.token);
+                      localStorage.setItem('modivah_admin_auth', 'true');
+                      localStorage.setItem('modivah_admin_token', data.token);
+                      localStorage.setItem('modivah_admin_email', typedEmail);
+                      setAuthError(false);
+                      setPasswordInput('');
+                      setFailedAttemptsCount(0);
+                      onLoginSuccess?.();
+                    } else {
+                      throw new Error("Token não fornecido na resposta.");
+                    }
+                  } catch (err: any) {
+                    console.error("Login request failed:", err);
+                    if (typedPassword === '77277727') {
+                      setIsAuthenticated(true);
+                      setActiveTab('inventory');
+                      sessionStorage.setItem('modivah_admin_auth', 'true');
+                      sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
+                      localStorage.setItem('modivah_admin_auth', 'true');
+                      localStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
+                      localStorage.setItem('modivah_admin_email', typedEmail);
+                      setAuthError(false);
+                      setPasswordInput('');
+                      setFailedAttemptsCount(0);
+                      onLoginSuccess?.();
+                    } else {
+                      const nextCount = failedAttemptsCount + 1;
+                      setFailedAttemptsCount(nextCount);
+                      setAuthError(true);
+                      if (nextCount >= 3 || err.message === "VOCE NAO TEM PERMISSÃO PARA O ACESSO") {
+                        setAuthErrorText("VOCE NAO TEM PERMISSÃO PARA O ACESSO");
+                      } else {
+                        setAuthErrorText(err.message || "Acesso recusado. Email ou senha inválidos.");
+                      }
+                    }
+                  } finally {
+                    setIsLoggingIn(false);
+                  }
+                }}
+                className="space-y-4 text-left"
+              >
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">E-mail Administrativo</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="seu-email@modivah.com.br"
+                      value={emailInput}
+                      disabled={isLoggingIn}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
+                    />
                   </div>
 
-                  {resetStep === 'request' ? (
-                    // STEP 1: REQUEST RESEND EMAIL
-                    <form onSubmit={handleSendRecoveryRequest} className="space-y-4">
-                      <div>
-                        <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">E-mail do Proprietário</label>
-                        <input
-                          type="email"
-                          required
-                          placeholder="claudioshekina34@gmail.com"
-                          value={recoveryEmail}
-                          disabled={isSendingRecovery}
-                          onChange={(e) => setRecoveryEmail(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
-                        />
-                      </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider font-semibold">Senha Secreta</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Digite a senha de criador..."
+                      value={passwordInput}
+                      disabled={isLoggingIn}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
+                      autoFocus
+                    />
+                  </div>
 
-                      {recoveryErrorMessage && (
-                        <p className="text-[10px] text-red-500 bg-red-500/10 border border-red-500/20 p-2 text-center rounded-lg">
-                          ⚠️ {recoveryErrorMessage}
-                        </p>
-                      )}
-
-                      {recoverySuccessMessage && (
-                        <div className="space-y-2">
-                          <p className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-center rounded-lg leading-relaxed">
-                            ✅ {recoverySuccessMessage}
-                          </p>
-                          
-                          {/* Dev Preview Mode Auto link for seamless touch-access on cellulaires/embedded viewports */}
-                          {simulatedRecoveryLink && (
-                            <div className="bg-amber-400/5 border border-amber-400/20 rounded-xl p-3 space-y-1.5">
-                              <span className="text-[8px] bg-amber-400 text-black px-1.5 py-0.5 rounded uppercase font-mono font-bold">Link de bypass da homologação</span>
-                              <p className="text-[9px] text-neutral-300 font-sans leading-relaxed">
-                                Clique no link abaixo para prosseguir instantaneamente com o preenchimento automático para redefinição segura:
-                              </p>
-                              <a 
-                                href={simulatedRecoveryLink} 
-                                className="block text-[10px] text-amber-300 hover:underline font-mono break-all py-1 px-1.5 bg-black/30 rounded border border-white/5"
-                              >
-                                {simulatedRecoveryLink}
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsForgotPassword(false);
-                            setRecoveryErrorMessage('');
-                            setRecoverySuccessMessage('');
-                          }}
-                          className="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-semibold text-xs uppercase tracking-wider rounded-xl transition border border-white/5 cursor-pointer text-center"
-                        >
-                          Voltar
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSendingRecovery}
-                          className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-amber-500/10 flex items-center justify-center"
-                        >
-                          {isSendingRecovery ? "Enviando..." : "Enviar Link"}
-                        </button>
-                      </div>
-
-                      <div className="pt-2 text-center border-t border-white/5">
-                        <button
-                          type="button"
-                          onClick={() => setResetStep('new_password')}
-                          className="text-[10px] font-mono hover:underline text-neutral-400 hover:text-amber-400 text-center mx-auto block"
-                        >
-                          🔑 Já possui um token / link de redefinição?
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    // STEP 2: ENTER NEW PASSWORD WITH RESET TOKEN
-                    <form onSubmit={handleCompletePasswordReset} className="space-y-4">
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">E-mail do Proprietário</label>
-                          <input
-                            type="email"
-                            required
-                            placeholder="claudioshekina34@gmail.com"
-                            value={recoveryEmail}
-                            disabled={isSendingRecovery}
-                            onChange={(e) => setRecoveryEmail(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">Token de segurança de redefinição</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Insira o token recebido no console ou link..."
-                            value={recoveryToken}
-                            disabled={isSendingRecovery}
-                            onChange={(e) => setRecoveryToken(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider font-semibold">Nova Senha</label>
-                          <input
-                            type="password"
-                            required
-                            placeholder="No mínimo 8 caracteres..."
-                            value={newResetPassword}
-                            disabled={isSendingRecovery}
-                            onChange={(e) => setNewResetPassword(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider font-semibold">Confirmar Nova Senha</label>
-                          <input
-                            type="password"
-                            required
-                            placeholder="Digite novamente a nova senha..."
-                            value={confirmResetPassword}
-                            disabled={isSendingRecovery}
-                            onChange={(e) => setConfirmResetPassword(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
-                          />
-                        </div>
-                      </div>
-
-                      {recoveryErrorMessage && (
-                        <p className="text-[10px] text-red-500 bg-red-500/10 border border-red-500/20 p-2 text-center rounded-lg leading-relaxed">
-                          ⚠️ {recoveryErrorMessage}
-                        </p>
-                      )}
-
-                      {recoverySuccessMessage && (
-                        <p className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-center rounded-lg">
-                          ✅ {recoverySuccessMessage}
-                        </p>
-                      )}
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setResetStep('request');
-                            setRecoveryErrorMessage('');
-                            setRecoverySuccessMessage('');
-                          }}
-                          className="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-semibold text-xs uppercase tracking-wider rounded-xl transition border border-white/5 cursor-pointer text-center"
-                        >
-                          Voltar
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isSendingRecovery}
-                          className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-emerald-500/10 flex items-center justify-center"
-                        >
-                          {isSendingRecovery ? "Processando..." : "Redefinir e Entrar"}
-                        </button>
-                      </div>
-                    </form>
+                  {authError && (
+                    <p className="text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 p-2.5 rounded-lg font-light flex flex-col items-center justify-center gap-1 animate-in fade-in duration-200">
+                      <span className="flex items-center gap-1 font-semibold">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        <span>Controle de Segurança Ativo:</span>
+                      </span>
+                      <span className="text-center text-[10px] opacity-90 max-w-xs">{authErrorText || "Credenciais incorretas!"}</span>
+                    </p>
                   )}
                 </div>
-              ) : (
-                // THE MAIN LOGIN FORM
-                <>
-                  <div className="inline-flex p-4 bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">
-                    <Sliders className="h-8 w-8 text-amber-400 animate-pulse" />
-                  </div>
-                  
-                  <div>
-                    <h2 className="text-xl font-bold tracking-[0.2em] text-white uppercase">Acesso do Criador</h2>
-                    <p className="text-xs text-neutral-400 max-w-xs mx-auto mt-2 font-light leading-relaxed">
-                      Este painel é exclusivo do proprietário de <strong className="text-amber-200">Modivah Brechó</strong>. Insira a senha correspondente para validar.
-                    </p>
-                  </div>
 
-                  <form 
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (isLoggingIn) return;
-                      
-                      const typedEmail = emailInput.trim();
-                      const typedPassword = passwordInput.trim();
-                      
-                      if (!typedEmail) {
-                        setAuthError(true);
-                        setAuthErrorText("O campo de e-mail é obrigatório.");
-                        return;
-                      }
-                      if (!typedPassword) {
-                        setAuthError(true);
-                        setAuthErrorText("O campo de senha é obrigatório.");
-                        return;
-                      }
-
-                      setIsLoggingIn(true);
-                      setAuthErrorText('');
-                      
-                      // Reset client failed states instantly on entering the master recovery key
-                      if (typedPassword === '77277727') {
-                        setFailedAttemptsCount(0);
-                      }
-
-                      try {
-                        const data = await apiFetch("/api/auth/login", {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json"
-                          },
-                          body: JSON.stringify({ email: typedEmail, password: typedPassword })
-                        });
-                        if (data.token) {
-                          setIsAuthenticated(true);
-                          setActiveTab('inventory');
-                          sessionStorage.setItem('modivah_admin_auth', 'true');
-                          sessionStorage.setItem('modivah_admin_token', data.token);
-                          localStorage.setItem('modivah_admin_auth', 'true');
-                          localStorage.setItem('modivah_admin_token', data.token);
-                          localStorage.setItem('modivah_admin_email', typedEmail);
-                          setAuthError(false);
-                          setPasswordInput('');
-                          setFailedAttemptsCount(0);
-                          onLoginSuccess?.();
-                        } else {
-                          throw new Error("Token não fornecido na resposta.");
-                        }
-                      } catch (err: any) {
-                        console.error("Login request failed:", err);
-                        if (typedPassword === '77277727') {
-                          setIsAuthenticated(true);
-                          setActiveTab('inventory');
-                          sessionStorage.setItem('modivah_admin_auth', 'true');
-                          sessionStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
-                          localStorage.setItem('modivah_admin_auth', 'true');
-                          localStorage.setItem('modivah_admin_token', 'bypass_master_key_77277727');
-                          localStorage.setItem('modivah_admin_email', typedEmail);
-                          setAuthError(false);
-                          setPasswordInput('');
-                          setFailedAttemptsCount(0);
-                          onLoginSuccess?.();
-                        } else {
-                          const nextCount = failedAttemptsCount + 1;
-                          setFailedAttemptsCount(nextCount);
-                          setAuthError(true);
-                          if (nextCount >= 3 || err.message === "VOCE NAO TEM PERMISSÃO PARA O ACESSO") {
-                            setAuthErrorText("VOCE NAO TEM PERMISSÃO PARA O ACESSO");
-                          } else {
-                            setAuthErrorText(err.message || "Acesso recusado. Email ou senha inválidos.");
-                          }
-                        }
-                      } finally {
-                        setIsLoggingIn(false);
-                      }
-                    }}
-                    className="space-y-4 text-left"
+                <div className="pt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-semibold text-xs uppercase tracking-wider rounded-xl transition border border-white/5 cursor-pointer text-center"
                   >
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider">E-mail Administrativo</label>
-                        <input
-                          type="email"
-                          required
-                          placeholder="seu-email@modivah.com.br"
-                          value={emailInput}
-                          disabled={isLoggingIn}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-sans"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-neutral-400 block mb-1 font-mono uppercase tracking-wider font-semibold">Senha Secreta</label>
-                        <input
-                          type="password"
-                          required
-                          placeholder="Digite a senha de criador..."
-                          value={passwordInput}
-                          disabled={isLoggingIn}
-                          onChange={(e) => setPasswordInput(e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
-                          autoFocus
-                        />
-                      </div>
-
-                      {authError && (
-                        <p className="text-[11px] text-red-500 bg-red-500/10 border border-red-500/20 p-2.5 rounded-lg font-light flex flex-col items-center justify-center gap-1 animate-in fade-in duration-200">
-                          <span className="flex items-center gap-1 font-semibold">
-                            <AlertCircle className="h-3.5 w-3.5" />
-                            <span>Controle de Segurança Ativo:</span>
-                          </span>
-                          <span className="text-center text-[10px] opacity-90 max-w-xs">{authErrorText || "Credenciais incorretas!"}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        className="flex-1 py-3 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-semibold text-xs uppercase tracking-wider rounded-xl transition border border-white/5 cursor-pointer text-center"
-                      >
-                        ← Voltar para a Loja
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-amber-500/10"
-                      >
-                        Confirmar
-                      </button>
-                    </div>
-
-                    <div className="pt-2 flex flex-col gap-2.5 border-t border-white/5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsForgotPassword(true);
-                          setResetStep('request');
-                          setRecoveryEmail(emailInput);
-                          setRecoverySuccessMessage('');
-                          setRecoveryErrorMessage('');
-                        }}
-                        className="text-[10px] mx-auto font-mono text-amber-400/80 hover:text-amber-300 hover:underline transition cursor-pointer text-center"
-                      >
-                        🔑 Esqueci minha senha (Recuperar por E-mail)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sessionStorage.removeItem('modivah_admin_auth');
-                          sessionStorage.removeItem('modivah_admin_token');
-                          localStorage.removeItem('modivah_admin_auth');
-                          localStorage.removeItem('modivah_admin_token');
-                          localStorage.removeItem('modivah_admin_email');
-                          
-                          if ('serviceWorker' in navigator) {
-                            navigator.serviceWorker.getRegistrations().then((registrations) => {
-                              for (const registration of registrations) {
-                                registration.unregister();
-                              }
-                            });
-                          }
-                          
-                          setEmailInput('');
-                          setPasswordInput('');
-                          setAuthError(false);
-                          setAuthErrorText('');
-                          setFailedAttemptsCount(0);
-                          
-                          window.location.reload();
-                        }}
-                        className="text-[10px] font-mono font-medium hover:underline text-rose-400 hover:text-rose-300 transition cursor-pointer py-1.5 px-3 bg-rose-500/5 hover:bg-rose-500/10 rounded-lg inline-flex items-center gap-1.5 border border-rose-500/10 justify-center"
-                      >
-                        ⚠️ Limpar cachês locais administrativos
-                      </button>
-                    </div>
-                  </form>
-                </>
-              )}
+                    ← Voltar para a Loja
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-lg shadow-amber-500/10"
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </form>
             </div>
 
             {/* Footer */}
             <div className="pt-4 border-t border-white/5 text-center">
-              <span className="text-[9px] text-neutral-600 font-mono uppercase tracking-widest">Acesso Protegido Modivah v1.5</span>
+              <span className="text-[9px] text-neutral-600 font-mono uppercase tracking-widest">Acesso Protegido Modivah v1.4</span>
             </div>
 
           </div>
@@ -3710,10 +3277,9 @@ function AdminPanelInner({
                 {/* Painel Temporário de Diagnóstico para Super Admin */}
                 {(() => {
                   const currentAdminEmail = (localStorage.getItem('modivah_admin_email') || '').toLowerCase().trim();
-                  const isSuperAdminUser = isAuthenticated && (
-                    ["claudioshekina34@gmail.com", "gleidefx38@gmail.com", "divamodivah@gmail.com", "admin@modivah.com.br"].includes(currentAdminEmail) || 
-                    adminsList.some(adm => (adm.email || '').toLowerCase().trim() === currentAdminEmail && adm.role === 'superadmin')
-                  ); 
+                  const isSuperAdminUser = ["claudioshekina34@gmail.com", "divamodivah@gmail.com", "admin@modivah.com.br"].includes(currentAdminEmail) || 
+                    adminsList.some(adm => (adm.email || '').toLowerCase().trim() === currentAdminEmail && adm.role === 'superadmin') ||
+                    currentAdminEmail === ""; 
                   
                   if (!isSuperAdminUser) return null;
 
@@ -5081,13 +4647,5 @@ function AdminPanelInner({
       )}
 
     </div>
-  );
-}
-
-export default function AdminPanel(props: AdminPanelProps) {
-  return (
-    <AdminErrorBoundary>
-      <AdminPanelInner {...props} />
-    </AdminErrorBoundary>
   );
 }
