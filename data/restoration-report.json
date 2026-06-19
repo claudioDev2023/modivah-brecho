@@ -1,16 +1,15 @@
 {
-  "status": "success",
-  "timestamp": "2026-06-19T06:12:00-07:00",
-  "message": "Acervo real da MODIVAH restaurado com sucesso diretamente do Firestore.",
+  "status": "failed",
+  "timestamp": "2026-06-18T18:19:07-07:00",
+  "message": "Não foi encontrada fonte real para restauração fiel.",
   "details": {
-    "firestore_status": "Coleção 'products' lida com sucesso.",
-    "anuncios_encontrados_firestore": 77,
-    "anuncios_enviados_api_publica": 77,
-    "anuncios_exibidos_vitrine": 77,
+    "firestore_status": "Quota limit exceeded (Free daily read units per project exhausted).",
     "local_backups_scanned": [
-      "Firestore Collection products",
-      "/data/restoration-report.json"
+      "/data/secure-settings.json",
+      "src/data/initialProducts.ts",
+      "src/data/fullMockAcervo.ts"
     ],
-    "action": "Vitrine configurada para renderizar os 77 anúncios reais sem nenhum limite artificial ou cache obsoleto."
+    "git_repository": "Not found / not initialized.",
+    "action": "Cleared all demonstrative/fictitious products and suspended automatic generation routines as requested. Storefront configured to display official notice."
   }
 }
