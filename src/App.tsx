@@ -120,8 +120,6 @@ export default function App() {
     return localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
   });
 
-  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
-
   const [currentClient, setCurrentClient] = useState<any | null>(() => {
     try {
       const cached = localStorage.getItem('modivah_client_data');
@@ -247,8 +245,12 @@ export default function App() {
           localStorage.removeItem('modivah_client_data');
         }
         
-        // Do NOT clean up modivah_admin_auth session here, because admin
-        // authentication is custom JWT-based and independent of client Firebase Auth states.
+        // Se deslogou completamente, removemos permissão de admin
+        setIsAdminMode(false);
+        localStorage.removeItem('modivah_admin_auth');
+        sessionStorage.removeItem('modivah_admin_auth');
+        localStorage.removeItem('modivah_admin_token');
+        sessionStorage.removeItem('modivah_admin_token');
       }
       setIsClientAuthLoading(false);
     });
@@ -283,13 +285,9 @@ export default function App() {
   // Synchronize route and administrator drawer state on mount/popstate
   useEffect(() => {
     const handleUrlPath = () => {
-      const path = window.location.pathname;
-      setCurrentPath(path);
-      const isAdminPath = path === '/admin' || path.startsWith('/admin/');
+      const isAdminPath = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
       if (isAdminPath) {
         setIsAdminOpen(true);
-      } else {
-        setIsAdminOpen(false);
       }
     };
     
@@ -302,7 +300,6 @@ export default function App() {
     setIsAdminOpen(false);
     if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) {
       window.history.pushState({}, '', '/');
-      setCurrentPath('/');
     }
   }, []);
 
@@ -311,17 +308,7 @@ export default function App() {
     setIsAdminMode(true);
     if (window.location.pathname !== '/admin') {
       window.history.pushState({}, '', '/admin');
-      setCurrentPath('/admin');
     }
-  }, []);
-
-  const handleLoginSuccess = useCallback(() => {
-    setIsAdminMode(true);
-    setIsAdminOpen(true);
-    if (window.location.pathname !== '/admin') {
-      window.history.pushState({}, '', '/admin');
-    }
-    setCurrentPath('/admin');
   }, []);
 
   // Track product activities in Firestore behavioral database
@@ -1215,7 +1202,7 @@ export default function App() {
   }
 
   // Mandatory Admin-Only check for /admin path
-  const isUrlPathAdmin = currentPath === '/admin' || currentPath.startsWith('/admin/');
+  const isUrlPathAdmin = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
   const isCurrentlyAdmin = isAdminMode || localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
 
   if (isUrlPathAdmin && !isCurrentlyAdmin) {
@@ -1237,7 +1224,6 @@ export default function App() {
             onSyncToFirestore={handleSyncToFirestore}
             onRestoreCategories={handleRestoreCategories}
             isQuotaExceeded={isQuotaExceeded}
-            onLoginSuccess={handleLoginSuccess}
           />
         </Suspense>
       </div>
@@ -1687,7 +1673,6 @@ export default function App() {
           onSyncToFirestore={handleSyncToFirestore}
           onRestoreCategories={handleRestoreCategories}
           isQuotaExceeded={isQuotaExceeded}
-          onLoginSuccess={handleLoginSuccess}
         />
       </Suspense>
 
