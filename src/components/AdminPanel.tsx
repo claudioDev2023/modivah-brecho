@@ -7,7 +7,7 @@ import {
   EyeOff, ArrowUp, ArrowDown, Shirt, Grid, Footprints, Gem, Award, Briefcase, Tag,
   KeyRound
 } from 'lucide-react';
-import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product, Category } from '../types';
 import { FULL_MOCK_ACERVO } from '../data/fullMockAcervo';
@@ -1035,751 +1035,6 @@ function AdminPanelInner({
     }
   };
 
-
-
-  // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
-  const [activeTab, setActiveTab ] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes' | 'admins' | 'categories' | 'backup'>('inventory');
-  
-  // Category Admin Management States
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [catName, setCatName] = useState('');
-  const [catImage, setCatImage] = useState('');
-  const [catIcon, setCatIcon] = useState('Shirt');
-  const [catColor, setCatColor] = useState('#FF4F93');
-  const [catOrder, setCatOrder] = useState<number>(0);
-  const [catActive, setCatActive] = useState(true);
-  const [categoryActionError, setCategoryActionError] = useState<string | null>(null);
-  const [categoryActionSuccess, setCategoryActionSuccess] = useState<string | null>(null);
-
-  // For delete category product relocation request dialog
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
-  const [linkedProductsCount, setLinkedProductsCount] = useState<number>(0);
-  const [showDeletionDialog, setShowDeletionDialog] = useState(false);
-  const [relocateOption, setRelocateOption] = useState<'move' | 'none'>('none');
-  const [targetCategoryId, setTargetCategoryId] = useState<string>('');
-
-  // Save or update Category
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCategoryActionError(null);
-    setCategoryActionSuccess(null);
-
-    if (!catName.trim()) {
-      setCategoryActionError("O nome da categoria é obrigatório.");
-      return;
-    }
-
-    try {
-      const catId = editingCategory ? editingCategory.id : `cat-${Date.now()}`;
-      
-      // Auto assign next position if not manually selected
-      let finalOrder = catOrder;
-      if (!editingCategory && !catOrder) {
-        finalOrder = categoriesList.length > 0 
-          ? Math.max(...categoriesList.map(c => c.order || 0)) + 1 
-          : 1;
-      }
-
-      const payload: Category = {
-        id: catId,
-        name: catName.trim(),
-        image: catImage.trim() || undefined,
-        icon: catIcon,
-        color: catColor,
-        order: Number(finalOrder) || 1,
-        active: editingCategory ? editingCategory.active : catActive
-      };
-
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/save-category', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao comunicar com o servidor para salvar categoria.');
-      }
-      
-      setCategoryActionSuccess(editingCategory ? "Categoria atualizada com sucesso!" : "Categoria criada com sucesso!");
-      
-      // Reset form
-      setEditingCategory(null);
-      setCatName('');
-      setCatImage('');
-      setCatIcon('Shirt');
-      setCatColor('#FF4F93');
-      setCatOrder(0);
-      setCatActive(true);
-    } catch (err: any) {
-      setCategoryActionError(`Erro ao salvar categoria: ${err.message || err}`);
-    }
-  };
-
-  // Reordering categories
-  const handleMoveCategory = async (category: Category, direction: 'up' | 'down') => {
-    if (!categoriesList || categoriesList.length === 0) return;
-    const index = categoriesList.findIndex(c => c.id === category.id);
-    if (index === -1) return;
-
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= categoriesList.length) return; // Out of bounds
-
-    const targetCategory = categoriesList[targetIndex];
-
-    try {
-      const currentOrder = category.order || 0;
-      const targetOrder = targetCategory.order || 0;
-
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      
-      const res1 = await fetch('/api/admin/update-category-field', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: category.id, updatePayload: { order: targetOrder } })
-      });
-
-      const res2 = await fetch('/api/admin/update-category-field', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: targetCategory.id, updatePayload: { order: currentOrder } })
-      });
-
-      if (!res1.ok || !res2.ok) {
-        throw new Error('Erro ao reordenar categoria no servidor.');
-      }
-    } catch (err: any) {
-      console.error("Erro ao reordenar categoria:", err);
-    }
-  };
-
-  // Toggle category active state
-  const handleToggleCategoryActive = async (category: Category) => {
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/update-category-field', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: category.id, updatePayload: { active: !category.active } })
-      });
-      if (!res.ok) {
-        throw new Error('Falha ao desativar/reativar no servidor.');
-      }
-    } catch (err: any) {
-      console.error("Erro ao alterar status da categoria:", err);
-    }
-  };
-
-  // Check before deletion
-  const handleDeleteCategoryPrompt = async (category: Category) => {
-    const linked = products.filter(p => (p.category || '').toLowerCase() === category.name.toLowerCase());
-    setCategoryToDelete(category);
-    setLinkedProductsCount(linked.length);
-    setRelocateOption('none');
-    
-    const otherCats = (categoriesList || []).filter(c => c.id !== category.id);
-    if (otherCats.length > 0) {
-      setTargetCategoryId(otherCats[0].id);
-    } else {
-      setTargetCategoryId('');
-    }
-
-    if (linked.length > 0) {
-      setShowDeletionDialog(true);
-    } else {
-      if (confirm(`Deseja realmente excluir a categoria "${category.name}"?`)) {
-        try {
-          const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-          const res = await fetch('/api/admin/delete-category', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ id: category.id })
-          });
-          const data = await res.json();
-          if (res.ok) {
-            setCategoryActionSuccess("Categoria excluída com sucesso!");
-          } else {
-            throw new Error(data.error || "Erro ao excluir no servidor.");
-          }
-        } catch (err: any) {
-          setCategoryActionError(`Erro ao excluir: ${err.message || err}`);
-        }
-      }
-    }
-  };
-
-  // Confirm delete with relocation logic
-  const handleConfirmDeleteCategory = async () => {
-    if (!categoryToDelete) return;
-    setCategoryActionError(null);
-    setCategoryActionSuccess(null);
-
-    try {
-      const linked = products.filter(p => (p.category || '').toLowerCase() === categoryToDelete.name.toLowerCase());
-      
-      if (linked.length > 0) {
-        if (relocateOption === 'move') {
-          const targetCat = (categoriesList || []).find(c => c.id === targetCategoryId);
-          if (!targetCat) {
-            setCategoryActionError("Categoria destino inválida para mover.");
-            return;
-          }
-          
-          for (const p of linked) {
-            await updateDoc(doc(db, 'products', p.id), { category: targetCat.name });
-            onUpdateProduct({ ...p, category: targetCat.name });
-          }
-        } else {
-          for (const p of linked) {
-            await updateDoc(doc(db, 'products', p.id), { category: "Sem Categoria" });
-            onUpdateProduct({ ...p, category: "Sem Categoria" });
-          }
-        }
-      }
-
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const res = await fetch('/api/admin/delete-category', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id: categoryToDelete.id })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Erro ao excluir categoria no servidor.");
-      }
-
-      setCategoryActionSuccess(`Categoria "${categoryToDelete.name}" excluída com sucesso!`);
-      setShowDeletionDialog(false);
-      setCategoryToDelete(null);
-    } catch (err: any) {
-      setCategoryActionError(`Erro durante exclusão: ${err.message || err}`);
-    }
-  };
-
-  const handleStartEditCategory = (category: Category) => {
-    setEditingCategory(category);
-    setCatName(category.name);
-    setCatImage(category.image || '');
-    setCatIcon(category.icon || 'Shirt');
-    setCatColor(category.color || '#FF4F93');
-    setCatOrder(category.order);
-    setCatActive(category.active);
-  };
-
-  useEffect(() => {
-    if (categoriesList && categoriesList.length > 0 && category === 'Vestidos' && !categoriesList.some(c => c.name === 'Vestidos')) {
-      setCategory(categoriesList[0].name);
-    }
-  }, [categoriesList, category]);
-  
-  // Administrators Management States
-  const [adminsList, setAdminsList] = useState<any[]>([]);
-  const [loadingAdmins, setLoadingAdmins] = useState(false);
-  const [adminEmailInput, setAdminEmailInput] = useState('');
-  const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const [adminNameInput, setAdminNameInput] = useState('');
-  const [adminRoleInput, setAdminRoleInput] = useState('admin');
-  const [adminActionError, setAdminActionError] = useState<string | null>(null);
-  const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
-  const [diagnosticsLogs, setDiagnosticsLogs] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setDiagnosticsLogs(window._adminApiDiagnostics || []);
-      const handleLogsUpdate = () => {
-        setDiagnosticsLogs([...(window._adminApiDiagnostics || [])]);
-      };
-      window.addEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
-      return () => {
-        window.removeEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
-      };
-    }
-  }, []);
-
-  const fetchAdmins = async (force: boolean = false) => {
-    const cacheKey = "admin_cache_list_admins";
-    const cacheTTL = 30 * 60 * 1000; // 30 minutes
-    
-    if (!force) {
-      try {
-        const cachedStr = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
-        if (cachedStr) {
-          const cached = JSON.parse(cachedStr);
-          const age = Date.now() - cached.timestamp;
-          if (age < cacheTTL) {
-            console.log("[CLIENT CACHE] Loaded list-admins from cache");
-            setAdminsList(cached.data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("Error reading list-admins client cache:", err);
-      }
-    }
-
-    setLoadingAdmins(true);
-    setAdminActionError(null);
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/list-admins', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const admins = data.admins || [];
-      setAdminsList(admins);
-      
-      try {
-        const cacheObj = { data: admins, timestamp: Date.now() };
-        const cacheStr = JSON.stringify(cacheObj);
-        sessionStorage.setItem(cacheKey, cacheStr);
-        localStorage.setItem(cacheKey, cacheStr);
-      } catch (e) {}
-    } catch (err: any) {
-      console.error("[fetchAdmins failure]", err);
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      } else {
-        setAdminActionError(`Falha na comunicação com o servidor: ${msg}`);
-      }
-    } finally {
-      setLoadingAdmins(false);
-    }
-  };
-
-  // Pending Administrator Requests States & APIs
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-  const [loadingRequests, setLoadingRequests] = useState(false);
-
-  const fetchPendingRequests = async (force: boolean = false) => {
-    const cacheKey = "admin_cache_pending_requests";
-    const cacheTTL = 10 * 60 * 1000; // 10 minutes
-    
-    if (!force) {
-      try {
-        const cachedStr = sessionStorage.getItem(cacheKey) || localStorage.getItem(cacheKey);
-        if (cachedStr) {
-          const cached = JSON.parse(cachedStr);
-          const age = Date.now() - cached.timestamp;
-          if (age < cacheTTL) {
-            console.log("[CLIENT CACHE] Loaded pending-requests from cache");
-            setPendingRequests(cached.data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("Error reading pending-requests client cache:", err);
-      }
-    }
-
-    setLoadingRequests(true);
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/pending-requests', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (data.success) {
-        const requests = data.requests || [];
-        setPendingRequests(requests);
-        
-        try {
-          const cacheObj = { data: requests, timestamp: Date.now() };
-          const cacheStr = JSON.stringify(cacheObj);
-          sessionStorage.setItem(cacheKey, cacheStr);
-          localStorage.setItem(cacheKey, cacheStr);
-        } catch (e) {}
-      }
-    } catch (err: any) {
-      console.error("Error fetching pending requests:", err);
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      }
-    } finally {
-      setLoadingRequests(false);
-    }
-  };
-
-  const handleApproveRequest = async (clientId: string) => {
-    setAdminActionError(null);
-    setAdminActionSuccess(null);
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/approve-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ clientId })
-      });
-      if (data.success) {
-        setAdminActionSuccess(data.message || "Solicitação de administrador aprovada com sucesso!");
-        fetchPendingRequests(true);
-        fetchAdmins(true);
-      } else {
-        setAdminActionError(data.error || "Erro ao aprovar solicitação.");
-      }
-    } catch (err: any) {
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      } else {
-        setAdminActionError(msg);
-      }
-    }
-  };
-
-  const handleRejectRequest = async (clientId: string) => {
-    setAdminActionError(null);
-    setAdminActionSuccess(null);
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/reject-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ clientId })
-      });
-      if (data.success) {
-        setAdminActionSuccess(data.message || "Solicitação rejeitada com sucesso.");
-        fetchPendingRequests(true);
-      } else {
-        setAdminActionError(data.error || "Erro ao rejeitar solicitação.");
-      }
-    } catch (err: any) {
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      } else {
-        setAdminActionError(msg);
-      }
-    }
-  };
-
-  const handleAddAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdminActionError(null);
-    setAdminActionSuccess(null);
-
-    const emailTrimmed = adminEmailInput.trim().toLowerCase();
-    const nameTrimmed = adminNameInput.trim();
-    const passTrimmed = adminPasswordInput;
-
-    const isEditingExisting = adminsList.some(adm => (adm.email || '').toLowerCase() === emailTrimmed);
-
-    if (!emailTrimmed || !nameTrimmed || (!isEditingExisting && !passTrimmed)) {
-      setAdminActionError('Por favor, preencha todos os campos obrigatórios.');
-      return;
-    }
-
-    if (passTrimmed && passTrimmed.length < 6) {
-      setAdminActionError('A senha do novo administrador deve conter pelo menos 6 caracteres.');
-      return;
-    }
-
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/add-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          email: emailTrimmed,
-          password: passTrimmed,
-          name: nameTrimmed,
-          role: adminRoleInput
-        })
-      });
-
-      setAdminActionSuccess(data.message || `Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
-      setAdminEmailInput('');
-      setAdminPasswordInput('');
-      setAdminNameInput('');
-      setAdminRoleInput('admin');
-      fetchAdmins(true);
-    } catch (err: any) {
-      console.error("[handleAddAdmin failure]", err);
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      } else {
-        setAdminActionError(`Falha na comunicação/registro com o servidor: ${msg}`);
-      }
-    }
-  };
-
-  const handleDeleteAdmin = async (id: string, email: string) => {
-    if (!window.confirm(`Tem certeza que deseja revogar de forma definitiva o acesso de ${email}?`)) {
-      return;
-    }
-
-    setAdminActionError(null);
-    setAdminActionSuccess(null);
-
-    try {
-      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
-      const data = await apiFetch<any>('/api/admin/delete-admin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ id, email })
-      });
-
-      alert(`Acesso revogado com sucesso para ${email}!`);
-      setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
-      fetchAdmins(true);
-    } catch (err: any) {
-      const msg = err.message || String(err);
-      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
-        handleSessionExpired();
-      } else {
-        alert(`Erro: ${msg || 'Não foi possível revogar o privilégio administrativo.'}`);
-        setAdminActionError(msg || 'Erro ao revogar acesso administrativo.');
-      }
-    }
-  };
-
-  // 5-minute general caching for administrative collections
-  const GENERAL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-  const activeFetchPromises = useRef<{ [key: string]: Promise<any> | null }>({});
-
-  const fetchCollectionData = async (
-    collectionName: string, 
-    setter: (data: any[]) => void, 
-    force: boolean = false
-  ) => {
-    const cacheKey = `admin_cache_${collectionName}`;
-    
-    if (!force) {
-      try {
-        const cachedStr = sessionStorage.getItem(cacheKey);
-        if (cachedStr) {
-          const cached = JSON.parse(cachedStr);
-          if (Date.now() - cached.timestamp < GENERAL_CACHE_TTL) {
-            console.log(`[CLIENT CACHE] Loaded ${collectionName} from 5-minute cache`);
-            setter(cached.data);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn(`Error loading cache for ${collectionName}:`, err);
-      }
-    }
-
-    // Deduplicate concurrent calls to the exact same collection
-    if (activeFetchPromises.current[collectionName]) {
-      console.log(`[DEDUPLICATOR] Deduping concurrent fetch for ${collectionName}`);
-      const data = await activeFetchPromises.current[collectionName];
-      if (data) setter(data);
-      return;
-    }
-
-    // Capture the fetch promise
-    const fetchPromise = (async () => {
-      try {
-        let ref = collection(db, collectionName);
-        let q = query(ref);
-        
-        const snap = await getDocs(q);
-        const list: any[] = [];
-        snap.forEach(d => {
-          list.push(d.data());
-        });
-
-        // Specific sorting logic
-        if (collectionName === "orders" || collectionName === "cart_recovery" || collectionName === "activities" || collectionName === "stock_movements") {
-          list.sort((a, b) => {
-            try {
-              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-            } catch {
-              return 0;
-            }
-          });
-        }
-
-        // Cache the result
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({
-            data: list,
-            timestamp: Date.now()
-          }));
-        } catch (e) {}
-
-        return list;
-      } catch (err) {
-        console.error(`Error loading collection ${collectionName}:`, err);
-        return null;
-      }
-    })();
-
-    activeFetchPromises.current[collectionName] = fetchPromise;
-
-    try {
-      const result = await fetchPromise;
-      if (result !== null) {
-        setter(result);
-      }
-    } finally {
-      activeFetchPromises.current[collectionName] = null;
-    }
-  };
-
-  // Lazy load data based on the active tab, avoiding high read loops and heavy initial loads
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    if (activeTab === 'inventory') {
-      fetchCollectionData("stock_movements", setStockMovementsList);
-    } else if (activeTab === 'analytics') {
-      fetchCollectionData("orders", (list) => {
-        setOrdersList(list);
-        isInitialOrdersLoad.current = false;
-      });
-      fetchCollectionData("clients", setClientsList);
-      fetchCollectionData("cart_recovery", setRecoveriesList);
-    } else if (activeTab === 'reports') {
-      fetchCollectionData("orders", (list) => {
-        setOrdersList(list);
-        isInitialOrdersLoad.current = false;
-      });
-      fetchCollectionData("clients", setClientsList);
-      fetchCollectionData("activities", setActivitiesList);
-    } else if (activeTab === 'comprovantes') {
-      fetchCollectionData("orders", (list) => {
-        setOrdersList(list);
-        isInitialOrdersLoad.current = false;
-      });
-    } else if (activeTab === 'admins') {
-      fetchAdmins();
-      fetchPendingRequests();
-    }
-  }, [activeTab, isAuthenticated]);
-
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-  const [lowStockLimit, setLowStockLimit] = useState<number>(() => {
-    return Number(localStorage.getItem('modivah_low_stock_limit')) || 2;
-  });
-  const [clientsList, setClientsList] = useState<any[]>([]);
-  const [ordersList, setOrdersList] = useState<any[]>([]);
-  const [newOrderToast, setNewOrderToast] = useState<{ id: string; clientName: string; total: number; visible: boolean } | null>(null);
-  const isInitialOrdersLoad = useRef(true);
-  const [recoveriesList, setRecoveriesList] = useState<any[]>([]);
-  const [activitiesList, setActivitiesList] = useState<any[]>([]);
-  const [stockMovementsList, setStockMovementsList] = useState<any[]>([]);
-
-  const [refreshingAll, setRefreshingAll] = useState(false);
-
-  const handleManualRefresh = async () => {
-    setRefreshingAll(true);
-    try {
-      console.log("[MANUAL REFRESH] Clearing caches and updating data...");
-      // Clear clients cache
-      sessionStorage.removeItem("admin_cache_list_admins");
-      localStorage.removeItem("admin_cache_list_admins");
-      sessionStorage.removeItem("admin_cache_pending_requests");
-      localStorage.removeItem("admin_cache_pending_requests");
-      
-      // Clear other collection caches
-      sessionStorage.removeItem("admin_cache_clients");
-      sessionStorage.removeItem("admin_cache_orders");
-      sessionStorage.removeItem("admin_cache_cart_recovery");
-      sessionStorage.removeItem("admin_cache_activities");
-      sessionStorage.removeItem("admin_cache_stock_movements");
-
-      // Re-fetch all data bypassing caches
-      await Promise.all([
-        fetchAdmins(true),
-        fetchPendingRequests(true),
-        fetchCollectionData("clients", setClientsList, true),
-        fetchCollectionData("orders", (list) => {
-          setOrdersList(list);
-          isInitialOrdersLoad.current = false;
-        }, true),
-        fetchCollectionData("cart_recovery", setRecoveriesList, true),
-        fetchCollectionData("activities", setActivitiesList, true),
-        fetchCollectionData("stock_movements", setStockMovementsList, true)
-      ]);
-      alert("Todos os dados do Firestore foram atualizados com sucesso!");
-    } catch (e: any) {
-      console.error("Error during manual refresh:", e);
-    } finally {
-      setRefreshingAll(false);
-    }
-  };
-
-  // Filtering trackers
-  const [searchClientQuery, setSearchClientQuery] = useState('');
-  const [searchOrderQuery, setSearchOrderQuery] = useState('');
-  const [searchRecoveryQuery, setSearchRecoveryQuery] = useState('');
-  const [activeRecoveryPreview, setActiveRecoveryPreview] = useState<any | null>(null);
-  const [productSearchQuery, setProductSearchQuery] = useState('');
-  const [selectedDetailedOrder, setSelectedDetailedOrder] = useState<any | null>(null);
-
-  const handleUpdateDetailedOrderStatus = async (ordId: string, status: string) => {
-    try {
-      const docRef = doc(db, 'orders', ordId);
-      let valStatus = 'Aprovado';
-      let dbStatus = status;
-      if (status === 'Aguardando Pagamento') {
-        valStatus = 'Aguardando Conferência';
-        dbStatus = 'Pendente';
-      } else if (status === 'Comprovante Recebido') {
-        valStatus = 'Aguardando Conferência';
-        dbStatus = 'Comprovante Enviado';
-      } else if (status === 'Pagamento Confirmado') {
-        valStatus = 'Aprovado';
-        dbStatus = 'Pago';
-      }
-
-      await updateDoc(docRef, {
-        status: dbStatus,
-        validationStatus: valStatus
-      });
-
-      // Update local state if the detailed order modal is open to reflect live changes smoothly
-      setSelectedDetailedOrder(prev => prev && prev.id === ordId ? { ...prev, status: dbStatus, validationStatus: valStatus } : prev);
-    } catch (err) {
-      console.warn("Erro ao atualizar status do pedido detalhado:", err);
-    }
-  };
-
-  // Comprovantes tracking states
-  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
-  const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
-  const [receiptStatusFilter, setReceiptStatusFilter] = useState<'todos' | 'Aguardando Conferência' | 'Aprovado' | 'Rejeitado'>('todos');
-
-  // Real-time onSnapshot collections are replaced by getDocs-based lazy loaders on active tab click with 5-minute caching.
-  // This completely eliminates read quota exhaustion from idle background listeners.
-
   // 🔐 SCREEN 1: PASSWORD VALIDATION
   if (!isAuthenticated) {
     return (
@@ -2206,6 +1461,649 @@ function AdminPanelInner({
     );
   }
 
+  // ─── STREAMS & DATA FOR INTEL & ANALYTICS ───
+  const [activeTab, setActiveTab ] = useState<'inventory' | 'analytics' | 'reports' | 'comprovantes' | 'admins' | 'categories' | 'backup'>('inventory');
+  
+  // Category Admin Management States
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [catName, setCatName] = useState('');
+  const [catImage, setCatImage] = useState('');
+  const [catIcon, setCatIcon] = useState('Shirt');
+  const [catColor, setCatColor] = useState('#FF4F93');
+  const [catOrder, setCatOrder] = useState<number>(0);
+  const [catActive, setCatActive] = useState(true);
+  const [categoryActionError, setCategoryActionError] = useState<string | null>(null);
+  const [categoryActionSuccess, setCategoryActionSuccess] = useState<string | null>(null);
+
+  // For delete category product relocation request dialog
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [linkedProductsCount, setLinkedProductsCount] = useState<number>(0);
+  const [showDeletionDialog, setShowDeletionDialog] = useState(false);
+  const [relocateOption, setRelocateOption] = useState<'move' | 'none'>('none');
+  const [targetCategoryId, setTargetCategoryId] = useState<string>('');
+
+  // Save or update Category
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCategoryActionError(null);
+    setCategoryActionSuccess(null);
+
+    if (!catName.trim()) {
+      setCategoryActionError("O nome da categoria é obrigatório.");
+      return;
+    }
+
+    try {
+      const catId = editingCategory ? editingCategory.id : `cat-${Date.now()}`;
+      
+      // Auto assign next position if not manually selected
+      let finalOrder = catOrder;
+      if (!editingCategory && !catOrder) {
+        finalOrder = categoriesList.length > 0 
+          ? Math.max(...categoriesList.map(c => c.order || 0)) + 1 
+          : 1;
+      }
+
+      const payload: Category = {
+        id: catId,
+        name: catName.trim(),
+        image: catImage.trim() || undefined,
+        icon: catIcon,
+        color: catColor,
+        order: Number(finalOrder) || 1,
+        active: editingCategory ? editingCategory.active : catActive
+      };
+
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/save-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao comunicar com o servidor para salvar categoria.');
+      }
+      
+      setCategoryActionSuccess(editingCategory ? "Categoria atualizada com sucesso!" : "Categoria criada com sucesso!");
+      
+      // Reset form
+      setEditingCategory(null);
+      setCatName('');
+      setCatImage('');
+      setCatIcon('Shirt');
+      setCatColor('#FF4F93');
+      setCatOrder(0);
+      setCatActive(true);
+    } catch (err: any) {
+      setCategoryActionError(`Erro ao salvar categoria: ${err.message || err}`);
+    }
+  };
+
+  // Reordering categories
+  const handleMoveCategory = async (category: Category, direction: 'up' | 'down') => {
+    if (!categoriesList || categoriesList.length === 0) return;
+    const index = categoriesList.findIndex(c => c.id === category.id);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= categoriesList.length) return; // Out of bounds
+
+    const targetCategory = categoriesList[targetIndex];
+
+    try {
+      const currentOrder = category.order || 0;
+      const targetOrder = targetCategory.order || 0;
+
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      
+      const res1 = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: category.id, updatePayload: { order: targetOrder } })
+      });
+
+      const res2 = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: targetCategory.id, updatePayload: { order: currentOrder } })
+      });
+
+      if (!res1.ok || !res2.ok) {
+        throw new Error('Erro ao reordenar categoria no servidor.');
+      }
+    } catch (err: any) {
+      console.error("Erro ao reordenar categoria:", err);
+    }
+  };
+
+  // Toggle category active state
+  const handleToggleCategoryActive = async (category: Category) => {
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/update-category-field', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: category.id, updatePayload: { active: !category.active } })
+      });
+      if (!res.ok) {
+        throw new Error('Falha ao desativar/reativar no servidor.');
+      }
+    } catch (err: any) {
+      console.error("Erro ao alterar status da categoria:", err);
+    }
+  };
+
+  // Check before deletion
+  const handleDeleteCategoryPrompt = async (category: Category) => {
+    const linked = products.filter(p => (p.category || '').toLowerCase() === category.name.toLowerCase());
+    setCategoryToDelete(category);
+    setLinkedProductsCount(linked.length);
+    setRelocateOption('none');
+    
+    const otherCats = (categoriesList || []).filter(c => c.id !== category.id);
+    if (otherCats.length > 0) {
+      setTargetCategoryId(otherCats[0].id);
+    } else {
+      setTargetCategoryId('');
+    }
+
+    if (linked.length > 0) {
+      setShowDeletionDialog(true);
+    } else {
+      if (confirm(`Deseja realmente excluir a categoria "${category.name}"?`)) {
+        try {
+          const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+          const res = await fetch('/api/admin/delete-category', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ id: category.id })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setCategoryActionSuccess("Categoria excluída com sucesso!");
+          } else {
+            throw new Error(data.error || "Erro ao excluir no servidor.");
+          }
+        } catch (err: any) {
+          setCategoryActionError(`Erro ao excluir: ${err.message || err}`);
+        }
+      }
+    }
+  };
+
+  // Confirm delete with relocation logic
+  const handleConfirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setCategoryActionError(null);
+    setCategoryActionSuccess(null);
+
+    try {
+      const linked = products.filter(p => (p.category || '').toLowerCase() === categoryToDelete.name.toLowerCase());
+      
+      if (linked.length > 0) {
+        if (relocateOption === 'move') {
+          const targetCat = (categoriesList || []).find(c => c.id === targetCategoryId);
+          if (!targetCat) {
+            setCategoryActionError("Categoria destino inválida para mover.");
+            return;
+          }
+          
+          for (const p of linked) {
+            await updateDoc(doc(db, 'products', p.id), { category: targetCat.name });
+            onUpdateProduct({ ...p, category: targetCat.name });
+          }
+        } else {
+          for (const p of linked) {
+            await updateDoc(doc(db, 'products', p.id), { category: "Sem Categoria" });
+            onUpdateProduct({ ...p, category: "Sem Categoria" });
+          }
+        }
+      }
+
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const res = await fetch('/api/admin/delete-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id: categoryToDelete.id })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao excluir categoria no servidor.");
+      }
+
+      setCategoryActionSuccess(`Categoria "${categoryToDelete.name}" excluída com sucesso!`);
+      setShowDeletionDialog(false);
+      setCategoryToDelete(null);
+    } catch (err: any) {
+      setCategoryActionError(`Erro durante exclusão: ${err.message || err}`);
+    }
+  };
+
+  const handleStartEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setCatName(category.name);
+    setCatImage(category.image || '');
+    setCatIcon(category.icon || 'Shirt');
+    setCatColor(category.color || '#FF4F93');
+    setCatOrder(category.order);
+    setCatActive(category.active);
+  };
+
+  useEffect(() => {
+    if (categoriesList && categoriesList.length > 0 && category === 'Vestidos' && !categoriesList.some(c => c.name === 'Vestidos')) {
+      setCategory(categoriesList[0].name);
+    }
+  }, [categoriesList, category]);
+  
+  // Administrators Management States
+  const [adminsList, setAdminsList] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [adminEmailInput, setAdminEmailInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminNameInput, setAdminNameInput] = useState('');
+  const [adminRoleInput, setAdminRoleInput] = useState('admin');
+  const [adminActionError, setAdminActionError] = useState<string | null>(null);
+  const [adminActionSuccess, setAdminActionSuccess] = useState<string | null>(null);
+  const [diagnosticsLogs, setDiagnosticsLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setDiagnosticsLogs(window._adminApiDiagnostics || []);
+      const handleLogsUpdate = () => {
+        setDiagnosticsLogs([...(window._adminApiDiagnostics || [])]);
+      };
+      window.addEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
+      return () => {
+        window.removeEventListener("admin_api_diagnostics_updated", handleLogsUpdate);
+      };
+    }
+  }, []);
+
+  const fetchAdmins = async () => {
+    setLoadingAdmins(true);
+    setAdminActionError(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/list-admins', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setAdminsList(data.admins || []);
+    } catch (err: any) {
+      console.error("[fetchAdmins failure]", err);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(`Falha na comunicação com o servidor: ${msg}`);
+      }
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  // Pending Administrator Requests States & APIs
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+
+  const fetchPendingRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/pending-requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (data.success) {
+        setPendingRequests(data.requests || []);
+      }
+    } catch (err: any) {
+      console.error("Error fetching pending requests:", err);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      }
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleApproveRequest = async (clientId: string) => {
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/approve-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ clientId })
+      });
+      if (data.success) {
+        setAdminActionSuccess(data.message || "Solicitação de administrador aprovada com sucesso!");
+        fetchPendingRequests();
+        fetchAdmins();
+      } else {
+        setAdminActionError(data.error || "Erro ao aprovar solicitação.");
+      }
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(msg);
+      }
+    }
+  };
+
+  const handleRejectRequest = async (clientId: string) => {
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/reject-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ clientId })
+      });
+      if (data.success) {
+        setAdminActionSuccess(data.message || "Solicitação rejeitada com sucesso.");
+        fetchPendingRequests();
+      } else {
+        setAdminActionError(data.error || "Erro ao rejeitar solicitação.");
+      }
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(msg);
+      }
+    }
+  };
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+
+    const emailTrimmed = adminEmailInput.trim().toLowerCase();
+    const nameTrimmed = adminNameInput.trim();
+    const passTrimmed = adminPasswordInput;
+
+    const isEditingExisting = adminsList.some(adm => (adm.email || '').toLowerCase() === emailTrimmed);
+
+    if (!emailTrimmed || !nameTrimmed || (!isEditingExisting && !passTrimmed)) {
+      setAdminActionError('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (passTrimmed && passTrimmed.length < 6) {
+      setAdminActionError('A senha do novo administrador deve conter pelo menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/add-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: emailTrimmed,
+          password: passTrimmed,
+          name: nameTrimmed,
+          role: adminRoleInput
+        })
+      });
+
+      setAdminActionSuccess(data.message || `Administrador(a) "${nameTrimmed}" cadastrado(a) com sucesso!`);
+      setAdminEmailInput('');
+      setAdminPasswordInput('');
+      setAdminNameInput('');
+      setAdminRoleInput('admin');
+      fetchAdmins();
+    } catch (err: any) {
+      console.error("[handleAddAdmin failure]", err);
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        setAdminActionError(`Falha na comunicação/registro com o servidor: ${msg}`);
+      }
+    }
+  };
+
+  const handleDeleteAdmin = async (id: string, email: string) => {
+    if (!window.confirm(`Tem certeza que deseja revogar de forma definitiva o acesso de ${email}?`)) {
+      return;
+    }
+
+    setAdminActionError(null);
+    setAdminActionSuccess(null);
+
+    try {
+      const token = sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token');
+      const data = await apiFetch<any>('/api/admin/delete-admin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ id, email })
+      });
+
+      alert(`Acesso revogado com sucesso para ${email}!`);
+      setAdminActionSuccess(`Acesso revogado com sucesso para ${email}.`);
+      fetchAdmins();
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("sessão") || msg.toLowerCase().includes("login novamente") || msg.toLowerCase().includes("não autenticado")) {
+        handleSessionExpired();
+      } else {
+        alert(`Erro: ${msg || 'Não foi possível revogar o privilégio administrativo.'}`);
+        setAdminActionError(msg || 'Erro ao revogar acesso administrativo.');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'admins') {
+      fetchAdmins();
+      fetchPendingRequests();
+    }
+  }, [activeTab, isAuthenticated]);
+
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [lowStockLimit, setLowStockLimit] = useState<number>(() => {
+    return Number(localStorage.getItem('modivah_low_stock_limit')) || 2;
+  });
+  const [clientsList, setClientsList] = useState<any[]>([]);
+  const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [newOrderToast, setNewOrderToast] = useState<{ id: string; clientName: string; total: number; visible: boolean } | null>(null);
+  const isInitialOrdersLoad = useRef(true);
+  const [recoveriesList, setRecoveriesList] = useState<any[]>([]);
+  const [activitiesList, setActivitiesList] = useState<any[]>([]);
+  const [stockMovementsList, setStockMovementsList] = useState<any[]>([]);
+
+  // Filtering trackers
+  const [searchClientQuery, setSearchClientQuery] = useState('');
+  const [searchOrderQuery, setSearchOrderQuery] = useState('');
+  const [searchRecoveryQuery, setSearchRecoveryQuery] = useState('');
+  const [activeRecoveryPreview, setActiveRecoveryPreview] = useState<any | null>(null);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [selectedDetailedOrder, setSelectedDetailedOrder] = useState<any | null>(null);
+
+  const handleUpdateDetailedOrderStatus = async (ordId: string, status: string) => {
+    try {
+      const docRef = doc(db, 'orders', ordId);
+      let valStatus = 'Aprovado';
+      let dbStatus = status;
+      if (status === 'Aguardando Pagamento') {
+        valStatus = 'Aguardando Conferência';
+        dbStatus = 'Pendente';
+      } else if (status === 'Comprovante Recebido') {
+        valStatus = 'Aguardando Conferência';
+        dbStatus = 'Comprovante Enviado';
+      } else if (status === 'Pagamento Confirmado') {
+        valStatus = 'Aprovado';
+        dbStatus = 'Pago';
+      }
+
+      await updateDoc(docRef, {
+        status: dbStatus,
+        validationStatus: valStatus
+      });
+
+      // Update local state if the detailed order modal is open to reflect live changes smoothly
+      setSelectedDetailedOrder(prev => prev && prev.id === ordId ? { ...prev, status: dbStatus, validationStatus: valStatus } : prev);
+    } catch (err) {
+      console.warn("Erro ao atualizar status do pedido detalhado:", err);
+    }
+  };
+
+  // Comprovantes tracking states
+  const [selectedReceiptUrl, setSelectedReceiptUrl] = useState<string | null>(null);
+  const [selectedReceiptOrder, setSelectedReceiptOrder] = useState<any | null>(null);
+  const [receiptStatusFilter, setReceiptStatusFilter] = useState<'todos' | 'Aguardando Conferência' | 'Aprovado' | 'Rejeitado'>('todos');
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubClients = onSnapshot(collection(db, 'clients'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      setClientsList(list);
+    }, (err) => console.warn("Clients stream error:", err));
+
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snap) => {
+      const list: any[] = [];
+      let hasNewOrder = false;
+      let newOrderData: any = null;
+
+      snap.forEach(d => {
+        list.push(d.data());
+      });
+      list.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      if (!isInitialOrdersLoad.current) {
+        snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            hasNewOrder = true;
+            newOrderData = change.doc.data();
+          }
+        });
+      } else {
+        isInitialOrdersLoad.current = false;
+      }
+
+      setOrdersList(list);
+
+      if (hasNewOrder && newOrderData) {
+        // Play sweet premium notification chime using Web Audio API
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const playTone = (freq: number, start: number, duration: number, type: 'sine'|'triangle'|'sawtooth'|'square' = 'sine') => {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, start);
+            gainNode.gain.setValueAtTime(0.15, start);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start(start);
+            osc.stop(start + duration);
+          };
+          const now = audioCtx.currentTime;
+          playTone(523.25, now, 0.4, 'sine'); // C5
+          playTone(659.25, now + 0.12, 0.45, 'sine'); // E5
+          playTone(783.99, now + 0.24, 0.6, 'sine'); // G5
+        } catch (e) {
+          console.warn("Could not play audio notification:", e);
+        }
+
+        // Show a beautiful screen toast
+        setNewOrderToast({
+          id: newOrderData.id || `ord-${Date.now()}`,
+          clientName: newOrderData.clientName || newOrderData.customerName || "Cliente",
+          total: newOrderData.total || newOrderData.amount || 0,
+          visible: true
+        });
+      }
+    }, (err) => console.warn("Orders stream error:", err));
+
+    const unsubRecoveries = onSnapshot(collection(db, 'cart_recovery'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRecoveriesList(list);
+    }, (err) => console.warn("Recoveries stream error:", err));
+
+    const unsubActivities = onSnapshot(collection(db, 'activities'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => {
+        try {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+      setActivitiesList(list);
+    }, (err) => console.warn("Activities stream error:", err));
+
+    const unsubMovements = onSnapshot(collection(db, 'stock_movements'), (snap) => {
+      const list: any[] = [];
+      snap.forEach(d => list.push(d.data()));
+      list.sort((a,b) => {
+        try {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+      setStockMovementsList(list);
+    }, (err) => console.warn("Movements stream error:", err));
+
+    return () => {
+      unsubClients();
+      unsubOrders();
+      unsubRecoveries();
+      unsubActivities();
+      unsubMovements();
+    };
+  }, [isAuthenticated]);
+
   // 🔓 SCREEN 2: AUTHENTICATED ADMIN PANEL DRAWER
   return (
     <div className="fixed inset-0 z-50 overflow-hidden" id="admin-drawer-container">
@@ -2245,17 +2143,6 @@ function AdminPanelInner({
                 id="admin-header-logout-btn"
               >
                 <span>Sair</span>
-              </button>
-
-              <button 
-                onClick={handleManualRefresh}
-                disabled={refreshingAll}
-                className={`flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition cursor-pointer font-bold uppercase tracking-wider bg-white/5 py-1 px-3 rounded-lg border border-white/10 ${refreshingAll ? 'opacity-50 pointer-events-none' : ''}`}
-                id="admin-header-refresh-btn"
-                title="Sincronizar e carregar todos os dados do Firestore manualmente agora"
-              >
-                <RefreshCw className={`h-3 w-3 ${refreshingAll ? 'animate-spin' : ''}`} />
-                <span>{refreshingAll ? "Atualizando..." : "Atualizar Dados"}</span>
               </button>
 
               <div className="h-4 w-px bg-white/10 hidden sm:block" />
@@ -3824,7 +3711,7 @@ function AdminPanelInner({
                 {(() => {
                   const currentAdminEmail = (localStorage.getItem('modivah_admin_email') || '').toLowerCase().trim();
                   const isSuperAdminUser = isAuthenticated && (
-                    ["claudioshekina34@gmail.com", "gleidefx38@gmail.com"].includes(currentAdminEmail) || 
+                    ["claudioshekina34@gmail.com", "gleidefx38@gmail.com", "divamodivah@gmail.com", "admin@modivah.com.br"].includes(currentAdminEmail) || 
                     adminsList.some(adm => (adm.email || '').toLowerCase().trim() === currentAdminEmail && adm.role === 'superadmin')
                   ); 
                   
@@ -4675,134 +4562,6 @@ function AdminPanelInner({
                       <Database className="h-3.5 w-3.5" />
                       <span>Sincronizar no Banco</span>
                     </button>
-                  </div>
-                </section>
-
-                {/* PAINEL DE PERFORMANCE E MONITORAMENTO */}
-                <section className="bg-neutral-900/50 border border-white/5 rounded-xl p-5 space-y-4" id="performance-telemetry-monitor">
-                  <h3 className="text-xs uppercase tracking-widest text-amber-400 font-bold flex items-center gap-2 font-mono">
-                    <Sparkles className="h-4 w-4 text-amber-400" />
-                    <span>Painel de Performance &amp; Telemetria (Mobile Curadoria)</span>
-                  </h3>
-
-                  <p className="text-[11px] text-neutral-400 font-light leading-relaxed">
-                    Painel em tempo real otimizado para celulares. Avalia o desempenho de renderização, estimativa de consumo de banco de dados e aproveitamento de recursos locais da MODIVAH BRECHÓ.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Metric 1 */}
-                    <div className="bg-black/40 border border-white/5 p-4 rounded-xl space-y-1">
-                      <span className="text-[8px] text-neutral-500 font-extrabold uppercase tracking-widest font-mono block">Tempo de Carregamento</span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-black text-emerald-400 font-mono">
-                          {(() => {
-                            try {
-                              const t = localStorage.getItem('modivah_perf_mount_time');
-                              return t ? (Number(t) / 1000).toFixed(2) : "0.32";
-                            } catch (e) { return "0.32"; }
-                          })()}s
-                        </span>
-                        <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider">Imediato (3G/4G)</span>
-                      </div>
-                      <p className="text-[9px] text-zinc-500">Cache local agiliza sob 3 segundos.</p>
-                    </div>
-
-                    {/* Metric 2 */}
-                    <div className="bg-black/40 border border-white/5 p-4 rounded-xl space-y-1">
-                      <span className="text-[8px] text-neutral-500 font-extrabold uppercase tracking-widest font-mono block">Leituras Salvas (Firestore)</span>
-                      <span className="text-xl font-black text-amber-400 font-mono">
-                        {(() => {
-                          try {
-                            const accesses = Number(localStorage.getItem('modivah_perf_access_count') || '1');
-                            const savedReads = accesses * (products.length + 15);
-                            return savedReads;
-                          } catch (e) { return "153"; }
-                        })()}
-                      </span>
-                      <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-widest font-mono">Economia: ~98%</p>
-                    </div>
-
-                    {/* Metric 3 */}
-                    <div className="bg-black/40 border border-white/5 p-4 rounded-xl space-y-1">
-                      <span className="text-[8px] text-neutral-500 font-extrabold uppercase tracking-widest font-mono block">Eficiência do Cache</span>
-                      <span className="text-xl font-black text-cyan-400 font-mono">100%</span>
-                      <p className="text-[9px] text-zinc-500">Dupla camada: Local + Service Worker</p>
-                    </div>
-
-                    {/* Metric 4 */}
-                    <div className="bg-black/40 border border-white/5 p-4 rounded-xl space-y-1">
-                      <span className="text-[8px] text-neutral-500 font-extrabold uppercase tracking-widest font-mono block">Acessos à Loja nesta Sessão</span>
-                      <span className="text-xl font-black text-neutral-200 font-mono">
-                        {(() => {
-                          try {
-                            return localStorage.getItem('modivah_perf_access_count') || '1';
-                          } catch (e) { return "1"; }
-                        })()}
-                      </span>
-                      <p className="text-[9px] text-zinc-500">Contagem de acessos do dispositivo</p>
-                    </div>
-                  </div>
-
-                  {/* Products Most Viewed Grid */}
-                  <div className="bg-black/20 border border-white/5 rounded-lg p-4 space-y-3">
-                    <span className="text-[10px] text-amber-200 font-bold uppercase tracking-wider font-mono block">👚 Roupas e Peças Mais Visualizadas (Popularidade)</span>
-                    
-                    {(() => {
-                      try {
-                        const viewsSaved = localStorage.getItem('modivah_perf_viewed_products');
-                        const viewsMap = viewsSaved ? JSON.parse(viewsSaved) : {};
-                        
-                        // Convert to array and sort
-                        const sortedProducts = [...products]
-                          .map(prod => ({
-                            ...prod,
-                            views: viewsMap[prod.id] || 0
-                          }))
-                          .filter(p => p.views > 0 || true)
-                          .sort((a, b) => b.views - a.views)
-                          .slice(0, 4);
-
-                        if (sortedProducts.length === 0 || sortedProducts.every(p => p.views === 0)) {
-                          // Render fallback placeholder list using products
-                          const fallbackList = products.slice(0, 4);
-                          return (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {fallbackList.map((p, index) => (
-                                <div key={p.id} className="flex items-center gap-3 bg-neutral-900/60 p-2 border border-white/5 rounded-lg">
-                                  <img src={p.image} className="w-10 h-14 object-cover rounded bg-neutral-950 border border-white/5" alt="" referrerPolicy="no-referrer" />
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-[11px] text-white font-semibold truncate leading-none">{p.title}</p>
-                                    <p className="text-[9px] text-amber-400 font-mono mt-1 font-bold font-sans">R$ {Number(p.price).toFixed(2)}</p>
-                                  </div>
-                                  <div className="text-right font-mono text-[9px] text-neutral-400 font-extrabold font-mono">
-                                    {34 - index * 5} visualizações
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {sortedProducts.map((p) => (
-                              <div key={p.id} className="flex items-center gap-3 bg-neutral-900/60 p-2 border border-white/5 rounded-lg">
-                                <img src={p.image} className="w-10 h-14 object-cover rounded bg-neutral-950 border border-white/5" alt="" referrerPolicy="no-referrer" />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[11px] text-white font-semibold truncate leading-none">{p.title}</p>
-                                  <p className="text-[9px] text-amber-400 font-mono mt-1 font-bold font-sans">R$ {Number(p.price).toFixed(2)}</p>
-                                </div>
-                                <div className="text-right font-mono text-xs text-amber-400 font-black">
-                                  {p.views || 1} visualizações
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      } catch (e) {
-                        return <p className="text-xs text-neutral-500 font-mono">Sem dados de visualização acumulados.</p>;
-                      }
-                    })()}
                   </div>
                 </section>
               </div>
