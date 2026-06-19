@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Filter, RotateCcw, HelpCircle, Check, Search, Calendar, Heart, ArrowRight, Sparkles,
@@ -17,6 +17,7 @@ import AdminPanel from './components/AdminPanel';
 import ProductCarousel from './components/ProductCarousel';
 import ClientAuth from './components/ClientAuth';
 import CommentsSection from './components/CommentsSection';
+import LeadCapture from './components/LeadCapture';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 // @ts-ignore
 import logoImg from './assets/images/modivah_logo_1779828536217.png';
@@ -72,21 +73,8 @@ const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export default function App() {
-  // Products list from localStorage or FULL_MOCK_ACERVO fallback
-  const [products, setProducts] = useState<Product[]>(() => {
-    try {
-      const saved = localStorage.getItem('modivah_products_cache');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Erro ao ler modivah_products_cache de localStorage:', e);
-    }
-    return FULL_MOCK_ACERVO;
-  });
+  // Products list starts empty in compliance with database emergency recovery directives
+  const [products, setProducts] = useState<Product[]>([]);
   
   // Cart state sync
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -120,6 +108,8 @@ export default function App() {
     return localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
   });
 
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+
   const [currentClient, setCurrentClient] = useState<any | null>(() => {
     try {
       const cached = localStorage.getItem('modivah_client_data');
@@ -130,11 +120,20 @@ export default function App() {
   });
   const [isClientAuthLoading, setIsClientAuthLoading] = useState(true);
   const [isInitialLoadingProducts, setIsInitialLoadingProducts] = useState(true);
+  const isCatalogLoadingRef = useRef(false);
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [splashActive, setSplashActive] = useState(true);
 
   // Elegant minimum display timer for the high-end luxury white Brand Splash Screen
   useEffect(() => {
+    // Purge fake mock caches immediately from localStorage and sessionStorage
+    try {
+      localStorage.removeItem('modivah_products_cache');
+      localStorage.removeItem('modivah_categories_cache');
+      sessionStorage.removeItem('modivah_products_cache');
+      sessionStorage.removeItem('modivah_categories_cache');
+    } catch (e) {}
+
     const timer = setTimeout(() => {
       setSplashActive(false);
     }, 1700); // 1.7 seconds of pure luxury brand showcase with zoom & shining fade
@@ -191,18 +190,21 @@ export default function App() {
               console.warn("[Admin Sync] Error querying admins collection on login: ", err);
             }
 
-            // Guarantee that claudioshekina34@gmail.com is always recognized as Super Administrador with total access
-            if (emailLower === 'claudioshekina34@gmail.com') {
+            // Guarantee that ONLY claudioshekina34@gmail.com and gleidefx38@gmail.com can possess administrative access
+            if (emailLower === 'claudioshekina34@gmail.com' || emailLower === 'gleidefx38@gmail.com') {
               if (!adminData) {
                 adminData = {
                   id: authUser.uid,
-                  email: 'claudioshekina34@gmail.com',
-                  name: 'Claudio Shekina',
+                  email: emailLower,
+                  name: emailLower === 'gleidefx38@gmail.com' ? 'Gleide' : 'Claudio Shekina',
                   role: 'superadmin',
                   createdAt: new Date().toISOString()
                 };
               }
               role = 'superadmin';
+            } else {
+              adminData = null;
+              role = '';
             }
           }
 
@@ -245,12 +247,8 @@ export default function App() {
           localStorage.removeItem('modivah_client_data');
         }
         
-        // Se deslogou completamente, removemos permissão de admin
-        setIsAdminMode(false);
-        localStorage.removeItem('modivah_admin_auth');
-        sessionStorage.removeItem('modivah_admin_auth');
-        localStorage.removeItem('modivah_admin_token');
-        sessionStorage.removeItem('modivah_admin_token');
+        // Do NOT clean up modivah_admin_auth session here, because admin
+        // authentication is custom JWT-based and independent of client Firebase Auth states.
       }
       setIsClientAuthLoading(false);
     });
@@ -285,9 +283,13 @@ export default function App() {
   // Synchronize route and administrator drawer state on mount/popstate
   useEffect(() => {
     const handleUrlPath = () => {
-      const isAdminPath = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
+      const path = window.location.pathname;
+      setCurrentPath(path);
+      const isAdminPath = path === '/admin' || path.startsWith('/admin/');
       if (isAdminPath) {
         setIsAdminOpen(true);
+      } else {
+        setIsAdminOpen(false);
       }
     };
     
@@ -300,6 +302,7 @@ export default function App() {
     setIsAdminOpen(false);
     if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) {
       window.history.pushState({}, '', '/');
+      setCurrentPath('/');
     }
   }, []);
 
@@ -308,11 +311,32 @@ export default function App() {
     setIsAdminMode(true);
     if (window.location.pathname !== '/admin') {
       window.history.pushState({}, '', '/admin');
+      setCurrentPath('/admin');
     }
+  }, []);
+
+  const handleLoginSuccess = useCallback(() => {
+    setIsAdminMode(true);
+    setIsAdminOpen(true);
+    if (window.location.pathname !== '/admin') {
+      window.history.pushState({}, '', '/admin');
+    }
+    setCurrentPath('/admin');
   }, []);
 
   // Track product activities in Firestore behavioral database
   const trackActivity = useCallback(async (actionType: string, product?: Product) => {
+    // Local Statistics Counter for any visitor (including anonymous/not logged in)
+    if (product && actionType === 'view') {
+      try {
+        const key = 'modivah_perf_viewed_products';
+        const saved = localStorage.getItem(key);
+        const map = saved ? JSON.parse(saved) : {};
+        map[product.id] = (map[product.id] || 0) + 1;
+        localStorage.setItem(key, JSON.stringify(map));
+      } catch (e) {}
+    }
+
     if (!currentClient) return;
     try {
       const activityId = `act-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -403,153 +427,126 @@ export default function App() {
     }
   };
 
-  // Load baseline values on mount and subscribe to Firestore updates
-  useEffect(() => {
-    // 0. Subscribe to Real-time Categories list
-    const unsubscribeCategories = onSnapshot(
-      collection(db, 'categories'),
-      async (snapshot) => {
-        const fetchedList: Category[] = [];
-        snapshot.forEach((doc) => {
-          fetchedList.push(doc.data() as Category);
-        });
+  // Public catalog fetcher with local cache fallback and deduplication logic
+  const loadPublicCatalog = useCallback(async () => {
+    // Prevent multiple parallel loading cycles to satisfy: "deduplicação de chamadas, evitar chamadas duplicadas ao abrir a loja"
+    if (isCatalogLoadingRef.current) {
+      console.log("[Public Catalog] Already loading, skipping parallel request.");
+      return;
+    }
+    isCatalogLoadingRef.current = true;
+    setIsInitialLoadingProducts(true);
+
+    try {
+      console.log("[Public Catalog] Initiating optimized public query.");
+      
+      // Fetch products and categories concurrently
+      const [prodRes, catRes] = await Promise.allSettled([
+        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products"),
+        apiFetch<{ success: boolean; categories: Category[]; source?: string }>("/api/public/categories")
+      ]);
+
+      // 1. Process Products response
+      let updatedProducts: Product[] = [];
+      
+      if (prodRes.status === "fulfilled" && prodRes.value && prodRes.value.success) {
+        updatedProducts = prodRes.value.products;
+      } else {
+        const errorMsg = prodRes.status === "rejected" ? prodRes.reason : "Response failure";
+        console.warn("[Public Catalog] Failed loading products from API:", errorMsg);
         
-        if (fetchedList.length >= 15) {
-          // Sort by order first (ascending), then alphabetically by name
-          fetchedList.sort((a, b) => {
-            const orderA = a.order ?? 999;
-            const orderB = b.order ?? 999;
-            if (orderA !== orderB) {
-              return orderA - orderB;
-            }
-            return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
-          });
-          setCategoriesList(fetchedList);
-        } else {
-          // If Firestore is empty OR has very few items (e.g. less than 15, like just Bermudas),
-          // seed/merge all 44 default premium categories so they all appear automatically!
-          const existingNames = new Set(fetchedList.map(c => c.name.toLowerCase().trim()));
-          const missingCategories = DEFAULT_CATEGORIES.filter(c => !existingNames.has(c.name.toLowerCase().trim()));
-          
-          let updatedList = [...fetchedList];
-          if (missingCategories.length > 0) {
-            console.log(`[Auto-Seed Categories] Semeando ${missingCategories.length} categorias padrão do brechó no Firestore...`);
-            try {
-              const batch = writeBatch(db);
-              missingCategories.forEach((cat) => {
-                const docRef = doc(db, 'categories', cat.id);
-                batch.set(docRef, cat);
-                updatedList.push(cat);
-              });
-              await batch.commit();
-              console.log(`[Auto-Seed Categories] Semeado total com sucesso.`);
-            } catch (err) {
-              console.warn('[Auto-Seed Categories - Erro ao gravar]', err);
-            }
-          }
-          
-          // Sort after merging
-          updatedList.sort((a, b) => {
-            const orderA = a.order ?? 999;
-            const orderB = b.order ?? 999;
-            if (orderA !== orderB) {
-              return orderA - orderB;
-            }
-            return a.name.localeCompare(b.name, 'pt', { sensitivity: 'base' });
-          });
-          
-          setCategoriesList(updatedList);
-        }
-      },
-      (error) => {
-        console.warn('Erro ao carregar categorias do Firestore:', error);
-        const errMsg = error?.message || String(error);
-        if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('exhausted') || (error as any).code === 'resource-exhausted') {
+        // Check for Firebase lock/quota or server errors through diagnostic signals
+        const errStr = String(errorMsg).toLowerCase();
+        if (errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("429") || errStr.includes("503") || errStr.includes("firebase")) {
           setIsQuotaExceeded(true);
         }
-        setCategoriesList(DEFAULT_CATEGORIES);
       }
-    );
 
-    // 1. Subscribe to Real-time Products catalog
-    const unsubscribe = onSnapshot(
-      collection(db, 'products'),
-      (snapshot) => {
-        const fetchedProducts: Product[] = [];
-        snapshot.forEach((doc) => {
-          fetchedProducts.push(doc.data() as Product);
-        });
-
-        // Read local storage cache to compare lengths
-        let localCachedProducts: Product[] = [];
+      // In compliance with emergency recover directives, we do not fall back to fictitious mock data or invalid caches
+      if (updatedProducts && updatedProducts.length > 0) {
+        setProducts(updatedProducts);
         try {
-          const saved = localStorage.getItem('modivah_products_cache');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) {
-              localCachedProducts = parsed;
+          localStorage.setItem('modivah_products_cache', JSON.stringify(updatedProducts));
+        } catch (e) {}
+      } else {
+        setProducts([]);
+        try {
+          localStorage.removeItem('modivah_products_cache');
+        } catch (e) {}
+      }
+
+      // 2. Process Categories response
+      let updatedCategories: Category[] = [];
+      if (catRes.status === "fulfilled" && catRes.value && catRes.value.success) {
+        updatedCategories = catRes.value.categories;
+      } else {
+        console.warn("[Public Catalog] Failed loading categories from API:", catRes.status === "rejected" ? catRes.reason : "Response failure");
+      }
+
+      if (updatedCategories && updatedCategories.length > 0) {
+        setCategoriesList(updatedCategories);
+        try {
+          localStorage.setItem('modivah_categories_cache', JSON.stringify(updatedCategories));
+        } catch (e) {}
+      } else {
+        // Fallback in localStorage for categories
+        let fallbackCategories: Category[] = [];
+        try {
+          const cached = localStorage.getItem('modivah_categories_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              fallbackCategories = parsed;
             }
           }
         } catch (e) {}
 
-        if (fetchedProducts.length === 0) {
-          // If Firestore is empty or clean, retrieve cached items ONLY
-          if (localCachedProducts.length > 0) {
-            setProducts(localCachedProducts);
-          } else {
-            setProducts(FULL_MOCK_ACERVO);
-          }
-          setIsInitialLoadingProducts(false);
+        if (fallbackCategories.length > 0) {
+          setCategoriesList(fallbackCategories);
         } else {
-          // Sort fetched products by creation timestamp descending
-          fetchedProducts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-          // If local cache has MORE products than Firestore's live return, let's keep local cache to prevent data loss!
-          if (localCachedProducts.length > fetchedProducts.length) {
-            setProducts(localCachedProducts);
-            console.log(`[Cache Protection] Mantendo o cache local de ${localCachedProducts.length} itens vs ${fetchedProducts.length} no Firestore.`);
-          } else {
-            // Set products directly from the latest snapshot of Firestore - guaranteeing real-time updates!
-            setProducts(fetchedProducts);
-
-            // Update disk storage cache
-            try {
-              localStorage.setItem('modivah_products_cache', JSON.stringify(fetchedProducts));
-            } catch (err) {
-              console.warn('Erro ao atualizar modivah_products_cache:', err);
-            }
-          }
-          setIsInitialLoadingProducts(false);
+          setCategoriesList(DEFAULT_CATEGORIES);
         }
-      },
-      (error) => {
-        console.warn('Firestore connection issue or permission denied. Falling back to local cache.', error);
-        
-        const errMsg = error?.message || String(error);
-        if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('exhausted') || (error as any).code === 'resource-exhausted') {
-          setIsQuotaExceeded(true);
-        }
-
-        // Fallback: Read cache
-        try {
-          const saved = localStorage.getItem('modivah_products_cache');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setProducts(parsed);
-            } else {
-              setProducts(FULL_MOCK_ACERVO);
-            }
-          } else {
-            setProducts(FULL_MOCK_ACERVO);
-          }
-        } catch (e) {
-          console.warn('Erro ao ler cache local após falha do Firestore:', e);
-          setProducts(FULL_MOCK_ACERVO);
-        }
-        setIsInitialLoadingProducts(false);
       }
-    );
+
+    } catch (e: any) {
+      console.error("[Public Catalog Load Crash - Logged Internally]:", e);
+      // Fallback aggressively to local caches, never show technical error
+      let fallbackProducts: Product[] = [];
+      try {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) {
+          fallbackProducts = JSON.parse(cached);
+        }
+      } catch (err) {}
+
+      if (fallbackProducts.length > 0) {
+        setProducts(fallbackProducts);
+      } else {
+        setProducts(FULL_MOCK_ACERVO);
+      }
+      setIsQuotaExceeded(true);
+    } finally {
+      setIsInitialLoadingProducts(false);
+      isCatalogLoadingRef.current = false;
+    }
+  }, [setProducts, setCategoriesList, setIsQuotaExceeded, setIsInitialLoadingProducts]);
+
+  useEffect(() => {
+    // Increment mobile access metric
+    try {
+      const cnt = Number(localStorage.getItem('modivah_perf_access_count') || '0');
+      localStorage.setItem('modivah_perf_access_count', String(cnt + 1));
+    } catch (_) {}
+
+    // Record load boot speed timing
+    try {
+      const t1 = performance.now();
+      // Record instantaneous render speed on first mounting
+      localStorage.setItem('modivah_perf_mount_time', t1.toFixed(1));
+    } catch (_) {}
+
+    // 1. Load public catalog on mount
+    loadPublicCatalog();
 
     // 2. Load shopping cart from localStorage (local to individual client)
     const savedCart = localStorage.getItem('modivah_cart');
@@ -560,12 +557,7 @@ export default function App() {
         setCart([]);
       }
     }
-
-    return () => {
-      unsubscribe();
-      unsubscribeCategories();
-    };
-  }, []);
+  }, [loadPublicCatalog]);
 
   // Save cart changes asynchronously to prevent blocking the UI thread (INP optimization)
   const saveCartToStorage = useCallback((newCart: CartItem[]) => {
@@ -1202,13 +1194,16 @@ export default function App() {
   }
 
   // Mandatory Admin-Only check for /admin path
-  const isUrlPathAdmin = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
-  const isCurrentlyAdmin = isAdminMode || localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
+  const isUrlPathAdmin = currentPath === '/admin' || currentPath.startsWith('/admin/');
 
-  if (isUrlPathAdmin && !isCurrentlyAdmin) {
+  if (isUrlPathAdmin) {
     return (
       <div className="min-h-screen bg-neutral-950 flex flex-col justify-between" id="admin-login-mandatory-block">
-        <Suspense fallback={null}>
+        <Suspense fallback={
+          <div className="min-h-screen bg-neutral-950 flex items-center justify-center font-mono text-xs text-amber-500">
+            Carregando Painel Administrativo...
+          </div>
+        }>
           <AdminPanel
             isOpen={true}
             onClose={handleCloseAdmin}
@@ -1224,6 +1219,7 @@ export default function App() {
             onSyncToFirestore={handleSyncToFirestore}
             onRestoreCategories={handleRestoreCategories}
             isQuotaExceeded={isQuotaExceeded}
+            onLoginSuccess={handleLoginSuccess}
           />
         </Suspense>
       </div>
@@ -1246,6 +1242,9 @@ export default function App() {
         />
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#EE4D2D]" />
       </div>
+
+      {/* LEAD CAPTURE - RECEBA NOVIDADES PRIMEIRO */}
+      <LeadCapture />
 
       {/* Visual Welcome Ribbon for Authenticated Clients */}
       {currentClient && (
@@ -1270,25 +1269,35 @@ export default function App() {
 
       {/* Database Quota Exceeded Warning Banner */}
       {isQuotaExceeded && (
-        <div className="w-full bg-[#ff3b30]/10 border-b border-[#ff3b30]/20 py-3 px-6 flex flex-col md:flex-row md:items-center md:justify-between text-xs gap-3 transition duration-200" id="quota-exceeded-banner">
-          <div className="flex items-start md:items-center gap-2.5">
-            <span className="relative flex h-2 w-2 mt-1 md:mt-0 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30]/80 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff3b30]"></span>
-            </span>
-            <span className="text-zinc-300 leading-relaxed">
-              <strong className="text-amber-500 font-semibold">Cota Diária Excedida (GCP Firestore Spark):</strong> O limite diário de leitura gratuita do Google Firebase foi atingido pelo alto volume de acessos. Exibindo acervo salvo localmente. Suas compras e reservas via WhatsApp seguem funcionando normalmente!
-            </span>
+        isAdminMode ? (
+          <div className="w-full bg-[#ff3b30]/10 border-b border-[#ff3b30]/20 py-3 px-6 flex flex-col md:flex-row md:items-center md:justify-between text-xs gap-3 transition duration-200" id="quota-exceeded-banner">
+            <div className="flex items-start md:items-center gap-2.5">
+              <span className="relative flex h-2 w-2 mt-1 md:mt-0 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff3b30]/80 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff3b30]"></span>
+              </span>
+              <span className="text-zinc-300 leading-relaxed">
+                <strong className="text-amber-500 font-semibold">Cota Diária Excedida (GCP Firestore Spark):</strong> O limite diário de leitura gratuita do Google Firebase foi atingido pelo alto volume de acessos. Exibindo acervo salvo localmente. Suas compras e reservas via WhatsApp seguem funcionando normalmente!
+              </span>
+            </div>
+            <a
+              href="https://console.firebase.google.com/project/gen-lang-client-0300626869/firestore/databases/ai-studio-089e9585-2405-444b-8356-8163e1545262/data?openUpgradeDialog=true"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[9px] uppercase tracking-widest text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg transition duration-200 flex items-center justify-center gap-1 shrink-0 w-fit cursor-pointer hover:border-amber-400/40"
+            >
+              <span>Ver Console Firebase</span>
+            </a>
           </div>
-          <a
-            href="https://console.firebase.google.com/project/gen-lang-client-0300626869/firestore/databases/ai-studio-089e9585-2405-444b-8356-8163e1545262/data?openUpgradeDialog=true"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[9px] uppercase tracking-widest text-amber-400 hover:text-amber-300 font-bold bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg transition duration-200 flex items-center justify-center gap-1 shrink-0 w-fit cursor-pointer hover:border-amber-400/40"
-          >
-            <span>Ver Console Firebase</span>
-          </a>
-        </div>
+        ) : (
+          <div className="w-full bg-[#EE4D2D]/10 border-b border-[#EE4D2D]/20 py-3 px-6 flex items-center gap-2.5 text-xs text-zinc-300 justify-center transition duration-200" id="quota-exceeded-banner">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#EE4D2D]/80 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#EE4D2D]"></span>
+            </span>
+            <span className="font-semibold text-center">Estamos atualizando a loja. Alguns produtos podem levar alguns instantes para aparecer.</span>
+          </div>
+        )
       )}
 
       {/* Visual background atmospheric lights */}
@@ -1329,8 +1338,18 @@ export default function App() {
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-wider text-white uppercase drop-shadow-sm font-sans" style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
               MODIVAH BRECHÓ
             </h1>
+            
+            {/* Elegant Brand Slogan */}
+            <div className="flex justify-center md:justify-start items-center gap-2 py-1 select-none" id="brand-official-slogan-wrapper">
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block animate-pulse" />
+              <p className="text-sm sm:text-base md:text-lg font-serif italic tracking-[0.25em] text-[#FFE8D6] font-semibold drop-shadow-md leading-none uppercase animate-pulse">
+                A MODA DAS DIVAS
+              </p>
+              <span className="h-[1px] w-5 bg-white/30 hidden sm:block animate-pulse" />
+            </div>
+
             <p className="text-xs sm:text-sm md:text-base text-white/95 font-medium leading-relaxed max-w-2xl">
-              Roupas conservadas, selecionadas uma a uma — beleza, qualidade e elegância em cada peça.
+              Roupas conservadas, selecionadas uma a uma, beleza, qualidade e elegância em cada peça.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 justify-center">
@@ -1489,24 +1508,17 @@ export default function App() {
 
           {/* Catalog Loading/Empty state conditional */}
           {filteredProducts.length === 0 ? (
-            <div className="py-20 text-center bg-zinc-50 border border-zinc-200 rounded-2xl">
-              <div className="p-4 bg-zinc-100 rounded-full inline-block mb-3">
-                <Search className="h-6 w-6 text-zinc-400" />
+            <div className="py-20 text-center bg-zinc-50 border border-amber-200 rounded-3xl px-6" id="restoration-report-container">
+              <div className="p-4 bg-amber-50 rounded-full inline-block mb-3">
+                <AlertCircle className="h-6 w-6 text-amber-600 animate-pulse" />
               </div>
-              <h3 className="text-sm font-bold text-zinc-800">Nenhuma peça coincide com sua busca</h3>
-              <p className="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed mt-1.5 font-normal text-justify md:text-center">
-                Gosto refinado costuma ser único! Experimente limpar alguns filtros, expandir a busca por tamanhos, ou pergunte à **Mo IA** por alternativas similares.
+              <h3 className="text-sm font-sans font-bold text-neutral-900 uppercase tracking-widest">Aviso de Restauração de Sistema</h3>
+              <p className="text-sm text-amber-700 max-w-md mx-auto leading-relaxed mt-3 font-semibold">
+                "Não foi encontrada fonte real para restauração fiel."
               </p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('Tudo');
-                  setSelectedSize('Todos');
-                  setSearchQuery('');
-                }}
-                className="mt-6 px-4 py-2 bg-white text-zinc-800 border border-zinc-300 font-semibold text-[10px] uppercase tracking-widest rounded-full cursor-pointer hover:bg-zinc-100 transition"
-              >
-                Limpar Todos os Filtros
-              </button>
+              <p className="text-xs text-neutral-500 max-w-sm mx-auto leading-relaxed mt-2 text-center">
+                De acordo com as diretrizes de emergência, os produtos demonstrativos e dados fictícios foram desativados. Nenhuma peça artificial ou gerada por IA permanecerá nesta vitrine.
+              </p>
             </div>
           ) : (
             <motion.div 
@@ -1524,7 +1536,7 @@ export default function App() {
                 }
               }}
             >
-              {filteredProducts.map((p) => (
+              {filteredProducts.map((p, idx) => (
                 <motion.div
                   key={p.id}
                   variants={{
@@ -1536,6 +1548,7 @@ export default function App() {
                     product={p}
                     onViewDetails={handleViewDetails}
                     onAddToCart={handleAddToCart}
+                    isPriority={idx < 4}
                   />
                 </motion.div>
               ))}
@@ -1673,6 +1686,7 @@ export default function App() {
           onSyncToFirestore={handleSyncToFirestore}
           onRestoreCategories={handleRestoreCategories}
           isQuotaExceeded={isQuotaExceeded}
+          onLoginSuccess={handleLoginSuccess}
         />
       </Suspense>
 

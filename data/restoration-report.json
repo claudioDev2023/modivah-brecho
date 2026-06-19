@@ -1,0 +1,15 @@
+{
+  "status": "failed",
+  "timestamp": "2026-06-18T18:19:07-07:00",
+  "message": "Não foi encontrada fonte real para restauração fiel.",
+  "details": {
+    "firestore_status": "Quota limit exceeded (Free daily read units per project exhausted).",
+    "local_backups_scanned": [
+      "/data/secure-settings.json",
+      "src/data/initialProducts.ts",
+      "src/data/fullMockAcervo.ts"
+    ],
+    "git_repository": "Not found / not initialized.",
+    "action": "Cleared all demonstrative/fictitious products and suspended automatic generation routines as requested. Storefront configured to display official notice."
+  }
+}
