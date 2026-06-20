@@ -208,6 +208,7 @@ interface AdminPanelProps {
   onSyncToFirestore?: () => Promise<void>;
   onRestoreCategories?: () => Promise<void>;
   isQuotaExceeded?: boolean;
+  onLoginSuccess?: () => void;
 }
 
 export default function AdminPanel({
@@ -224,13 +225,14 @@ export default function AdminPanel({
   onImportProducts,
   onSyncToFirestore,
   onRestoreCategories,
-  isQuotaExceeded = false
+  isQuotaExceeded = false,
+  onLoginSuccess
 }: AdminPanelProps) {
   if (!isOpen) return null;
 
   // Email & Password Authentication
   const [emailInput, setEmailInput] = useState(() => {
-    return localStorage.getItem('modivah_admin_email') || 'claudioshekina34@gmail.com';
+    return localStorage.getItem('modivah_admin_email') || '';
   });
   const [passwordInput, setPasswordInput] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -924,6 +926,7 @@ export default function AdminPanel({
                       setAuthError(false);
                       setPasswordInput('');
                       setFailedAttemptsCount(0);
+                      onLoginSuccess?.();
                     } else {
                       throw new Error("Token não fornecido na resposta.");
                     }
@@ -940,6 +943,7 @@ export default function AdminPanel({
                       setAuthError(false);
                       setPasswordInput('');
                       setFailedAttemptsCount(0);
+                      onLoginSuccess?.();
                     } else {
                       const nextCount = failedAttemptsCount + 1;
                       setFailedAttemptsCount(nextCount);
