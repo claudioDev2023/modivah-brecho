@@ -2,10 +2,10 @@
    MODIVAH BRECHÓ - SECURE HIGH-PERFORMANCE SERVICE WORKER
    ========================================================================== */
 
-const APP_VERSION = "2.2.0";
-const BUILD_TIME = "2026-06-20T17:54:00Z";
-const CATALOG_VERSION = "cat_v2.2.0";
-const CACHE_VERSION = "c_2.2.0";
+const APP_VERSION = "2.3.0";
+const BUILD_TIME = "2026-06-20T19:00:00Z";
+const CATALOG_VERSION = "cat_v2.3.0";
+const CACHE_VERSION = "c_2.3.0";
 
 const CACHE_NAME = `modivah-cache-v${APP_VERSION}`;
 

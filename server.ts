@@ -735,6 +735,16 @@ function startServer() {
     res.json({ status: "ok", service: "Modivah Brechó Secure Core API" });
   });
 
+  // Mandatory version control API (Always serves the latest deployed values)
+  app.get("/api/public/version", (req, res) => {
+    res.json({
+      APP_VERSION: "2.3.0",
+      BUILD_TIME: "2026-06-20T19:00:00Z",
+      CACHE_VERSION: "c_2.3.0",
+      CATALOG_VERSION: "cat_v2.3.0"
+    });
+  });
+
   // Optimized public products endpoint
   app.get("/api/public/products", async (req, res) => {
     const now = Date.now();
