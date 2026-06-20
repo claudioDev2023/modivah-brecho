@@ -28,7 +28,7 @@ import {
   orderBy as cOrderBy, 
   writeBatch as cWriteBatch 
 } from "firebase/firestore";
-import { INITIAL_PRODUCTS as FULL_MOCK_ACERVO } from "./src/data/initialProducts";
+import { FULL_MOCK_ACERVO } from "./src/data/fullMockAcervo";
 import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./src/data/fashionDatabase";
 
 const app = express();
@@ -687,6 +687,37 @@ function startServer() {
 
   const PUBLIC_CACHE_TTL = 30 * 60 * 1000; // 30 minutes in milliseconds
 
+  // ─── DESKTOP/MOBILE RESILIENT COLD START SEEDING FROM DISK BACKUP ───
+  try {
+    const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+    if (fs.existsSync(backupProductsPath)) {
+      const dataStr = fs.readFileSync(backupProductsPath, "utf-8");
+      const parsed = JSON.parse(dataStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cacheProducts = parsed;
+        cacheProductsTimestamp = Date.now();
+        console.log("[Booster Start] Loaded real products list from server disk cache of size:", parsed.length);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Booster Start] Error reading products disk-cache:", e.message);
+  }
+
+  try {
+    const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+    if (fs.existsSync(backupCategoriesPath)) {
+      const dataStr = fs.readFileSync(backupCategoriesPath, "utf-8");
+      const parsed = JSON.parse(dataStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cacheCategories = parsed;
+        cacheCategoriesTimestamp = Date.now();
+        console.log("[Booster Start] Loaded real categories list from server disk cache of size:", parsed.length);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Booster Start] Error reading categories disk-cache:", e.message);
+  }
+
   function invalidatePublicProductsCache() {
     console.log("[Cache Store] Invalidating public products cache.");
     cacheProducts = null;
@@ -736,6 +767,16 @@ function startServer() {
         
         cacheProducts = list;
         cacheProductsTimestamp = now;
+
+        // Save backup of last valid catalog to server disk with resilient absolute resolution
+        try {
+          const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+          fs.writeFileSync(backupProductsPath, JSON.stringify(list, null, 2), "utf-8");
+          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual products to disk.");
+        } catch (diskErr: any) {
+          console.error("[CACHE SERVER DISK SAVE FAILED] Error:", diskErr.message);
+        }
+
         return res.json({ 
           success: true, 
           products: cacheProducts, 
@@ -754,13 +795,35 @@ function startServer() {
       }
     } catch (err: any) {
       console.error("[Products Public Fetch Fail - Logged Internally]:", err.message || err);
-      // Fallback on error to keep store up and running with stable official catalog
-      cacheProducts = FULL_MOCK_ACERVO;
-      cacheProductsTimestamp = now;
+      
+      // Fallback: 1. Try server in-memory cache
+      // 2. Try server disk persistent backup cache
+      // 3. Try FULL_MOCK_ACERVO
+      if (!cacheProducts || cacheProducts.length === 0) {
+        try {
+          const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+          if (fs.existsSync(backupProductsPath)) {
+            const dataStr = fs.readFileSync(backupProductsPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cacheProducts = parsed;
+              cacheProductsTimestamp = now;
+              console.log("[Products Server Catch Fallback] Restored the last valid database products from server disk.");
+            }
+          }
+        } catch (diskErr: any) {
+          console.error("[Products Server Catch Fallback disk error] Failed reading:", diskErr.message);
+        }
+      }
+
+      if (!cacheProducts || cacheProducts.length === 0) {
+        cacheProducts = FULL_MOCK_ACERVO;
+      }
+
       return res.json({ 
         success: true, 
         products: cacheProducts, 
-        source: "error_fallback_stable_catalog" 
+        source: "error_fallback_last_valid_cache" 
       });
     }
   });
@@ -798,6 +861,16 @@ function startServer() {
         // Update server cache
         cacheCategories = list;
         cacheCategoriesTimestamp = now;
+
+        // Save categories persistence cache to disk
+        try {
+          const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+          fs.writeFileSync(backupCategoriesPath, JSON.stringify(list, null, 2), "utf-8");
+          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual categories to disk.");
+        } catch (diskErr: any) {
+          console.error("[CACHE SERVER DISK SAVE FAILED] Error:", diskErr.message);
+        }
+
         return res.json({ success: true, categories: cacheCategories, source: "firestore" });
       } else {
         if (cacheCategories) {
@@ -807,6 +880,24 @@ function startServer() {
       }
     } catch (err: any) {
       console.error("[Categories Public Fetch Fail - Logged Internally]:", err.message || err);
+      
+      if (!cacheCategories || cacheCategories.length === 0) {
+        try {
+          const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+          if (fs.existsSync(backupCategoriesPath)) {
+            const dataStr = fs.readFileSync(backupCategoriesPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cacheCategories = parsed;
+              cacheCategoriesTimestamp = now;
+              console.log("[Categories Server Catch Fallback] Restored the last valid database categories from server disk.");
+            }
+          }
+        } catch (diskErr: any) {
+          console.error("[Categories Server Catch Fallback disk error] Failed reading:", diskErr.message);
+        }
+      }
+
       if (cacheCategories) {
         return res.json({ success: true, categories: cacheCategories, source: "db_error_cache_fallback" });
       }

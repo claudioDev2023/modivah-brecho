@@ -1,68 +1,145 @@
-const CACHE_NAME = 'modivah-brecho-cache-v10';
+/* ==========================================================================
+   MODIVAH BRECHÓ - SECURE HIGH-PERFORMANCE SERVICE WORKER
+   ========================================================================== */
+
+const APP_VERSION = "2.2.0";
+const BUILD_TIME = "2026-06-20T17:54:00Z";
+const CATALOG_VERSION = "cat_v2.2.0";
+const CACHE_VERSION = "c_2.2.0";
+
+const CACHE_NAME = `modivah-cache-v${APP_VERSION}`;
+
+// Pre-match assets that do not change hashes
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.ico'
+  '/favicon.ico',
+  '/favicon.png',
+  '/logo.png'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
+      // Use silent addAll ignore strategy to prevent install crash if an asset fails to fetch
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map(asset => 
+          fetch(asset, { cache: 'no-store' })
+            .then(res => {
+              if (res.ok) return cache.put(asset, res);
+              throw new Error(`Failed precache fetch: ${asset}`);
+            })
+            .catch(err => console.warn(`[PWA SW] Precache omitted for ${asset}:`, err))
+        )
+      );
+    })
   );
 });
 
 self.addEventListener('activate', (event) => {
+  self.clients.claim();
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Clearing old cache:', cache);
+            console.log('[PWA SW] Removing outdated cache instance:', cache);
             return caches.delete(cache);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    })
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Do not intercept non-GET requests or chrome extension calls or API requests
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+  const reqUrl = event.request.url;
+
+  // 1. Never intercept POST/PUT/DELETE or non-HTTP or chrome extension tasks
+  if (event.request.method !== 'GET' || !reqUrl.startsWith(self.location.origin)) {
     return;
   }
 
-  // Do not intercept API backend requests
-  if (event.request.url.includes('/api/')) {
+  // 2. Bypass Service Worker entirely for ALL backend API endpoints & uploads/media updates
+  if (reqUrl.includes('/api/') || reqUrl.includes('/uploads/')) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch real copy in background and update cache (Stale While Revalidate)
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
+  // 3. Admin Panel Network-Only check: Never cache administrative pages or scripts
+  if (reqUrl.includes('/admin') || reqUrl.includes('AdminPanel')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 4. Force Network First for Main navigation files, manifest and sw.js
+  const isNavigation = event.request.mode === 'navigate' || 
+                       reqUrl === `${self.location.origin}/` || 
+                       reqUrl.endsWith('index.html') || 
+                       reqUrl.endsWith('manifest.json') ||
+                       reqUrl.endsWith('sw.js');
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
+              cache.put(event.request, responseClone);
             });
           }
-        }).catch(() => {});
-        return cachedResponse;
-      }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Offline fallback
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
 
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+  // 5. Cache First for Immutable compilation static assets (JS and CSS with unique cache hashes)
+  const isCompilationAsset = reqUrl.includes('/assets/') && 
+                             (reqUrl.endsWith('.js') || reqUrl.endsWith('.css') || reqUrl.endsWith('.woff') || reqUrl.endsWith('.woff2'));
+
+  if (isCompilationAsset) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
         }
-        return networkResponse;
-      });
+        return fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // 6. Default Stale-While-Revalidate for other static assets (images, icons, styles)
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse); // Fail-safe to cached response if network offline
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

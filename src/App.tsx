@@ -6,7 +6,7 @@ import {
   X, RefreshCw, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
 import { Product, CartItem, Category } from './types';
-import { INITIAL_PRODUCTS as FULL_MOCK_ACERVO } from './data/initialProducts';
+import { FULL_MOCK_ACERVO } from './data/fullMockAcervo';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ProductCard from './components/ProductCard';
@@ -74,14 +74,37 @@ const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export default function App() {
-  // Products list starts empty in compliance with database emergency recovery directives
-  const [products, setProducts] = useState<Product[]>([]);
+  // Instantaneous synchronous cache loading for mobile load speed optimization
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('modivah_products_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Exclude any mock items or test advertisements with fallback
+          return parsed.filter((p: any) => p && p.title && !p.title.toLowerCase().includes('demo_test_ai'));
+        }
+      }
+    } catch (e) {}
+    return FULL_MOCK_ACERVO;
+  });
   
   // Cart state sync
   const [cart, setCart] = useState<CartItem[]>([]);
   
   // Category & Filter states
-  const [categoriesList, setCategoriesList] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [categoriesList, setCategoriesList] = useState<Category[]>(() => {
+    try {
+      const cached = localStorage.getItem('modivah_categories_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_CATEGORIES;
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>('Tudo');
   const [selectedSize, setSelectedSize] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -125,11 +148,11 @@ export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [splashActive, setSplashActive] = useState(true);
 
-  // Elegant minimum display timer for the high-end luxury white Brand Splash Screen
+  // Snappy display timer for the brand splash screen (400ms) to maximize conversion on mobile devices
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashActive(false);
-    }, 1700); // 1.7 seconds of pure luxury brand showcase with zoom & shining fade
+    }, 400); 
     return () => clearTimeout(timer);
   }, []);
 
@@ -435,7 +458,7 @@ export default function App() {
       
       // Fetch products and categories concurrently
       const [prodRes, catRes] = await Promise.allSettled([
-        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products?bypassCache=true"),
+        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products"),
         apiFetch<{ success: boolean; categories: Category[]; source?: string }>("/api/public/categories")
       ]);
 
@@ -1176,7 +1199,7 @@ export default function App() {
     return matchesCategory && matchesSize && matchesSearch;
   });
 
-  if (splashActive || isClientAuthLoading || isInitialLoadingProducts) {
+  if (splashActive) {
     return (
       <div className="splash-screen bg-white" id="app-splash-screen">
         <div className="splash-aura" />
@@ -1254,6 +1277,19 @@ export default function App() {
         />
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#EE4D2D]" />
       </div>
+
+      {/* DISCRETE AUTO-REMOVING UPDATE WARNING RIBBON FOR CLIENTS */}
+      {isInitialLoadingProducts && (
+        <div className="w-full bg-[#FAFAFA] border-b border-zinc-150 py-1.5 px-6 flex items-center justify-center gap-2 text-[10px] text-zinc-500 font-mono tracking-wider transition-opacity duration-300" id="updating-store-ribbon">
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500/80 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+          </span>
+          <span className="animate-pulse duration-1500 text-[10px] select-none text-zinc-500">
+            Atualizando a loja para mostrar as novidades...
+          </span>
+        </div>
+      )}
 
       {/* LEAD CAPTURE - RECEBA NOVIDADES PRIMEIRO */}
       <LeadCapture />

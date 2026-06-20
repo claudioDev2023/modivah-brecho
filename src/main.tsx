@@ -4,9 +4,11 @@ import App from './App.tsx';
 import './index.css';
 
 // ─── MANDATORY APP AND CATALOG CACHE VERSION COMPARISON ───
-const APP_VERSION = "2.1.2";
-const CACHE_VERSION = "c_2.1.2";
-const CATALOG_CACHE_VERSION = "cc_2.1.2";
+const APP_VERSION = "2.2.0";
+const BUILD_TIME = "2026-06-20T17:54:00Z";
+const CATALOG_VERSION = "cat_v2.2.0";
+const CACHE_VERSION = "c_2.2.0";
+const CATALOG_CACHE_VERSION = "cc_2.2.0";
 
 try {
   const savedVersion = localStorage.getItem("modivah_app_version");
