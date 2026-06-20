@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
 import { X, Sparkles, Send, CheckCircle, Phone, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -65,27 +63,31 @@ export default function LeadCapture() {
     setIsSubmitting(true);
 
     try {
-      const id = `lead-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const createdAt = new Date().toISOString();
-
-      await setDoc(doc(db, 'interested_customers', id), {
-        id,
-        name: name.trim(),
-        whatsapp: whatsapp.trim(),
-        createdAt,
-        source: 'lead_capture_flagship'
+      const res = await fetch('/api/public/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          whatsapp: whatsapp.trim()
+        })
       });
 
-      localStorage.setItem('modivah_lead_registered', 'true');
-      setIsSubmitted(true);
-      
-      // Auto close after 3 seconds on success
-      setTimeout(() => {
-        setIsVisible(false);
-      }, 3500);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem('modivah_lead_registered', 'true');
+        setIsSubmitted(true);
+        // Auto close after 3.5 seconds on success
+        setTimeout(() => {
+          setIsVisible(false);
+        }, 3500);
+      } else {
+        throw new Error(data.error || 'Server error');
+      }
     } catch (err: any) {
-      console.error('Error registering lead interest:', err);
-      setErrorText('Ocorreu um erro ao salvar o cadastro. Por favor, tente novamente.');
+      console.error('Error registering lead interest with API:', err);
+      setErrorText('Não foi possível salvar agora. Você também pode chamar pelo WhatsApp.');
     } finally {
       setIsSubmitting(false);
     }
@@ -136,7 +138,7 @@ export default function LeadCapture() {
                   className="flex items-center justify-center lg:justify-end gap-3 text-emerald-700 py-2.5 font-medium text-xs sm:text-sm"
                 >
                   <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
-                  <span>Seu cadastro foi realizado com sucesso! Em breve enviaremos as novidades no WhatsApp. 🌸</span>
+                  <span>Cadastro realizado! Você receberá nossas novidades em primeira mão. 🌸</span>
                 </motion.div>
               ) : (
                 <motion.form

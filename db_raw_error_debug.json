@@ -1,0 +1,6 @@
+{
+  "message": "Quota limit exceeded. Retry after quota limits are reset or enable billing for this project to avoid quota checks. Cause - Quota exceeded for quota metric 'Free daily read units per project (free tier database)' and limit 'Free daily read units per project (free tier database) per day' of service 'firestore.googleapis.com' for consumer 'project_number:606517769402'. This database cannot exceed free quota limits even when a billing instrument is enabled.",
+  "stack": "FirebaseError: Quota limit exceeded. Retry after quota limits are reset or enable billing for this project to avoid quota checks. Cause - Quota exceeded for quota metric 'Free daily read units per project (free tier database)' and limit 'Free daily read units per project (free tier database) per day' of service 'firestore.googleapis.com' for consumer 'project_number:606517769402'. This database cannot exceed free quota limits even when a billing instrument is enabled.",
+  "code": "resource-exhausted",
+  "timestamp": "2026-06-19T14:42:43.027Z"
+}

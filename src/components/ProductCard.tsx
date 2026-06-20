@@ -7,6 +7,7 @@ interface ProductCardProps {
   product: Product;
   onViewDetails: (product: Product, initialView?: 'image' | 'video') => void;
   onAddToCart: (product: Product) => void;
+  isPriority?: boolean;
 }
 
 const getSingularCategoryName = (name: string): string => {
@@ -29,7 +30,7 @@ const getSingularCategoryName = (name: string): string => {
   return trimmed;
 };
 
-const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart }: ProductCardProps): React.JSX.Element {
+const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToCart, isPriority = false }: ProductCardProps): React.JSX.Element {
   const isSold = product.stock <= 0;
   const isReserved = product.status === 'reserved' && !isSold;
   const isAvailable = product.stock > 0 && !isReserved;
@@ -72,6 +73,7 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
             alt=""
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         </div>
 
@@ -81,6 +83,8 @@ const ProductCard = memo(function ProductCard({ product, onViewDetails, onAddToC
           alt={displayTitle}
           referrerPolicy="no-referrer"
           className="relative z-10 w-full h-full object-contain mx-auto transition-transform duration-700 group-hover/img:scale-103"
+          loading={isPriority ? "eager" : "lazy"}
+          {...(isPriority ? { fetchPriority: "high" } : {})}
           onError={(e) => {
             (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800";
           }}

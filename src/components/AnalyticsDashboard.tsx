@@ -495,23 +495,23 @@ export default function AnalyticsDashboard({
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-neutral-900 border border-white/5 p-4 rounded-2xl">
             <span className="text-[9px] text-neutral-500 font-mono block uppercase">Hoje</span>
-            <p className="text-sm md:text-md font-bold font-mono text-[#39ff14]/90 mt-2">R$ {revenueToday.toFixed(2)}</p>
+            <p className="text-sm md:text-md font-bold font-mono text-[#39ff14]/90 mt-2">R$ {(Number(revenueToday) || 0).toFixed(2)}</p>
           </div>
           <div className="bg-neutral-900 border border-white/5 p-4 rounded-2xl">
             <span className="text-[9px] text-neutral-500 font-mono block uppercase">Esta Semana</span>
-            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {revenueThisWeek.toFixed(2)}</p>
+            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {(Number(revenueThisWeek) || 0).toFixed(2)}</p>
           </div>
           <div className="bg-neutral-900 border border-white/5 p-4 rounded-2xl">
             <span className="text-[9px] text-neutral-500 font-mono block uppercase">Este Mês</span>
-            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {revenueThisMonth.toFixed(2)}</p>
+            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {(Number(revenueThisMonth) || 0).toFixed(2)}</p>
           </div>
           <div className="bg-neutral-900 border border-white/5 p-4 rounded-2xl">
             <span className="text-[9px] text-neutral-500 font-mono block uppercase">Este Ano</span>
-            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {revenueThisYear.toFixed(2)}</p>
+            <p className="text-sm md:text-md font-bold font-mono text-neutral-300 mt-2">R$ {(Number(revenueThisYear) || 0).toFixed(2)}</p>
           </div>
           <div className="bg-neutral-900/80 border border-amber-500/20 p-4 rounded-2xl col-span-2 md:col-span-1 shadow-lg bg-gradient-to-br from-neutral-900 to-amber-950/10">
             <span className="text-[9px] text-amber-400 font-mono block uppercase font-bold">Faturamento Período</span>
-            <p className="text-md md:text-lg font-black font-mono text-emerald-400 mt-1">R$ {rangeTotalBilled.toFixed(2)}</p>
+            <p className="text-md md:text-lg font-black font-mono text-emerald-400 mt-1">R$ {(Number(rangeTotalBilled) || 0).toFixed(2)}</p>
           </div>
         </div>
       </section>

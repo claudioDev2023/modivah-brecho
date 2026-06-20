@@ -81,6 +81,12 @@ export async function apiFetch<T = any>(url: string, options: ApiFetchOptions = 
         if (adminEmail) {
           headers.set("X-Admin-Email", adminEmail.toLowerCase().trim());
         }
+        
+        // Dynamically append Bearer JWT authorization token if available
+        const adminToken = sessionStorage.getItem("modivah_admin_token") || localStorage.getItem("modivah_admin_token");
+        if (adminToken && !headers.has("Authorization")) {
+          headers.set("Authorization", `Bearer ${adminToken}`);
+        }
       }
 
       const response = await fetch(url, {

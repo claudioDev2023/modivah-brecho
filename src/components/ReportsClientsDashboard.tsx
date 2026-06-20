@@ -148,21 +148,21 @@ export default function ReportsClientsDashboard({
           <div className="bg-black/40 border border-white/5 p-4 rounded-xl flex items-center justify-between">
             <div>
               <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-mono">Receita Hoje</span>
-              <p className="text-xl font-mono text-white font-bold mt-1">R$ {revenueToday.toFixed(2)}</p>
+              <p className="text-xl font-mono text-white font-bold mt-1">R$ {(Number(revenueToday) || 0).toFixed(2)}</p>
             </div>
             <Calendar className="h-5 w-5 text-zinc-600" />
           </div>
           <div className="bg-black/40 border border-[#ffe490]/10 p-4 rounded-xl flex items-center justify-between">
             <div>
               <span className="text-[9px] text-amber-300/60 uppercase tracking-widest font-mono">Receita Mensal</span>
-              <p className="text-xl font-mono text-amber-300 font-bold mt-1">R$ {revenueThisMonth.toFixed(2)}</p>
+              <p className="text-xl font-mono text-amber-300 font-bold mt-1">R$ {(Number(revenueThisMonth) || 0).toFixed(2)}</p>
             </div>
             <ShoppingBag className="h-5 w-5 text-amber-500/80" />
           </div>
           <div className="bg-black/40 border border-[#39ff14]/10 p-4 rounded-xl flex items-center justify-between">
             <div>
               <span className="text-[9px] text-[#39ff14]/60 uppercase tracking-widest font-mono">Faturamento Anual</span>
-              <p className="text-xl font-mono text-[#39ff14] font-black mt-1">R$ {revenueThisYear.toFixed(2)}</p>
+              <p className="text-xl font-mono text-[#39ff14] font-black mt-1">R$ {(Number(revenueThisYear) || 0).toFixed(2)}</p>
             </div>
             <ExternalLink className="h-5 w-5 text-[#39ff14]/80" />
           </div>
@@ -426,8 +426,8 @@ export default function ReportsClientsDashboard({
                 )}
                 <div>
                   <p className="text-[10px] uppercase text-amber-300 font-mono">Peça de Curadoria</p>
-                  <h4 className="text-xs text-white font-bold">{activeRecovery.productTitle}</h4>
-                  <p className="text-xs text-zinc-400 font-mono mt-0.5">R$ {Number(activeRecovery.price).toFixed(2)}</p>
+                  <h4 className="text-xs text-white font-bold">{activeRecovery.productTitle || 'Sem Título'}</h4>
+                  <p className="text-xs text-zinc-400 font-mono mt-0.5">R$ {(Number(activeRecovery.price) || 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -438,10 +438,10 @@ export default function ReportsClientsDashboard({
                   <span className="text-emerald-400 font-bold font-mono text-[9px] block mb-2 border-b border-emerald-500/10 pb-1">📱 WHATSAPP TEMPLATE (LGPD CONSENTIDO)</span>
                   Não desista do seu pedido. Ele está te aguardando. ✨
                   
-                  🛍️ *Olá, {activeRecovery.clientName}!* Notamos que você amou uma peça exclusiva de curadoria do nosso acervo, mas não concluiu a reserva:
+                  🛍️ *Olá, {activeRecovery.clientName || 'Cliente'}!* Notamos que você amou uma peça exclusiva de curadoria do nosso acervo, mas não concluiu a reserva:
 
-                  👚 *Peça:* {activeRecovery.productTitle}
-                  💰 *Valor Curado:* R$ {Number(activeRecovery.price).toFixed(2)}
+                  👚 *Peça:* {activeRecovery.productTitle || 'Sem Título'}
+                  💰 *Valor Curado:* R$ {(Number(activeRecovery.price) || 0).toFixed(2)}
 
                   🔗 *Clique para concluir o PIX e finalizá-la:* 
                   https://modivah.com.br/?checkout={activeRecovery.productId || 'id'}
