@@ -269,48 +269,6 @@ export default function App() {
     setCurrentClient(null);
   }, []);
 
-  // Synchronise admin mode periodically from localStorage/sessionStorage
-  useEffect(() => {
-    const checkAdminAuth = () => {
-      const isAuth = localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
-      if (isAuth !== isAdminMode) {
-        setIsAdminMode(isAuth);
-      }
-    };
-    
-    const interval = setInterval(checkAdminAuth, 1000);
-    return () => clearInterval(interval);
-  }, [isAdminMode]);
-
-  // Synchronize route and administrator drawer state on mount/popstate
-  useEffect(() => {
-    const handleUrlPath = () => {
-      const isAdminPath = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
-      if (isAdminPath) {
-        setIsAdminOpen(true);
-      }
-    };
-    
-    handleUrlPath();
-    window.addEventListener('popstate', handleUrlPath);
-    return () => window.removeEventListener('popstate', handleUrlPath);
-  }, []);
-
-  const handleCloseAdmin = useCallback(() => {
-    setIsAdminOpen(false);
-    if (window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')) {
-      window.history.pushState({}, '', '/');
-    }
-  }, []);
-
-  const handleOpenAdmin = useCallback(() => {
-    setIsAdminOpen(true);
-    setIsAdminMode(true);
-    if (window.location.pathname !== '/admin') {
-      window.history.pushState({}, '', '/admin');
-    }
-  }, []);
-
   // Track product activities in Firestore behavioral database
   const trackActivity = useCallback(async (actionType: string, product?: Product) => {
     if (!currentClient) return;
@@ -1201,31 +1159,38 @@ export default function App() {
     );
   }
 
-  // Mandatory Admin-Only check for /admin path
-  const isUrlPathAdmin = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
-  const isCurrentlyAdmin = isAdminMode || localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
-
-  if (isUrlPathAdmin && !isCurrentlyAdmin) {
+  // Mandatory Client Registration / Login wall
+  if (!currentClient && !isAdminOpen && !isAdminMode) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col justify-between" id="admin-login-mandatory-block">
-        <Suspense fallback={null}>
-          <AdminPanel
-            isOpen={true}
-            onClose={handleCloseAdmin}
-            products={products}
-            categoriesList={categoriesList}
-            onAddProduct={handleAddProduct}
-            onUpdateProduct={handleUpdateProduct}
-            onUpdateProductStatus={handleUpdateProductStatus}
-            onUpdateProductPrice={handleUpdateProductPrice}
-            onDeleteProduct={handleDeleteProduct}
-            onResetDatabase={handleResetDatabase}
-            onImportProducts={handleImportProducts}
-            onSyncToFirestore={handleSyncToFirestore}
-            onRestoreCategories={handleRestoreCategories}
-            isQuotaExceeded={isQuotaExceeded}
+      <div className="min-h-screen bg-white text-zinc-900 flex flex-col justify-between" id="client-auth-screen-wall">
+        <header className="border-b border-zinc-200 py-4 px-4 bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <span className="text-xs font-bold tracking-[0.25em] text-zinc-800">MODIVAH BRECHÓ</span>
+            <button 
+              onClick={() => {
+                setIsAdminOpen(true);
+                setIsAdminMode(true);
+              }}
+              className="text-[10px] font-mono text-zinc-600 hover:text-[#EE4D2D] border border-zinc-200 px-3 py-1.5 rounded-lg transition"
+            >
+              Painel Admin
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-grow flex items-center justify-center">
+          <ClientAuth 
+            onAuthSuccess={(uid, clientData) => {
+              setCurrentClient(clientData);
+              localStorage.setItem('modivah_client_data', JSON.stringify(clientData));
+              notify("Bem-vinda de volta ao Acervo Premium Modivah! ✨");
+            }} 
           />
-        </Suspense>
+        </main>
+
+        <footer className="py-6 border-t border-zinc-200 text-center text-[10px] text-zinc-500">
+          <p>© 2026 MODIVAH BRECHÓ — Curadoria de Moda Circular Sustentável de Alto Padrão.</p>
+        </footer>
       </div>
     );
   }
@@ -1316,7 +1281,10 @@ export default function App() {
         cart={cart}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenStylist={() => setIsStylistOpen(true)}
-        onOpenAdmin={handleOpenAdmin}
+        onOpenAdmin={() => {
+          setIsAdminOpen(true);
+          setIsAdminMode(true);
+        }}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         isAdmin={isAdminMode}
@@ -1609,7 +1577,7 @@ export default function App() {
             <span>•</span>
             <button onClick={() => setIsStylistOpen(true)} className="hover:text-[#EE4D2D] transition cursor-pointer">Fale com a Mo IA</button>
             <span>•</span>
-            <button onClick={handleOpenAdmin} className="hover:text-[#EE4D2D] transition cursor-pointer">Painel Admin</button>
+            <button onClick={() => { setIsAdminOpen(true); setIsAdminMode(true); }} className="hover:text-[#EE4D2D] transition cursor-pointer">Painel Admin</button>
           </div>
         </div>
         
@@ -1660,7 +1628,7 @@ export default function App() {
       <Suspense fallback={null}>
         <AdminPanel
           isOpen={isAdminOpen}
-          onClose={handleCloseAdmin}
+          onClose={() => setIsAdminOpen(false)}
           products={products}
           categoriesList={categoriesList}
           onAddProduct={handleAddProduct}
