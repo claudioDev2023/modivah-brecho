@@ -495,6 +495,28 @@ export default function App() {
     isCatalogLoadingRef.current = true;
     setIsInitialLoadingProducts(true);
 
+    const parseBackupProducts = (data: any): Product[] => {
+      if (!data) return [];
+      let list: any[] = [];
+      if (Array.isArray(data)) {
+        list = data;
+      } else if (data && Array.isArray(data.products)) {
+        list = data.products;
+      } else if (data && Array.isArray(data.data)) {
+        list = data.data;
+      }
+      
+      // Ensure we accept all 77 products from the backup file, protecting valid prod- long timestamps
+      return list.filter(p => {
+        if (!p) return false;
+        // Skip obvious AI generated mocks or templates if any exist
+        if (p.isMock === true || p.generatedBy === "ai" || p.origin === "fullMockAcervo" || p.origin === "initialProducts") {
+          return false;
+        }
+        return true;
+      });
+    };
+
     try {
       console.log("[Public Catalog] Initiating optimized public query.");
       
@@ -506,11 +528,23 @@ export default function App() {
 
       // 1. Process Products response
       let updatedProducts: Product[] = [];
+      let loadedFromAPI = false;
       
-      if (prodRes.status === "fulfilled" && prodRes.value && prodRes.value.success) {
-        updatedProducts = prodRes.value.products;
-      } else {
-        const errorMsg = prodRes.status === "rejected" ? prodRes.reason : "Response failure";
+      if (prodRes.status === "fulfilled" && prodRes.value) {
+        const val = prodRes.value;
+        if (val && typeof val === "object" && !Array.isArray(val)) {
+          if (val.success && Array.isArray(val.products) && val.products.length > 0) {
+            updatedProducts = val.products;
+            loadedFromAPI = true;
+          }
+        } else if (Array.isArray(val) && val.length > 0) {
+          updatedProducts = val;
+          loadedFromAPI = true;
+        }
+      }
+
+      if (!loadedFromAPI) {
+        const errorMsg = prodRes.status === "rejected" ? prodRes.reason : "Response empty or invalid";
         console.warn("[Public Catalog] Failed loading products from API:", errorMsg);
         
         // Check for Firebase lock/quota or server errors through diagnostic signals
@@ -521,22 +555,33 @@ export default function App() {
       }
 
       // Filter the API products to be absolutely certain we only accept real, manually registered items
-      let cleanRealProducts = (updatedProducts || []).filter(isRealProduct);
+      let cleanRealProducts = loadedFromAPI ? (updatedProducts || []).filter(isRealProduct) : [];
 
       // Fallback intelligently to products_real_backup.json if no products returned from API (Vercel SPA fallback)
       if (cleanRealProducts.length === 0) {
-        console.log("[Public Catalog] No products found from API. Attempting static backup fallback from /products_real_backup.json...");
+        console.log("[Public Catalog] No products found from API. Attempting static backup fallback from /products_real_backup.json with cache buster...");
         try {
-          const backupRes = await fetch("/products_real_backup.json");
-          if (backupRes.ok) {
-            const backupData = await backupRes.json();
-            if (Array.isArray(backupData) && backupData.length > 0) {
-              const filteredBackup = backupData.filter(isRealProduct);
-              if (filteredBackup.length > 0) {
-                console.log(`[Public Catalog] Successfully loaded ${filteredBackup.length} real products from static backup /products_real_backup.json.`);
-                cleanRealProducts = filteredBackup;
-              }
+          // Append timestamp to bypass Vercel/HTML routing cache or older Service Worker caches
+          const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
             }
+          });
+          if (backupRes.ok) {
+            const text = await backupRes.text();
+            if (text && !text.trim().startsWith("<")) {
+              const backupData = JSON.parse(text);
+              const parsedBackup = parseBackupProducts(backupData);
+              if (parsedBackup.length > 0) {
+                console.log(`[Public Catalog] Successfully loaded ${parsedBackup.length} real products from static backup /products_real_backup.json.`);
+                cleanRealProducts = parsedBackup;
+              }
+            } else {
+              console.warn("[Public Catalog] Backup query returned HTML or invalid text content.");
+            }
+          } else {
+            console.warn(`[Public Catalog] Backup query returned status ${backupRes.status}`);
           }
         } catch (backupErr: any) {
           console.warn("[Public Catalog] Failed to load static backup fallback /products_real_backup.json:", backupErr);
@@ -613,11 +658,17 @@ export default function App() {
       
       try {
         console.log("[Public Catalog Catch] Attempting static backup fallback from /products_real_backup.json...");
-        const backupRes = await fetch("/products_real_backup.json");
+        const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
         if (backupRes.ok) {
-          const backupData = await backupRes.json();
-          if (Array.isArray(backupData) && backupData.length > 0) {
-            fallbackProducts = backupData.filter(isRealProduct);
+          const text = await backupRes.text();
+          if (text && !text.trim().startsWith("<")) {
+            const backupData = JSON.parse(text);
+            fallbackProducts = parseBackupProducts(backupData);
           }
         }
       } catch (backupErr) {
