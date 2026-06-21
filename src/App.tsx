@@ -14,6 +14,11 @@ export function isRealProduct(p: any): boolean {
   const title = String(p.title || "").toLowerCase().trim();
   const id = String(p.id || "");
 
+  // Any prod- ID is considered a manual, user-registered product. Keep them!
+  if (id.startsWith("prod-")) {
+    return true;
+  }
+
   // 1. Strictly exclude mock template fields
   if (
     p.source === "mock" ||
@@ -25,19 +30,12 @@ export function isRealProduct(p: any): boolean {
     return false;
   }
 
-  // 2. Check if it's a real timestamp-based user-registered ID (e.g. prod-1779936504196)
-  const isRealTimestampId = /^prod-\d{10,}$/.test(id);
-  if (isRealTimestampId) {
-    // Long timestamp IDs indicate manual, user-registered products. Keep them!
-    return true;
-  }
-
-  // 3. Exclude mock/template prefixes if they are NOT a long timestamp ID
-  if (id.startsWith("prod-") || id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
+  // 2. Exclude mock/template prefixes
+  if (id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
     return false;
   }
 
-  // 4. Exclude other known template and catalog blacklisted brands
+  // 3. Exclude other known template and catalog blacklisted brands
   const lowercaseBlacklist = [
     "farm",
     "schutz",
@@ -56,7 +54,7 @@ export function isRealProduct(p: any): boolean {
     return false;
   }
 
-  // 5. Exclude automatic test placeholders or templates
+  // 4. Exclude automatic test placeholders or templates
   if (title.includes("demo_test_ai")) {
     return false;
   }
@@ -487,7 +485,7 @@ export default function App() {
 
   // Public catalog fetcher with local cache fallback and deduplication logic
   const loadPublicCatalog = useCallback(async () => {
-    // Prevent multiple parallel loading cycles to satisfy: "deduplicação de chamadas, evitar chamadas duplicadas ao abrir a loja"
+    // Prevent multiple parallel loading cycles
     if (isCatalogLoadingRef.current) {
       console.log("[Public Catalog] Already loading, skipping parallel request.");
       return;
@@ -495,73 +493,62 @@ export default function App() {
     isCatalogLoadingRef.current = true;
     setIsInitialLoadingProducts(true);
 
-    const parseBackupProducts = (data: any): Product[] => {
+    const parseLoadedProducts = (data: any): Product[] => {
       if (!data) return [];
       let list: any[] = [];
       if (Array.isArray(data)) {
         list = data;
-      } else if (data && Array.isArray(data.products)) {
-        list = data.products;
-      } else if (data && Array.isArray(data.data)) {
-        list = data.data;
+      } else if (data && typeof data === "object") {
+        if (Array.isArray(data.products)) {
+          list = data.products;
+        } else if (Array.isArray(data.data)) {
+          list = data.data;
+        }
       }
       
-      // Ensure we accept all 77 products from the backup file, protecting valid prod- long timestamps
       return list.filter(p => {
         if (!p) return false;
         // Skip obvious AI generated mocks or templates if any exist
         if (p.isMock === true || p.generatedBy === "ai" || p.origin === "fullMockAcervo" || p.origin === "initialProducts") {
           return false;
         }
-        return true;
+        return isRealProduct(p);
       });
     };
 
     try {
-      console.log("[Public Catalog] Initiating optimized public query.");
-      
-      // Fetch products and categories concurrently
-      const [prodRes, catRes] = await Promise.allSettled([
-        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products"),
-        apiFetch<{ success: boolean; categories: Category[]; source?: string }>("/api/public/categories")
-      ]);
-
-      // 1. Process Products response
-      let updatedProducts: Product[] = [];
+      console.log("[Public Catalog] Attempting to fetch primary API products...");
+      let cleanRealProducts: Product[] = [];
       let loadedFromAPI = false;
-      
-      if (prodRes.status === "fulfilled" && prodRes.value) {
-        const val = prodRes.value;
-        if (val && typeof val === "object" && !Array.isArray(val)) {
-          if (val.success && Array.isArray(val.products) && val.products.length > 0) {
-            updatedProducts = val.products;
-            loadedFromAPI = true;
+
+      // 1. Try to fetch from principal API
+      try {
+        const apiRes = await fetch("/api/public/products");
+        if (apiRes.ok) {
+          const contentType = apiRes.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const rawBody = await apiRes.json();
+            
+            // Check success property if it exists
+            const isSuccess = rawBody && typeof rawBody === "object" && rawBody.success !== false;
+            if (isSuccess) {
+              const parsed = parseLoadedProducts(rawBody);
+              if (parsed.length > 0) {
+                cleanRealProducts = parsed;
+                loadedFromAPI = true;
+                console.log(`[Public Catalog] Loaded ${cleanRealProducts.length} items from main API.`);
+              }
+            }
           }
-        } else if (Array.isArray(val) && val.length > 0) {
-          updatedProducts = val;
-          loadedFromAPI = true;
         }
+      } catch (apiErr) {
+        console.warn("[Public Catalog] API error:", apiErr);
       }
 
-      if (!loadedFromAPI) {
-        const errorMsg = prodRes.status === "rejected" ? prodRes.reason : "Response empty or invalid";
-        console.warn("[Public Catalog] Failed loading products from API:", errorMsg);
-        
-        // Check for Firebase lock/quota or server errors through diagnostic signals
-        const errStr = String(errorMsg).toLowerCase();
-        if (errStr.includes("quota") || errStr.includes("exhausted") || errStr.includes("429") || errStr.includes("503") || errStr.includes("firebase")) {
-          setIsQuotaExceeded(true);
-        }
-      }
-
-      // Filter the API products to be absolutely certain we only accept real, manually registered items
-      let cleanRealProducts = loadedFromAPI ? (updatedProducts || []).filter(isRealProduct) : [];
-
-      // Fallback intelligently to products_real_backup.json if no products returned from API (Vercel SPA fallback)
-      if (cleanRealProducts.length === 0) {
-        console.log("[Public Catalog] No products found from API. Attempting static backup fallback from /products_real_backup.json with cache buster...");
+      // 2. If dynamic API failed to load valid manual catalog items, load from /products_real_backup.json!
+      if (!loadedFromAPI || cleanRealProducts.length === 0) {
+        console.log("[Public Catalog] API failed, returned HTML/error or returned empty items. Forcing backup fallback /products_real_backup.json...");
         try {
-          // Append timestamp to bypass Vercel/HTML routing cache or older Service Worker caches
           const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
             headers: {
               'Accept': 'application/json',
@@ -572,29 +559,30 @@ export default function App() {
             const text = await backupRes.text();
             if (text && !text.trim().startsWith("<")) {
               const backupData = JSON.parse(text);
-              const parsedBackup = parseBackupProducts(backupData);
+              const parsedBackup = parseLoadedProducts(backupData);
               if (parsedBackup.length > 0) {
-                console.log(`[Public Catalog] Successfully loaded ${parsedBackup.length} real products from static backup /products_real_backup.json.`);
                 cleanRealProducts = parsedBackup;
+                console.log(`[Public Catalog] Successfully loaded ${cleanRealProducts.length} real products from static backup /products_real_backup.json.`);
               }
             } else {
-              console.warn("[Public Catalog] Backup query returned HTML or invalid text content.");
+              console.warn("[Public Catalog] Backup fetch returned non-JSON/HTML text.");
             }
           } else {
-            console.warn(`[Public Catalog] Backup query returned status ${backupRes.status}`);
+            console.warn(`[Public Catalog] Backup query status error: ${backupRes.status}`);
           }
-        } catch (backupErr: any) {
-          console.warn("[Public Catalog] Failed to load static backup fallback /products_real_backup.json:", backupErr);
+        } catch (backupErr) {
+          console.error("[Public Catalog] Error fetching backup folder:", backupErr);
         }
       }
 
-      // Fallback intelligently to filtered local cache instead of leaving catalog empty or loading AI mock templates
+      // 3. Store valid loaded products
       if (cleanRealProducts.length > 0) {
         setProducts(cleanRealProducts);
         try {
           localStorage.setItem('modivah_products_cache', JSON.stringify(cleanRealProducts));
         } catch (e) {}
       } else {
+        // Fallback or read from localStorage if it contains valid items
         let cachedItems: Product[] = [];
         try {
           const cachedStr = localStorage.getItem('modivah_products_cache');
@@ -607,91 +595,62 @@ export default function App() {
         } catch (e) {}
 
         if (cachedItems.length > 0) {
-          console.log("[Public Catalog] No fresh products fetched from API; falling back to valid local cache.");
+          console.log("[Public Catalog] Fallback to valid cached local items.");
           setProducts(cachedItems);
+          cleanRealProducts = cachedItems;
         } else {
-          console.log("[Public Catalog] No fresh API response or local cache; returning clean empty catalog with absolutely no AI mock fallbacks.");
+          console.warn("[Public Catalog] Resetting with empty prod catalog.");
           setProducts([]);
-          try {
-            localStorage.setItem('modivah_products_cache', JSON.stringify([]));
-          } catch (e) {}
         }
       }
 
-      // 2. Process Categories response
+      // 4. Handle and map Categories List dynamically
       let updatedCategories: Category[] = [];
-      if (catRes.status === "fulfilled" && catRes.value && catRes.value.success) {
-        updatedCategories = catRes.value.categories;
-      } else {
-        console.warn("[Public Catalog] Failed loading categories from API:", catRes.status === "rejected" ? catRes.reason : "Response failure");
-      }
-
-      if (updatedCategories && updatedCategories.length > 0) {
-        setCategoriesList(updatedCategories);
-        try {
-          localStorage.setItem('modivah_categories_cache', JSON.stringify(updatedCategories));
-        } catch (e) {}
-      } else {
-        // Fallback in localStorage for categories
-        let fallbackCategories: Category[] = [];
-        try {
-          const cached = localStorage.getItem('modivah_categories_cache');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              fallbackCategories = parsed;
+      try {
+        const catRes = await fetch("/api/public/categories");
+        if (catRes.ok) {
+          const contentType = catRes.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const catVal = await catRes.json();
+            if (catVal && Array.isArray(catVal.categories)) {
+              updatedCategories = catVal.categories;
+            } else if (Array.isArray(catVal)) {
+              updatedCategories = catVal;
+            } else if (catVal && Array.isArray(catVal.data)) {
+              updatedCategories = catVal.data;
             }
           }
-        } catch (e) {}
-
-        if (fallbackCategories.length > 0) {
-          setCategoriesList(fallbackCategories);
-        } else {
-          setCategoriesList(DEFAULT_CATEGORIES);
         }
+      } catch (catErr) {
+        console.warn("[Public Catalog] Categories fetching issue:", catErr);
       }
 
-    } catch (e: any) {
-      console.error("[Public Catalog Load Crash - Logged Internally]:", e);
-      // Fallback aggressively to clean filtered products_real_backup.json, then local caches, never show technical error
-      let fallbackProducts: Product[] = [];
-      
-      try {
-        console.log("[Public Catalog Catch] Attempting static backup fallback from /products_real_backup.json...");
-        const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
+      let finalCategoriesList = updatedCategories && updatedCategories.length > 0 ? [...updatedCategories] : [...DEFAULT_CATEGORIES];
+
+      // Merge and auto-inject any categories present in loaded products to avoid 0 count anomalies or missing tags
+      if (cleanRealProducts.length > 0) {
+        const productCategories = Array.from(new Set(cleanRealProducts.map(p => p.category))).filter((c): c is string => typeof c === 'string' && c.trim() !== '');
+        
+        productCategories.forEach(pCat => {
+          const hasCat = finalCategoriesList.some(c => c.name.toLowerCase().trim() === pCat.toLowerCase().trim());
+          if (!hasCat) {
+            finalCategoriesList.push({
+              id: 'cat-' + pCat.toLowerCase().trim().replace(/[/\s]+/g, '-'),
+              name: pCat,
+              active: true,
+              order: 100
+            });
           }
         });
-        if (backupRes.ok) {
-          const text = await backupRes.text();
-          if (text && !text.trim().startsWith("<")) {
-            const backupData = JSON.parse(text);
-            fallbackProducts = parseBackupProducts(backupData);
-          }
-        }
-      } catch (backupErr) {
-        console.warn("[Public Catalog Catch] Failed to load static backup fallback /products_real_backup.json:", backupErr);
       }
 
-      if (fallbackProducts.length === 0) {
-        try {
-          const cached = localStorage.getItem('modivah_products_cache');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed)) {
-              fallbackProducts = parsed.filter(isRealProduct);
-            }
-          }
-        } catch (err) {}
-      }
+      setCategoriesList(finalCategoriesList);
+      try {
+        localStorage.setItem('modivah_categories_cache', JSON.stringify(finalCategoriesList));
+      } catch (e) {}
 
-      if (fallbackProducts.length > 0) {
-        setProducts(fallbackProducts);
-      } else {
-        setProducts([]);
-      }
+    } catch (err: any) {
+      console.error("[Public Catalog Fatal Catch]:", err);
       setIsQuotaExceeded(true);
     } finally {
       setIsInitialLoadingProducts(false);

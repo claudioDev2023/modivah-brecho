@@ -77,8 +77,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Bypass Service Worker entirely for ALL backend API endpoints & uploads/media updates
-  if (reqUrl.includes('/api/') || reqUrl.includes('/uploads/')) {
+  // 2. Bypass Service Worker entirely for ALL backend API endpoints, uploads/media updates & static backups
+  if (reqUrl.includes('/api/') || reqUrl.includes('/uploads/') || reqUrl.includes('products_real_backup.json')) {
     return;
   }
 
