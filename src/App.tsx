@@ -6,7 +6,64 @@ import {
   X, RefreshCw, Image as ImageIcon, AlertCircle
 } from 'lucide-react';
 import { Product, CartItem, Category } from './types';
-import { INITIAL_PRODUCTS as FULL_MOCK_ACERVO } from './data/initialProducts';
+
+// Helper function to check if a product is a real user-registered ad and NOT an AI template
+export function isRealProduct(p: any): boolean {
+  if (!p) return false;
+  const brand = String(p.brand || "").toLowerCase().trim();
+  const title = String(p.title || "").toLowerCase().trim();
+  const id = String(p.id || "");
+
+  // 1. Strictly exclude mock template fields
+  if (
+    p.source === "mock" ||
+    p.isMock === true ||
+    p.generatedBy === "ai" ||
+    p.origin === "fullMockAcervo" ||
+    p.origin === "initialProducts"
+  ) {
+    return false;
+  }
+
+  // 2. Check if it's a real timestamp-based user-registered ID (e.g. prod-1779936504196)
+  const isRealTimestampId = /^prod-\d{10,}$/.test(id);
+  if (isRealTimestampId) {
+    // Long timestamp IDs indicate manual, user-registered products. Keep them!
+    return true;
+  }
+
+  // 3. Exclude mock/template prefixes if they are NOT a long timestamp ID
+  if (id.startsWith("prod-") || id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
+    return false;
+  }
+
+  // 4. Exclude other known template and catalog blacklisted brands
+  const lowercaseBlacklist = [
+    "farm",
+    "schutz",
+    "zara premium",
+    "animale",
+    "le lis blanc",
+    "arezzo",
+    "cantão",
+    "cantao",
+    "colcci",
+    "loz a loz",
+    "morena rosa",
+    "osklen"
+  ];
+  if (lowercaseBlacklist.some(b => brand === b || brand.includes(b))) {
+    return false;
+  }
+
+  // 5. Exclude automatic test placeholders or templates
+  if (title.includes("demo_test_ai")) {
+    return false;
+  }
+
+  return true;
+}
+
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ProductCard from './components/ProductCard';
@@ -74,14 +131,37 @@ const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export default function App() {
-  // Products list starts empty in compliance with database emergency recovery directives
-  const [products, setProducts] = useState<Product[]>([]);
+  // Instantaneous synchronous cache loading for mobile load speed optimization
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('modivah_products_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Exclude any mock items or test advertisements with fallback
+          return parsed.filter(isRealProduct);
+        }
+      }
+    } catch (e) {}
+    return []; // Return empty if cache is empty or unavailable, strictly avoiding FULL_MOCK_ACERVO
+  });
   
   // Cart state sync
   const [cart, setCart] = useState<CartItem[]>([]);
   
   // Category & Filter states
-  const [categoriesList, setCategoriesList] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [categoriesList, setCategoriesList] = useState<Category[]>(() => {
+    try {
+      const cached = localStorage.getItem('modivah_categories_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_CATEGORIES;
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>('Tudo');
   const [selectedSize, setSelectedSize] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -125,11 +205,11 @@ export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [splashActive, setSplashActive] = useState(true);
 
-  // Elegant minimum display timer for the high-end luxury white Brand Splash Screen
+  // Snappy display timer for the brand splash screen (400ms) to maximize conversion on mobile devices
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashActive(false);
-    }, 1700); // 1.7 seconds of pure luxury brand showcase with zoom & shining fade
+    }, 400); 
     return () => clearTimeout(timer);
   }, []);
 
@@ -400,24 +480,9 @@ export default function App() {
     }
   }, []);
 
-  // Seed the Firestore database with initial products if it is empty
+  // Seeding database with AI mock templates is disabled as per user strict instructions
   const seedDatabase = async () => {
-    try {
-      const batch = writeBatch(db);
-      FULL_MOCK_ACERVO.forEach((product) => {
-        const docRef = doc(db, 'products', product.id);
-        batch.set(docRef, product);
-      });
-      await batch.commit();
-      notify("Estoque inicial carregado no banco de dados sincronizado!");
-      try {
-        localStorage.setItem('modivah_products_cache', JSON.stringify(FULL_MOCK_ACERVO));
-      } catch (err) {
-        console.warn('Erro ao salvar cache de produtos:', err);
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'products');
-    }
+    console.warn("DB Seeding disabled: Cannot seed AI-generated mock products.");
   };
 
   // Public catalog fetcher with local cache fallback and deduplication logic
@@ -435,7 +500,7 @@ export default function App() {
       
       // Fetch products and categories concurrently
       const [prodRes, catRes] = await Promise.allSettled([
-        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products?bypassCache=true"),
+        apiFetch<{ success: boolean; products: Product[]; source?: string }>("/api/public/products"),
         apiFetch<{ success: boolean; categories: Category[]; source?: string }>("/api/public/categories")
       ]);
 
@@ -455,11 +520,14 @@ export default function App() {
         }
       }
 
-      // Fallback intelligently to local cache or stable mock catalog instead of leaving catalog empty or broken
-      if (updatedProducts && updatedProducts.length > 0) {
-        setProducts(updatedProducts);
+      // Filter the API products to be absolutely certain we only accept real, manually registered items
+      const cleanRealProducts = (updatedProducts || []).filter(isRealProduct);
+
+      // Fallback intelligently to filtered local cache instead of leaving catalog empty or loading AI mock templates
+      if (cleanRealProducts.length > 0) {
+        setProducts(cleanRealProducts);
         try {
-          localStorage.setItem('modivah_products_cache', JSON.stringify(updatedProducts));
+          localStorage.setItem('modivah_products_cache', JSON.stringify(cleanRealProducts));
         } catch (e) {}
       } else {
         let cachedItems: Product[] = [];
@@ -468,7 +536,7 @@ export default function App() {
           if (cachedStr) {
             const parsed = JSON.parse(cachedStr);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              cachedItems = parsed;
+              cachedItems = parsed.filter(isRealProduct);
             }
           }
         } catch (e) {}
@@ -477,10 +545,10 @@ export default function App() {
           console.log("[Public Catalog] No fresh products fetched from API; falling back to valid local cache.");
           setProducts(cachedItems);
         } else {
-          console.log("[Public Catalog] No fresh API response or local cache; falling back to stable catalog FULL_MOCK_ACERVO.");
-          setProducts(FULL_MOCK_ACERVO);
+          console.log("[Public Catalog] No fresh API response or local cache; returning clean empty catalog with absolutely no AI mock fallbacks.");
+          setProducts([]);
           try {
-            localStorage.setItem('modivah_products_cache', JSON.stringify(FULL_MOCK_ACERVO));
+            localStorage.setItem('modivah_products_cache', JSON.stringify([]));
           } catch (e) {}
         }
       }
@@ -520,19 +588,22 @@ export default function App() {
 
     } catch (e: any) {
       console.error("[Public Catalog Load Crash - Logged Internally]:", e);
-      // Fallback aggressively to local caches, never show technical error
+      // Fallback aggressively to clean filtered local caches, never show technical error
       let fallbackProducts: Product[] = [];
       try {
         const cached = localStorage.getItem('modivah_products_cache');
         if (cached) {
-          fallbackProducts = JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            fallbackProducts = parsed.filter(isRealProduct);
+          }
         }
       } catch (err) {}
 
       if (fallbackProducts.length > 0) {
         setProducts(fallbackProducts);
       } else {
-        setProducts(FULL_MOCK_ACERVO);
+        setProducts([]);
       }
       setIsQuotaExceeded(true);
     } finally {
@@ -1176,7 +1247,7 @@ export default function App() {
     return matchesCategory && matchesSize && matchesSearch;
   });
 
-  if (splashActive || isClientAuthLoading || isInitialLoadingProducts) {
+  if (splashActive) {
     return (
       <div className="splash-screen bg-white" id="app-splash-screen">
         <div className="splash-aura" />
@@ -1254,6 +1325,19 @@ export default function App() {
         />
         <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#EE4D2D]" />
       </div>
+
+      {/* DISCRETE AUTO-REMOVING UPDATE WARNING RIBBON FOR CLIENTS */}
+      {isInitialLoadingProducts && (
+        <div className="w-full bg-[#FAFAFA] border-b border-zinc-150 py-1.5 px-6 flex items-center justify-center gap-2 text-[10px] text-zinc-500 font-mono tracking-wider transition-opacity duration-300" id="updating-store-ribbon">
+          <span className="relative flex h-1.5 w-1.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-500/80 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+          </span>
+          <span className="animate-pulse duration-1500 text-[10px] select-none text-zinc-500">
+            Atualizando a loja para mostrar as novidades...
+          </span>
+        </div>
+      )}
 
       {/* LEAD CAPTURE - RECEBA NOVIDADES PRIMEIRO */}
       <LeadCapture />
@@ -1519,7 +1603,39 @@ export default function App() {
           </div>
 
           {/* Catalog Loading/Empty state conditional */}
-          {filteredProducts.length === 0 ? (
+          {products.length === 0 ? (
+            <div className="py-20 text-center bg-gradient-to-b from-zinc-50 to-zinc-100/50 border border-zinc-200/80 rounded-3xl px-8 shadow-sm max-w-2xl mx-auto my-8" id="empty-catalog-container">
+              <div className="p-4 bg-amber-500/10 text-[#EE4D2D] rounded-full inline-block mb-4">
+                <Sparkles className="h-7 w-7 text-[#EE4D2D]" />
+              </div>
+              <h3 className="text-sm font-sans font-black text-neutral-900 uppercase tracking-widest">Sincronizando o Acervo Exclusivo</h3>
+              <p className="text-xs text-neutral-600 max-w-md mx-auto leading-relaxed mt-3 text-center font-sans font-normal">
+                Nossos servidores estão em processo de atualização e sincronização. Para garantir a integridade absoluta da loja, exibimos apenas anúncios reais cadastrados manualmente pela curadoria (sem peças de simulação de IA).
+              </p>
+              <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed mt-2 text-center font-sans">
+                Se você já incluiu peças anteriormente, aguarde alguns instantes até que a cota diária do banco de dados na nuvem reinicie ou a sincronização seja concluída.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mt-8">
+                <a
+                  href="https://wa.me/5527988226654?text=Olá! Gostaria de conferir as novidades e peças disponíveis do acervo Modivah Brechó!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-6 py-3 bg-[#EE4D2D] hover:bg-[#EE4D2D]/90 text-white font-sans text-xs font-bold uppercase tracking-widest rounded-full shadow-md transition-all duration-200 flex items-center gap-2 cursor-pointer active:scale-[0.98]"
+                >
+                  <span>Chamar no WhatsApp</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-3 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 font-sans text-xs font-bold uppercase tracking-widest rounded-full shadow-sm transition-all duration-200 flex items-center gap-2 cursor-pointer active:scale-[0.98]"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Atualizar Vitrine</span>
+                </button>
+              </div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="py-24 text-center bg-zinc-50 border border-zinc-150 rounded-3xl px-6" id="empty-catalog-container">
               <div className="p-4 bg-zinc-100 rounded-full inline-block mb-3 text-zinc-400">
                 <Shirt className="h-6 w-6" />

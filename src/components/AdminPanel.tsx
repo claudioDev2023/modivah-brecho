@@ -10,7 +10,6 @@ import {
 import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product, Category } from '../types';
-import { INITIAL_PRODUCTS as FULL_MOCK_ACERVO } from '../data/initialProducts';
 import { apiFetch } from '../utils/apiFetch';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import ReportsClientsDashboard from './ReportsClientsDashboard';
@@ -2465,12 +2464,21 @@ function AdminPanelInner({
                     Sair
                   </button>
                   <button
-                    onClick={() => {
-                      window.location.reload();
+                    disabled={refreshingAll}
+                    onClick={async () => {
+                      try {
+                        await handleManualRefresh();
+                      } catch (err) {
+                        window.location.reload();
+                      }
                     }}
-                    className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-neutral-950 font-bold text-[10px] uppercase tracking-widest rounded-xl transition shadow-lg shadow-amber-500/10"
+                    className={`px-3.5 py-2 font-bold text-[10px] uppercase tracking-widest rounded-xl transition shadow-lg ${
+                      refreshingAll 
+                        ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-white/5 shadow-none' 
+                        : 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-neutral-950 shadow-amber-500/10'
+                    }`}
                   >
-                    Atualizar
+                    {refreshingAll ? "Atualizando..." : "Atualizar dados administrativos"}
                   </button>
                 </div>
               </div>
@@ -4686,34 +4694,7 @@ function AdminPanelInner({
                     </div>
                   </div>
 
-                  {/* NOVO: BOTÃO DE RESTAURAÇÃO RÁPIDA 51 PRODUTOS */}
-                  <div className="bg-amber-400/[0.03] border border-amber-400/20 p-4 rounded-xl space-y-2.5" id="rescue-51-banner">
-                    <span className="text-xs uppercase tracking-widest text-[#ffe4a0] font-black flex items-center gap-1.5 font-mono">
-                      <Sparkles className="h-4 w-4 text-amber-400" />
-                      <span>Voltar Anúncios Imediatamente (Bypassar Limite do Firebase)</span>
-                    </span>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed font-sans font-light">
-                      Se você abriu o aplicativo em outro navegador/celular ou limpou seu histórico de navegação, o seu cache local foi redefinido. Como a cota diária de leitura gratuita do Google Firebase foi excedida para o dia de hoje, o aplicativo não consegue baixar o acervo da nuvem.
-                    </p>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans font-semibold">
-                      💡 Solução: Clique no botão dourado abaixo para carregar instantaneamente o acervo completo de <span className="text-amber-400">51 Anúncios de Luxo pré-configurados</span> direto no seu navegador. Você terá o acervo inteiro de volta agora mesmo!
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onImportProducts) {
-                          onImportProducts(FULL_MOCK_ACERVO);
-                        } else {
-                          alert("Ação indisponível.");
-                        }
-                      }}
-                      className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/30 to-amber-600/35 hover:from-amber-500/40 hover:to-amber-600/50 text-amber-200 hover:text-white border border-amber-400/30 font-black uppercase text-[10px] tracking-widest rounded-lg shadow-md transition duration-200 flex items-center justify-center gap-2 cursor-pointer"
-                      id="force-restore-51-button"
-                    >
-                      <Sparkles className="h-4 w-4 text-amber-400" />
-                      <span>Restaurar Todos os 51 Anúncios Originais do Acervo</span>
-                    </button>
-                  </div>
+
 
                   {/* Botões de Ação */}
                   <div className="flex flex-col sm:flex-row gap-2.5 pt-1">

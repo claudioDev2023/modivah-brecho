@@ -28,7 +28,6 @@ import {
   orderBy as cOrderBy, 
   writeBatch as cWriteBatch 
 } from "firebase/firestore";
-import { INITIAL_PRODUCTS as FULL_MOCK_ACERVO } from "./src/data/initialProducts";
 import { FASHION_DATABASE, NON_FASHION_REJECTION, isQueryAboutFashion } from "./src/data/fashionDatabase";
 
 const app = express();
@@ -687,6 +686,37 @@ function startServer() {
 
   const PUBLIC_CACHE_TTL = 30 * 60 * 1000; // 30 minutes in milliseconds
 
+  // ─── DESKTOP/MOBILE RESILIENT COLD START SEEDING FROM DISK BACKUP ───
+  try {
+    const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+    if (fs.existsSync(backupProductsPath)) {
+      const dataStr = fs.readFileSync(backupProductsPath, "utf-8");
+      const parsed = JSON.parse(dataStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cacheProducts = parsed;
+        cacheProductsTimestamp = Date.now();
+        console.log("[Booster Start] Loaded real products list from server disk cache of size:", parsed.length);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Booster Start] Error reading products disk-cache:", e.message);
+  }
+
+  try {
+    const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+    if (fs.existsSync(backupCategoriesPath)) {
+      const dataStr = fs.readFileSync(backupCategoriesPath, "utf-8");
+      const parsed = JSON.parse(dataStr);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cacheCategories = parsed;
+        cacheCategoriesTimestamp = Date.now();
+        console.log("[Booster Start] Loaded real categories list from server disk cache of size:", parsed.length);
+      }
+    }
+  } catch (e: any) {
+    console.error("[Booster Start] Error reading categories disk-cache:", e.message);
+  }
+
   function invalidatePublicProductsCache() {
     console.log("[Cache Store] Invalidating public products cache.");
     cacheProducts = null;
@@ -704,6 +734,77 @@ function startServer() {
     res.json({ status: "ok", service: "Modivah Brechó Secure Core API" });
   });
 
+  // Mandatory version control API (Always serves the latest deployed values)
+  app.get("/api/public/version", (req, res) => {
+    res.json({
+      APP_VERSION: "2.3.0",
+      BUILD_TIME: "2026-06-20T19:00:00Z",
+      CACHE_VERSION: "c_2.3.0",
+      CATALOG_VERSION: "cat_v2.3.0"
+    });
+  });
+
+  // Helper to filter out any AI-created mock template products to enforce user absolute rule
+  function filterRealProducts(products: any[]): any[] {
+    if (!Array.isArray(products)) return [];
+    const lowercaseBlacklist = [
+      "farm",
+      "schutz",
+      "zara premium",
+      "animale",
+      "le lis blanc",
+      "arezzo",
+      "cantão",
+      "cantao",
+      "colcci",
+      "loz a loz",
+      "morena rosa",
+      "osklen"
+    ];
+    return products.filter((p: any) => {
+      if (!p) return false;
+      const brand = String(p.brand || "").toLowerCase().trim();
+      const title = String(p.title || "").toLowerCase().trim();
+      const id = String(p.id || "");
+
+      // 1. Strictly exclude mock template fields
+      if (
+        p.source === "mock" ||
+        p.isMock === true ||
+        p.generatedBy === "ai" ||
+        p.origin === "fullMockAcervo" ||
+        p.origin === "initialProducts"
+      ) {
+        return false;
+      }
+
+      // 2. Check if it's a real timestamp-based user-registered ID (e.g. prod-1779936504196)
+      const isRealTimestampId = /^prod-\d{10,}$/.test(id);
+      if (isRealTimestampId) {
+        // High timestamp IDs indicate manual, user-registered products. Keep them!
+        return true;
+      }
+
+      // 3. Exclude mock/template prefixes if they are NOT a long timestamp ID
+      if (id.startsWith("prod-") || id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
+        return false;
+      }
+
+      // 4. If the brand matches / is contained in our mock brand blacklist, exclude it
+      const isMockBrand = lowercaseBlacklist.some(b => brand === b || brand.includes(b));
+      if (isMockBrand) {
+        return false;
+      }
+
+      // 5. Prevent any accidental template text matches
+      if (title.includes("demo_test_ai")) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
   // Optimized public products endpoint
   app.get("/api/public/products", async (req, res) => {
     const now = Date.now();
@@ -712,17 +813,21 @@ function startServer() {
     // Check in-memory cache - bypass if requested or if cache is empty
     if (!bypassCache && cacheProducts && cacheProducts.length > 0 && (now - cacheProductsTimestamp < PUBLIC_CACHE_TTL)) {
       console.log("[CACHE SERVER HIT] Returning products from server cache.");
-      return res.json({ success: true, products: cacheProducts, source: "cache" });
+      const filtered = filterRealProducts(cacheProducts);
+      return res.json({ success: true, products: filtered, source: "cache" });
     }
 
     try {
       console.log("[CACHE SERVER MISS] Fetching fresh products from Firestore.");
       const snapshot = await secureGetAdminCollection("products");
-      const list: any[] = [];
+      let list: any[] = [];
       const docs = snapshot && (snapshot as any).docs ? (snapshot as any).docs : [];
       docs.forEach((doc: any) => {
         list.push(doc.data());
       });
+
+      // Filter database/cache results to contain only manually registered, real owner ads
+      list = filterRealProducts(list);
 
       if (list.length > 0) {
         // Sort products by creation timestamp descending
@@ -736,31 +841,107 @@ function startServer() {
         
         cacheProducts = list;
         cacheProductsTimestamp = now;
+
+        // Save backup of last valid catalog to server disk with resilient absolute resolution
+        try {
+          const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
+          
+          fs.writeFileSync(backupProductsPath, JSON.stringify(list, null, 2), "utf-8");
+          fs.writeFileSync(realBackupPath, JSON.stringify(list, null, 2), "utf-8");
+          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual products to disk (persistence cache & products_real_backup.json).");
+        } catch (diskErr: any) {
+          console.error("[CACHE SERVER DISK SAVE FAILED] Error:", diskErr.message);
+        }
+
         return res.json({ 
           success: true, 
           products: cacheProducts, 
           source: "firestore"
         });
       } else {
-        // Database is empty. Fallback to official stable catalog (FULL_MOCK_ACERVO)
-        console.log("[CACHE SERVER MISS - EMPTY] Seeding / returning official stable catalog (FULL_MOCK_ACERVO).");
-        cacheProducts = FULL_MOCK_ACERVO;
+        // Database is empty. Try to load from custom real backup products_real_backup.json first!
+        try {
+          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
+          if (fs.existsSync(realBackupPath)) {
+            const dataStr = fs.readFileSync(realBackupPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            const filteredBack = filterRealProducts(parsed);
+            if (filteredBack.length > 0) {
+              console.log("[CACHE SERVER EMPTY FALLBACK] Database was empty but successfully loaded real backup.");
+              cacheProducts = filteredBack;
+              cacheProductsTimestamp = now;
+              return res.json({
+                success: true,
+                products: cacheProducts,
+                source: "products_real_backup"
+              });
+            }
+          }
+        } catch (e: any) {
+          console.error("[CACHE SERVER EMPTY FALLBACK - FAIL]", e.message);
+        }
+
+        console.log("[CACHE SERVER MISS - EMPTY] Database and files have no real products. Returning empty array.");
+        cacheProducts = [];
         cacheProductsTimestamp = now;
         return res.json({ 
           success: true, 
-          products: cacheProducts, 
-          source: "fallback_stable_catalog"
+          products: [], 
+          source: "database_empty_no_mock_fallback"
         });
       }
     } catch (err: any) {
       console.error("[Products Public Fetch Fail - Logged Internally]:", err.message || err);
-      // Fallback on error to keep store up and running with stable official catalog
-      cacheProducts = FULL_MOCK_ACERVO;
-      cacheProductsTimestamp = now;
+      
+      // Fallback: 1. Try server in-memory cache
+      // 2. Try server disk real backup (products_real_backup.json)
+      // 3. Try server disk persistent backup cache
+      if (!cacheProducts || cacheProducts.length === 0) {
+        // First try the official real backup
+        try {
+          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
+          if (fs.existsSync(realBackupPath)) {
+            const dataStr = fs.readFileSync(realBackupPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cacheProducts = filterRealProducts(parsed);
+              cacheProductsTimestamp = now;
+              console.log("[Products Server Catch Fallback] Restored the last valid database products from products_real_backup.json.");
+            }
+          }
+        } catch (diskErr: any) {
+          console.error("[Products Server Catch Fallback products_real_backup.json error] Failed reading:", diskErr.message);
+        }
+      }
+
+      if (!cacheProducts || cacheProducts.length === 0) {
+        try {
+          const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
+          if (fs.existsSync(backupProductsPath)) {
+            const dataStr = fs.readFileSync(backupProductsPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cacheProducts = filterRealProducts(parsed);
+              cacheProductsTimestamp = now;
+              console.log("[Products Server Catch Fallback] Restored the last valid database products from products_persistence_cache.json.");
+            }
+          }
+        } catch (diskErr: any) {
+          console.error("[Products Server Catch Fallback disk error] Failed reading:", diskErr.message);
+        }
+      }
+
+      if (!cacheProducts) {
+        cacheProducts = [];
+      } else {
+        cacheProducts = filterRealProducts(cacheProducts);
+      }
+
       return res.json({ 
         success: true, 
         products: cacheProducts, 
-        source: "error_fallback_stable_catalog" 
+        source: "error_fallback_last_valid_cache" 
       });
     }
   });
@@ -798,6 +979,16 @@ function startServer() {
         // Update server cache
         cacheCategories = list;
         cacheCategoriesTimestamp = now;
+
+        // Save categories persistence cache to disk
+        try {
+          const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+          fs.writeFileSync(backupCategoriesPath, JSON.stringify(list, null, 2), "utf-8");
+          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual categories to disk.");
+        } catch (diskErr: any) {
+          console.error("[CACHE SERVER DISK SAVE FAILED] Error:", diskErr.message);
+        }
+
         return res.json({ success: true, categories: cacheCategories, source: "firestore" });
       } else {
         if (cacheCategories) {
@@ -807,6 +998,24 @@ function startServer() {
       }
     } catch (err: any) {
       console.error("[Categories Public Fetch Fail - Logged Internally]:", err.message || err);
+      
+      if (!cacheCategories || cacheCategories.length === 0) {
+        try {
+          const backupCategoriesPath = path.join(process.cwd(), "categories_persistence_cache.json");
+          if (fs.existsSync(backupCategoriesPath)) {
+            const dataStr = fs.readFileSync(backupCategoriesPath, "utf-8");
+            const parsed = JSON.parse(dataStr);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cacheCategories = parsed;
+              cacheCategoriesTimestamp = now;
+              console.log("[Categories Server Catch Fallback] Restored the last valid database categories from server disk.");
+            }
+          }
+        } catch (diskErr: any) {
+          console.error("[Categories Server Catch Fallback disk error] Failed reading:", diskErr.message);
+        }
+      }
+
       if (cacheCategories) {
         return res.json({ success: true, categories: cacheCategories, source: "db_error_cache_fallback" });
       }
@@ -2115,7 +2324,7 @@ function startServer() {
     if (!adminDb && !clientDb) return res.status(503).json({ error: "Banco offline." });
 
     try {
-      // 1. Fetch current list to clean up
+      // 1. Fetch current list of products to clean up
       const currentProductsSnap = await secureGetAdminCollection("products");
       const prodDocs = currentProductsSnap && (currentProductsSnap as any).docs ? (currentProductsSnap as any).docs : [];
       
@@ -2128,15 +2337,7 @@ function startServer() {
         });
         await batchClear.commit();
 
-        // 2. Load clean initial static dataset
-        const batchSeed = adminDb!.batch();
-        FULL_MOCK_ACERVO.forEach(p => {
-          const docRef = adminDb!.collection("products").doc(p.id);
-          batchSeed.set(docRef, p);
-        });
-        await batchSeed.commit();
-
-        // 3. Clear and seed categories
+        // 2. Clear and seed categories (avoid seeding any mock/AI products)
         const currentCategoriesSnap = await secureGetAdminCollection("categories");
         const catDocs = currentCategoriesSnap && (currentCategoriesSnap as any).docs ? (currentCategoriesSnap as any).docs : [];
         const batchClearCats = adminDb!.batch();
@@ -2198,9 +2399,8 @@ function startServer() {
         });
         await batchSeedCats.commit();
       } else {
-        // Fallback: Clear and Seed categories using sequential/parallel secure helpers
+        // Fallback: Clear list and seed categories using secure helpers
         await Promise.all(prodDocs.map((doc: any) => secureDeleteDoc("products", doc.id)));
-        await Promise.all(FULL_MOCK_ACERVO.map((p: any) => secureSetDoc("products", p.id, p)));
 
         const currentCategoriesSnap = await secureGetAdminCollection("categories");
         const catDocs = currentCategoriesSnap && (currentCategoriesSnap as any).docs ? (currentCategoriesSnap as any).docs : [];
@@ -2255,10 +2455,10 @@ function startServer() {
         await Promise.all(defaultCategories.map((cat: any) => secureSetDoc("categories", cat.id, cat)));
       }
 
-      auditLog("RESTAURO_TOTAL_ESTOQUE", ip, "Configuração de fábrica do brechó restaurada.");
+      auditLog("RESTAURO_TOTAL_ESTOQUE", ip, "Configuração de fábrica do brechó restaurada (todos os produtos limpos).");
       invalidatePublicProductsCache();
       invalidatePublicCategoriesCache();
-      return res.json({ success: true, message: "Banco de dados restaurado e semeado com sucesso." });
+      return res.json({ success: true, message: "Banco de dados restaurado (estoque limpo para novos produtos reais)." });
     } catch (e: any) {
       console.error("[Factory Reset Failure]", e);
       return res.status(500).json({ error: "Não foi possível redefinir o banco de dados.", details: e.message });
