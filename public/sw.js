@@ -62,6 +62,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Vite development environment source files bypass: Never cache or intercept dev source requests
+  if (
+    reqUrl.includes('/src/') ||
+    reqUrl.includes('/node_modules/') ||
+    reqUrl.includes('/@vite/') ||
+    reqUrl.includes('/@react-refresh') ||
+    reqUrl.endsWith('.tsx') ||
+    reqUrl.endsWith('.ts') ||
+    reqUrl.endsWith('.jsx') ||
+    reqUrl.includes('?import') ||
+    reqUrl.includes('?v=')
+  ) {
+    return;
+  }
+
   // 2. Bypass Service Worker entirely for ALL backend API endpoints & uploads/media updates
   if (reqUrl.includes('/api/') || reqUrl.includes('/uploads/')) {
     return;

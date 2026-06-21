@@ -521,7 +521,27 @@ export default function App() {
       }
 
       // Filter the API products to be absolutely certain we only accept real, manually registered items
-      const cleanRealProducts = (updatedProducts || []).filter(isRealProduct);
+      let cleanRealProducts = (updatedProducts || []).filter(isRealProduct);
+
+      // Fallback intelligently to products_real_backup.json if no products returned from API (Vercel SPA fallback)
+      if (cleanRealProducts.length === 0) {
+        console.log("[Public Catalog] No products found from API. Attempting static backup fallback from /products_real_backup.json...");
+        try {
+          const backupRes = await fetch("/products_real_backup.json");
+          if (backupRes.ok) {
+            const backupData = await backupRes.json();
+            if (Array.isArray(backupData) && backupData.length > 0) {
+              const filteredBackup = backupData.filter(isRealProduct);
+              if (filteredBackup.length > 0) {
+                console.log(`[Public Catalog] Successfully loaded ${filteredBackup.length} real products from static backup /products_real_backup.json.`);
+                cleanRealProducts = filteredBackup;
+              }
+            }
+          }
+        } catch (backupErr: any) {
+          console.warn("[Public Catalog] Failed to load static backup fallback /products_real_backup.json:", backupErr);
+        }
+      }
 
       // Fallback intelligently to filtered local cache instead of leaving catalog empty or loading AI mock templates
       if (cleanRealProducts.length > 0) {
@@ -588,17 +608,33 @@ export default function App() {
 
     } catch (e: any) {
       console.error("[Public Catalog Load Crash - Logged Internally]:", e);
-      // Fallback aggressively to clean filtered local caches, never show technical error
+      // Fallback aggressively to clean filtered products_real_backup.json, then local caches, never show technical error
       let fallbackProducts: Product[] = [];
+      
       try {
-        const cached = localStorage.getItem('modivah_products_cache');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) {
-            fallbackProducts = parsed.filter(isRealProduct);
+        console.log("[Public Catalog Catch] Attempting static backup fallback from /products_real_backup.json...");
+        const backupRes = await fetch("/products_real_backup.json");
+        if (backupRes.ok) {
+          const backupData = await backupRes.json();
+          if (Array.isArray(backupData) && backupData.length > 0) {
+            fallbackProducts = backupData.filter(isRealProduct);
           }
         }
-      } catch (err) {}
+      } catch (backupErr) {
+        console.warn("[Public Catalog Catch] Failed to load static backup fallback /products_real_backup.json:", backupErr);
+      }
+
+      if (fallbackProducts.length === 0) {
+        try {
+          const cached = localStorage.getItem('modivah_products_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              fallbackProducts = parsed.filter(isRealProduct);
+            }
+          }
+        } catch (err) {}
+      }
 
       if (fallbackProducts.length > 0) {
         setProducts(fallbackProducts);
