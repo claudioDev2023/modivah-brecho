@@ -26,10 +26,6 @@
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/index.ts"
-    },
-    {
       "source": "/products_real_backup.json",
       "destination": "/products_real_backup.json"
     },
@@ -38,7 +34,7 @@
       "destination": "/sw.js"
     },
     {
-      "source": "/((?!.*\.).*)",
+      "source": "/((?!.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
