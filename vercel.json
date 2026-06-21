@@ -6,8 +6,17 @@
       "headers": [
         {
           "key": "Content-Type",
-          "value": "application/json"
+          "value": "application/json; charset=utf-8"
         },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
         {
           "key": "Cache-Control",
           "value": "no-store, no-cache, must-revalidate"
@@ -29,7 +38,7 @@
       "destination": "/sw.js"
     },
     {
-      "source": "/((?!api|products_real_backup|assets|sw\\.js|.*\\.json|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.ico|.*\\.js|.*\\.css).*)",
+      "source": "/((?!.*\.).*)",
       "destination": "/index.html"
     }
   ]
