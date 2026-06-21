@@ -10,16 +10,10 @@ import { Product, CartItem, Category } from './types';
 // Helper function to check if a product is a real user-registered ad and NOT an AI template
 export function isRealProduct(p: any): boolean {
   if (!p) return false;
-  const brand = String(p.brand || "").toLowerCase().trim();
-  const title = String(p.title || "").toLowerCase().trim();
   const id = String(p.id || "");
+  const title = String(p.title || "").toLowerCase().trim();
 
-  // Any prod- ID is considered a manual, user-registered product. Keep them!
-  if (id.startsWith("prod-")) {
-    return true;
-  }
-
-  // 1. Strictly exclude mock template fields
+  // Bloquear somente o que for explicitamente mock, IA ou gerado automaticamente
   if (
     p.source === "mock" ||
     p.isMock === true ||
@@ -30,31 +24,19 @@ export function isRealProduct(p: any): boolean {
     return false;
   }
 
-  // 2. Exclude mock/template prefixes
   if (id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
     return false;
   }
 
-  // 3. Exclude other known template and catalog blacklisted brands
-  const lowercaseBlacklist = [
-    "farm",
-    "schutz",
-    "zara premium",
-    "animale",
-    "le lis blanc",
-    "arezzo",
-    "cantão",
-    "cantao",
-    "colcci",
-    "loz a loz",
-    "morena rosa",
-    "osklen"
-  ];
-  if (lowercaseBlacklist.some(b => brand === b || brand.includes(b))) {
-    return false;
+  // IDs curtos claramente mock, como prod-1, prod-2, prod-3, sem timestamp longo
+  if (id.startsWith("prod-")) {
+    const suffix = id.substring(5);
+    if (suffix.length < 8 && !isNaN(Number(suffix))) {
+      return false; // excluir padrão mock de ID curto
+    }
+    return true; // permitir todos os outros ids reais começados com prod- (com timestamp longo)
   }
 
-  // 4. Exclude automatic test placeholders or templates
   if (title.includes("demo_test_ai")) {
     return false;
   }
@@ -523,22 +505,34 @@ export default function App() {
 
       // 1. Try to fetch from principal API
       try {
-        const apiRes = await fetch("/api/public/products");
+        const apiRes = await fetch("/api/public/products", {
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
         if (apiRes.ok) {
-          const contentType = apiRes.headers.get("content-type") || "";
-          if (contentType.includes("application/json")) {
-            const rawBody = await apiRes.json();
-            
-            // Check success property if it exists
-            const isSuccess = rawBody && typeof rawBody === "object" && rawBody.success !== false;
-            if (isSuccess) {
-              const parsed = parseLoadedProducts(rawBody);
-              if (parsed.length > 0) {
-                cleanRealProducts = parsed;
-                loadedFromAPI = true;
-                console.log(`[Public Catalog] Loaded ${cleanRealProducts.length} items from main API.`);
+          const contentType = (apiRes.headers.get("content-type") || "").toLowerCase();
+          if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+            const rawText = await apiRes.text();
+            const trimmedText = rawText.trim();
+            if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
+              const rawBody = JSON.parse(trimmedText);
+              
+              // Check success property of response object if it exists
+              const isSuccess = rawBody && typeof rawBody === "object" && rawBody.success !== false;
+              if (isSuccess) {
+                const parsed = parseLoadedProducts(rawBody);
+                if (parsed.length > 0) {
+                  cleanRealProducts = parsed;
+                  loadedFromAPI = true;
+                  console.log(`[Public Catalog] API: ${parsed.length} products loaded successfully from primary endpoint.`);
+                }
               }
+            } else {
+              console.warn("[Public Catalog] API returned non-JSON starting characters (likely HTML or error message).");
             }
+          } else {
+            console.warn("[Public Catalog] API returned text/html or text/plain content-type (likely index HTML). Reverting.");
           }
         }
       } catch (apiErr) {
@@ -547,25 +541,34 @@ export default function App() {
 
       // 2. If dynamic API failed to load valid manual catalog items, load from /products_real_backup.json!
       if (!loadedFromAPI || cleanRealProducts.length === 0) {
-        console.log("[Public Catalog] API failed, returned HTML/error or returned empty items. Forcing backup fallback /products_real_backup.json...");
+        console.log("[Public Catalog] Forcing backup fallback /products_real_backup.json...");
         try {
           const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
             headers: {
               'Accept': 'application/json',
               'Cache-Control': 'no-cache'
-            }
+            },
+            cache: 'no-store'
           });
           if (backupRes.ok) {
-            const text = await backupRes.text();
-            if (text && !text.trim().startsWith("<")) {
-              const backupData = JSON.parse(text);
-              const parsedBackup = parseLoadedProducts(backupData);
-              if (parsedBackup.length > 0) {
-                cleanRealProducts = parsedBackup;
-                console.log(`[Public Catalog] Successfully loaded ${cleanRealProducts.length} real products from static backup /products_real_backup.json.`);
+            const contentType = (backupRes.headers.get("content-type") || "").toLowerCase();
+            if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+              const text = await backupRes.text();
+              const trimmedText = text.trim();
+              if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
+                const backupData = JSON.parse(trimmedText);
+                const parsedBackup = parseLoadedProducts(backupData);
+                if (parsedBackup.length > 0) {
+                  cleanRealProducts = parsedBackup;
+                  console.log(`[Public Catalog] Backup JSON parsed successfully: ${parsedBackup.length} real products.`);
+                } else {
+                  console.warn("[Public Catalog] No products found in backup JSON after filtering.");
+                }
+              } else {
+                console.warn("[Public Catalog] Backup query returned HTML or invalid text content (not starting with { or [).");
               }
             } else {
-              console.warn("[Public Catalog] Backup fetch returned non-JSON/HTML text.");
+              console.warn("[Public Catalog] Backup query returned text/html or text/plain content-type.");
             }
           } else {
             console.warn(`[Public Catalog] Backup query status error: ${backupRes.status}`);
@@ -577,6 +580,7 @@ export default function App() {
 
       // 3. Store valid loaded products
       if (cleanRealProducts.length > 0) {
+        console.log(`[Public Catalog] Final catalog loading outcome: ${cleanRealProducts.length} items. Writing to products state.`);
         setProducts(cleanRealProducts);
         try {
           localStorage.setItem('modivah_products_cache', JSON.stringify(cleanRealProducts));
@@ -595,12 +599,11 @@ export default function App() {
         } catch (e) {}
 
         if (cachedItems.length > 0) {
-          console.log("[Public Catalog] Fallback to valid cached local items.");
+          console.log(`[Public Catalog] Fallback loaded ${cachedItems.length} valid cached products from localStorage.`);
           setProducts(cachedItems);
           cleanRealProducts = cachedItems;
         } else {
-          console.warn("[Public Catalog] Resetting with empty prod catalog.");
-          setProducts([]);
+          console.warn("[Public Catalog] Catalog empty and no valid cache found. Not overwriting cache with empty list.");
         }
       }
 
@@ -657,6 +660,20 @@ export default function App() {
       isCatalogLoadingRef.current = false;
     }
   }, [setProducts, setCategoriesList, setIsQuotaExceeded, setIsInitialLoadingProducts]);
+
+  const handleRefreshVitrine = useCallback(async () => {
+    setIsInitialLoadingProducts(true);
+    console.log("[Refresh Vitrine] Manually refreshing catalog...");
+    
+    // Limpar cache antigo da vitrine para forcar nova gravacao
+    try {
+      localStorage.removeItem('modivah_products_cache');
+      localStorage.removeItem('modivah_categories_cache');
+    } catch (e) {}
+
+    isCatalogLoadingRef.current = false;
+    await loadPublicCatalog();
+  }, [loadPublicCatalog, setIsInitialLoadingProducts]);
 
   useEffect(() => {
     // Increment mobile access metric
@@ -1673,7 +1690,7 @@ export default function App() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => window.location.reload()}
+                  onClick={handleRefreshVitrine}
                   className="px-6 py-3 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 font-sans text-xs font-bold uppercase tracking-widest rounded-full shadow-sm transition-all duration-200 flex items-center gap-2 cursor-pointer active:scale-[0.98]"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
