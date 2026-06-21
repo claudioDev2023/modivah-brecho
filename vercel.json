@@ -1,12 +1,35 @@
 {
   "version": 2,
+  "headers": [
+    {
+      "source": "/products_real_backup.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api).*|[^.]*)",
+      "source": "/products_real_backup.json",
+      "destination": "/products_real_backup.json"
+    },
+    {
+      "source": "/sw.js",
+      "destination": "/sw.js"
+    },
+    {
+      "source": "/((?!api|products_real_backup|assets|sw\\.js|.*\\.json|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.webp|.*\\.ico|.*\\.js|.*\\.css).*)",
       "destination": "/index.html"
     }
   ]
