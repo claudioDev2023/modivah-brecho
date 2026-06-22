@@ -15,6 +15,15 @@
       ]
     },
     {
+      "source": "/catalog-images/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [
         {
@@ -26,15 +35,11 @@
   ],
   "rewrites": [
     {
-      "source": "/products_real_backup.json",
-      "destination": "/products_real_backup.json"
+      "source": "/api/:path*",
+      "destination": "/api/index.ts"
     },
     {
-      "source": "/sw.js",
-      "destination": "/sw.js"
-    },
-    {
-      "source": "/((?!.*\\..*).*)",
+      "source": "/((?!api|.*\\.(json|js|css|png|jpg|jpeg|webp|svg|ico|txt|map)$).*)",
       "destination": "/index.html"
     }
   ]

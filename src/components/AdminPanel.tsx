@@ -1696,8 +1696,12 @@ function AdminPanelInner({
         } catch (e) {}
 
         return list;
-      } catch (err) {
-        console.error(`Error loading collection ${collectionName}:`, err);
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        console.warn(`[Firestore Safe Catch] Error or quota limit in loading ${collectionName}:`, errMsg);
+        if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("exhausted") || errMsg.toLowerCase().includes("limit exceeded") || err?.code === "resource-exhausted") {
+          window.dispatchEvent(new CustomEvent('firestore-quota-exceeded'));
+        }
         return null;
       }
     })();

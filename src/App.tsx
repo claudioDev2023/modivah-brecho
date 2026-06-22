@@ -185,6 +185,17 @@ export default function App() {
   const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [splashActive, setSplashActive] = useState(true);
 
+  // Listen to Firestore Quota Exceeded custom events globally
+  useEffect(() => {
+    const handleQuotaExceeded = () => {
+      setIsQuotaExceeded(true);
+    };
+    window.addEventListener('firestore-quota-exceeded', handleQuotaExceeded);
+    return () => {
+      window.removeEventListener('firestore-quota-exceeded', handleQuotaExceeded);
+    };
+  }, []);
+
   // Snappy display timer for the brand splash screen (400ms) to maximize conversion on mobile devices
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -521,9 +532,12 @@ export default function App() {
           });
           if (backupRes.ok) {
             const contentType = (backupRes.headers.get("content-type") || "").toLowerCase();
-            if (!contentType.includes("text/html")) {
-              const text = await backupRes.text();
-              const trimmedText = text.trim();
+            const text = await backupRes.text();
+            const trimmedText = text.trim();
+            
+            if (trimmedText.toLowerCase().startsWith("<!doctype html") || trimmedText.toLowerCase().startsWith("<html")) {
+              console.error("[Public Catalog Error] ERRO CRÍTICO: Rota de backup respondeu com HTML index real em vez de JSON real! Conteúdo começa com: " + trimmedText.slice(0, 100));
+            } else if (!contentType.includes("text/html")) {
               if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
                 const backupData = JSON.parse(trimmedText);
                 console.log("[Public Catalog] BACKUP RAW LOADED");
@@ -535,6 +549,8 @@ export default function App() {
                   console.log(`[Public Catalog] AFTER isRealProduct COUNT: ${parsedBackup.length}`);
                 }
               }
+            } else {
+              console.warn("[Public Catalog] Backup query returned text/html content-type.");
             }
           }
         } catch (vErr) {
@@ -591,9 +607,12 @@ export default function App() {
           });
           if (backupRes.ok) {
             const contentType = (backupRes.headers.get("content-type") || "").toLowerCase();
-            if (!contentType.includes("text/html")) {
-              const text = await backupRes.text();
-              const trimmedText = text.trim();
+            const text = await backupRes.text();
+            const trimmedText = text.trim();
+
+            if (trimmedText.toLowerCase().startsWith("<!doctype html") || trimmedText.toLowerCase().startsWith("<html")) {
+              console.error("[Public Catalog Error] ERRO CRÍTICO: Rota de backup respondeu com HTML index real em vez de JSON real! Conteúdo começa com: " + trimmedText.slice(0, 100));
+            } else if (!contentType.includes("text/html")) {
               if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
                 const backupData = JSON.parse(trimmedText);
                 console.log("[Public Catalog] BACKUP RAW LOADED");
