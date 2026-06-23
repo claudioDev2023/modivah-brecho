@@ -535,9 +535,10 @@ export default function App() {
         !window.location.hostname.includes("ais-pre-")
       ));
 
-      // 1. If in Vercel or Production environment, fetch directly from static backup as top priority
-      if (isProduction) {
-        console.log("[Public Catalog] Production environment detected. Prioritizing static backup file first...");
+      // 1. Fetch directly from static backup as absolute top priority (Guarantees last correct real backup loading)
+      const forceRealBackup = true;
+      if (forceRealBackup) {
+        console.log("[Public Catalog] Prioritizing static backup file public/products_real_backup.json as the master datasource...");
         try {
           const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
             headers: {
