@@ -111,15 +111,24 @@ const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export default function App() {
-  // Instantaneous synchronous cache loading for mobile load speed optimization
+  // Instantaneous synchronous cache loading for mobile load speed optimization (bypassed in production to prevent stale/empty cached views)
   const [products, setProducts] = useState<Product[]>(() => {
     try {
-      const cached = localStorage.getItem('modivah_products_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Exclude any mock items or test advertisements with fallback
-          return parsed.filter(isRealProduct);
+      const isProd = typeof window !== "undefined" && (
+        window.location.hostname.includes("vercel.app") ||
+        (!window.location.hostname.includes("localhost") &&
+         !window.location.hostname.includes("127.0.0.1") &&
+         !window.location.hostname.includes("ais-dev-") &&
+         !window.location.hostname.includes("ais-pre-"))
+      );
+      if (!isProd) {
+        const cached = localStorage.getItem('modivah_products_cache');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Exclude any mock items or test advertisements with fallback
+            return parsed.filter(isRealProduct);
+          }
         }
       }
     } catch (e) {}
@@ -519,10 +528,16 @@ export default function App() {
       let loadedFromAPI = false;
 
       const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
+      const isProduction = isVercel || (typeof window !== "undefined" && (
+        !window.location.hostname.includes("localhost") &&
+        !window.location.hostname.includes("127.0.0.1") &&
+        !window.location.hostname.includes("ais-dev-") &&
+        !window.location.hostname.includes("ais-pre-")
+      ));
 
-      // 1. If in Vercel environment, fetch directly from static backup as top priority
-      if (isVercel) {
-        console.log("[Public Catalog] Vercel environment detected. Prioritizing static backup file first...");
+      // 1. If in Vercel or Production environment, fetch directly from static backup as top priority
+      if (isProduction) {
+        console.log("[Public Catalog] Production environment detected. Prioritizing static backup file first...");
         try {
           const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
             headers: {
@@ -542,7 +557,7 @@ export default function App() {
                 const backupData = JSON.parse(trimmedText);
                 console.log("[Public Catalog] BACKUP RAW LOADED");
                 const parsedBackup = parseLoadedProducts(backupData, true);
-                console.log(`[Public Catalog] BACKUP PARSED COUNT: ${parsedBackup.length}`);
+                console.log(`[Public Catalog] BACKUP PARSED COUNT : ${parsedBackup.length}`);
                 if (parsedBackup.length > 0) {
                   cleanRealProducts = parsedBackup;
                   loadedFromAPI = true;
@@ -554,7 +569,7 @@ export default function App() {
             }
           }
         } catch (vErr) {
-          console.warn("[Public Catalog] Vercel backup prefetch attempt failed/skipped:", vErr);
+          console.warn("[Public Catalog] Production backup prefetch attempt failed/skipped:", vErr);
         }
       }
 

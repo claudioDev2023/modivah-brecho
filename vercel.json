@@ -15,20 +15,11 @@
       ]
     },
     {
-      "source": "/catalog-images/(.*)",
+      "source": "/catalog-images/:path*",
       "headers": [
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/sw.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate"
         }
       ]
     }
@@ -39,7 +30,7 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api|.*\\.(json|js|css|png|jpg|jpeg|webp|svg|ico|txt|map)$).*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]

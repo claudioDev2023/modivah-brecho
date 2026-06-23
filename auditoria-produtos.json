@@ -1,0 +1,822 @@
+[
+  {
+    "id": "prod-1782145543366",
+    "title": "Blusa listrada sem manga .",
+    "category": "Blusas",
+    "price": 19.99,
+    "sku": "M-8066",
+    "createdAt": "2026-06-22T16:25:43.366Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1782145439285",
+    "title": "Blusão verde água",
+    "category": "Blusas",
+    "price": 24.99,
+    "sku": "M-2430",
+    "createdAt": "2026-06-22T16:23:59.285Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1782145355814",
+    "title": "Blusa listrada",
+    "category": "Blusas",
+    "price": 19.99,
+    "sku": "M-2555",
+    "createdAt": "2026-06-22T16:22:35.814Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1782145246712",
+    "title": "Blusa branca bordada",
+    "category": "Blusas",
+    "price": 24.99,
+    "sku": "M-3413",
+    "createdAt": "2026-06-22T16:20:46.712Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1782056011840",
+    "title": "anuncio teste 21/06/2026",
+    "category": "Vestidos",
+    "price": 49.99,
+    "sku": "M-7595",
+    "createdAt": "2026-06-21T15:33:31.840Z",
+    "origin": "DÚVIDA",
+    "reason": "Anúncio que parece ser manual de teste de laboratório, criativo mas sem dados de produto real"
+  },
+  {
+    "id": "prod-1781813794224",
+    "title": "Calça moletinho",
+    "category": "Calças",
+    "price": 24.99,
+    "sku": "M-3505",
+    "createdAt": "2026-06-18T20:16:34.224Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781813713493",
+    "title": "Calça social",
+    "category": "Calças",
+    "price": 24.99,
+    "sku": "M-6308",
+    "createdAt": "2026-06-18T20:15:13.493Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781813593970",
+    "title": "Calça social",
+    "category": "Calças",
+    "price": 24.99,
+    "sku": "M-9488",
+    "createdAt": "2026-06-18T20:13:13.970Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781813481109",
+    "title": "Calça social",
+    "category": "Calças",
+    "price": 14.99,
+    "sku": "M-7447",
+    "createdAt": "2026-06-18T20:11:21.109Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781640441154",
+    "title": "Kit: body + short +calcinha de bebê.",
+    "category": "Infantil",
+    "price": 19.99,
+    "sku": "M-2028",
+    "createdAt": "2026-06-16T20:07:21.154Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781640270108",
+    "title": "Calça infantil bebê",
+    "category": "Calças",
+    "price": 19.99,
+    "sku": "M-1535",
+    "createdAt": "2026-06-16T20:04:30.108Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781640125568",
+    "title": "Conjunto de frio de bebê",
+    "category": "Conjuntos",
+    "price": 24.99,
+    "sku": "M-6879",
+    "createdAt": "2026-06-16T20:02:05.568Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781639954396",
+    "title": "Blusas de bebê",
+    "category": "Infantil",
+    "price": 29.99,
+    "sku": "M-2219",
+    "createdAt": "2026-06-16T19:59:14.396Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781639397328",
+    "title": "Body infantil bebê",
+    "category": "Bodys",
+    "price": 19.99,
+    "sku": "M-8122",
+    "createdAt": "2026-06-16T19:49:57.328Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781639250673",
+    "title": "Sandália infantil",
+    "category": "Calçados",
+    "price": 14.99,
+    "sku": "M-8664",
+    "createdAt": "2026-06-16T19:47:30.674Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781639142239",
+    "title": "Tênis infantil",
+    "category": "Calçados",
+    "price": 19.99,
+    "sku": "M-3546",
+    "createdAt": "2026-06-16T19:45:42.239Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781639064144",
+    "title": "Tênis de  bebê",
+    "category": "Calçados",
+    "price": 19.99,
+    "sku": "M-5058",
+    "createdAt": "2026-06-16T19:44:24.144Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638867233",
+    "title": "Short jeans",
+    "category": "Shorts",
+    "price": 19.99,
+    "sku": "M-8501",
+    "createdAt": "2026-06-16T19:41:07.233Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638798011",
+    "title": "Short jeans",
+    "category": "Shorts",
+    "price": 24.99,
+    "sku": "M-7098",
+    "createdAt": "2026-06-16T19:39:58.011Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638694236",
+    "title": "Conjunto social",
+    "category": "Conjuntos",
+    "price": 49.99,
+    "sku": "M-3883",
+    "createdAt": "2026-06-16T19:38:14.236Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638624824",
+    "title": "Vestido farm",
+    "category": "Vestidos",
+    "price": 49.99,
+    "sku": "M-3863",
+    "createdAt": "2026-06-16T19:37:04.824Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638466097",
+    "title": "Short social",
+    "category": "Shorts",
+    "price": 29.99,
+    "sku": "M-7036",
+    "createdAt": "2026-06-16T19:34:26.097Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638297192",
+    "title": "Short alfaiataria",
+    "category": "Shorts",
+    "price": 50,
+    "sku": "M-2494",
+    "createdAt": "2026-06-16T19:31:37.192Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638221535",
+    "title": "Short alfaiataria",
+    "category": "Acessórios",
+    "price": 29.99,
+    "sku": "M-2110",
+    "createdAt": "2026-06-16T19:30:21.535Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781638122326",
+    "title": "Short alfaiataria",
+    "category": "Shorts",
+    "price": 30,
+    "sku": "M-6264",
+    "createdAt": "2026-06-16T19:28:42.326Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781564276680",
+    "title": "Bolsa courino",
+    "category": "Bolsas",
+    "price": 24.99,
+    "sku": "M-5973",
+    "createdAt": "2026-06-15T22:57:56.680Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781564206783",
+    "title": "Bolsa material camurça",
+    "category": "Bolsas",
+    "price": 24.99,
+    "sku": "M-7363",
+    "createdAt": "2026-06-15T22:56:46.783Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781564093662",
+    "title": "Kimono marca ALL Jarreau",
+    "category": "Blusas",
+    "price": 29.99,
+    "sku": "M-3937",
+    "createdAt": "2026-06-15T22:54:53.662Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781563938386",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 19.99,
+    "sku": "M-6793",
+    "createdAt": "2026-06-15T22:52:18.386Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781556506273",
+    "title": "Rasteirinha",
+    "category": "Calçados",
+    "price": 49.99,
+    "sku": "M-9715",
+    "createdAt": "2026-06-15T20:48:26.273Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781556370366",
+    "title": "Bota",
+    "category": "Botas",
+    "price": 29.99,
+    "sku": "M-4983",
+    "createdAt": "2026-06-15T20:46:10.366Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781556223725",
+    "title": "Blazer",
+    "category": "Blazers",
+    "price": 60,
+    "sku": "M-7414",
+    "createdAt": "2026-06-15T20:43:43.725Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781555550875",
+    "title": "Blazer alfaiataria",
+    "category": "Blazers",
+    "price": 29.99,
+    "sku": "M-3327",
+    "createdAt": "2026-06-15T20:32:30.875Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781555330746",
+    "title": "Blazer alfaiataria",
+    "category": "Blazers",
+    "price": 30,
+    "sku": "M-5499",
+    "createdAt": "2026-06-15T20:28:50.746Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781300357933",
+    "title": "Rasteirinha",
+    "category": "Calçados",
+    "price": 49.99,
+    "sku": "M-7826",
+    "createdAt": "2026-06-12T21:39:17.933Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781056852554",
+    "title": "Blusinha",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-9658",
+    "createdAt": "2026-06-10T02:00:52.555Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054454252",
+    "title": "Blusa social",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-8520",
+    "createdAt": "2026-06-10T01:20:54.252Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054398667",
+    "title": "Blusa estampada",
+    "category": "Blusas",
+    "price": 19.99,
+    "sku": "M-3368",
+    "createdAt": "2026-06-10T01:19:58.667Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054328572",
+    "title": "Vestido estampado",
+    "category": "Vestidos",
+    "price": 14.99,
+    "sku": "M-9244",
+    "createdAt": "2026-06-10T01:18:48.572Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054267710",
+    "title": "Macacão",
+    "category": "Outros",
+    "price": 19.99,
+    "sku": "M-4370",
+    "createdAt": "2026-06-10T01:17:47.711Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054196506",
+    "title": "Colete litrado",
+    "category": "Outros",
+    "price": 14.99,
+    "sku": "M-3376",
+    "createdAt": "2026-06-10T01:16:36.511Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054079932",
+    "title": "Blusa manga comprida",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-3457",
+    "createdAt": "2026-06-10T01:14:39.932Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781054008379",
+    "title": "Colete",
+    "category": "Outros",
+    "price": 29.99,
+    "sku": "M-6153",
+    "createdAt": "2026-06-10T01:13:28.379Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781053944067",
+    "title": "Jaqueta jeans",
+    "category": "Outros",
+    "price": 24.99,
+    "sku": "M-8515",
+    "createdAt": "2026-06-10T01:12:24.067Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1781053823347",
+    "title": "Blazer off",
+    "category": "Outros",
+    "price": 29.99,
+    "sku": "M-5145",
+    "createdAt": "2026-06-10T01:10:23.347Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780968313951",
+    "title": "Short tecido branco 001",
+    "category": "Shortes",
+    "price": 15,
+    "sku": "M-7370",
+    "createdAt": "2026-06-09T01:25:13.951Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780968204126",
+    "title": "Short jeans amarelo",
+    "category": "Shortes",
+    "price": 20,
+    "sku": "M-2921",
+    "createdAt": "2026-06-09T01:23:24.126Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780968108940",
+    "title": "Short de linho lilás",
+    "category": "Shortes",
+    "price": 15,
+    "sku": "M-8282",
+    "createdAt": "2026-06-09T01:21:48.940Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780968030975",
+    "title": "Blusa azul",
+    "category": "Blusas",
+    "price": 15,
+    "sku": "M-3894",
+    "createdAt": "2026-06-09T01:20:30.988Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780967935329",
+    "title": "Short linho branco",
+    "category": "Shortes",
+    "price": 15,
+    "sku": "M-5722",
+    "createdAt": "2026-06-09T01:18:55.329Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780967819130",
+    "title": "Short tecido azul",
+    "category": "Shortes",
+    "price": 20,
+    "sku": "M-3208",
+    "createdAt": "2026-06-09T01:16:59.132Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780966467665",
+    "title": "Bermuda branca",
+    "category": "Shortes",
+    "price": 20,
+    "sku": "M-3727",
+    "createdAt": "2026-06-09T00:54:27.665Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780965914491",
+    "title": "Short listrado",
+    "category": "Shortes",
+    "price": 15,
+    "sku": "M-9163",
+    "createdAt": "2026-06-09T00:45:14.491Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780591591872",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-2642",
+    "createdAt": "2026-06-04T16:46:31.872Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780591549572",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-3081",
+    "createdAt": "2026-06-04T16:45:49.572Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780591514372",
+    "title": "Cropet",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-1104",
+    "createdAt": "2026-06-04T16:45:14.372Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780590841166",
+    "title": "Blusão estampado",
+    "category": "Blusas",
+    "price": 24.99,
+    "sku": "M-1374",
+    "createdAt": "2026-06-04T16:34:01.166Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780590172970",
+    "title": "Tênis moleca",
+    "category": "Calçados",
+    "price": 29.99,
+    "sku": "M-3403",
+    "createdAt": "2026-06-04T16:22:52.970Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780590103656",
+    "title": "Tênis marca Carmen Steffens",
+    "category": "Calçados",
+    "price": 29.99,
+    "sku": "M-8067",
+    "createdAt": "2026-06-04T16:21:43.656Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780590040165",
+    "title": "Tênis réplica Redley",
+    "category": "Calçados",
+    "price": 49.99,
+    "sku": "M-7743",
+    "createdAt": "2026-06-04T16:20:40.165Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780589963302",
+    "title": "Tênis puma",
+    "category": "Calçados",
+    "price": 49.99,
+    "sku": "M-6349",
+    "createdAt": "2026-06-04T16:19:23.302Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780589884090",
+    "title": "Terninho manga três quarto",
+    "category": "Outros",
+    "price": 34.99,
+    "sku": "M-6295",
+    "createdAt": "2026-06-04T16:18:04.091Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780589758136",
+    "title": "Colete",
+    "category": "Outros",
+    "price": 34.99,
+    "sku": "M-6631",
+    "createdAt": "2026-06-04T16:15:58.136Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780589161202",
+    "title": "Blazer",
+    "category": "Outros",
+    "price": 29.99,
+    "sku": "M-9749",
+    "createdAt": "2026-06-04T16:06:01.202Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588900235",
+    "title": "Short em tecido",
+    "category": "Outros",
+    "price": 19.99,
+    "sku": "M-9408",
+    "createdAt": "2026-06-04T16:01:40.235Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588850431",
+    "title": "Macacão em crepe renda nos seios com bojo.",
+    "category": "Outros",
+    "price": 19.99,
+    "sku": "M-8350",
+    "createdAt": "2026-06-04T16:00:50.431Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588724058",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-6399",
+    "createdAt": "2026-06-04T15:58:44.058Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588687438",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-3135",
+    "createdAt": "2026-06-04T15:58:07.438Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588606244",
+    "title": "Blusa",
+    "category": "Blusas",
+    "price": 14.99,
+    "sku": "M-3461",
+    "createdAt": "2026-06-04T15:56:46.244Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780588001529",
+    "title": "Short",
+    "category": "Outros",
+    "price": 14.99,
+    "sku": "M-7854",
+    "createdAt": "2026-06-04T15:46:41.529Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780587805075",
+    "title": "Shorts",
+    "category": "Outros",
+    "price": 14.99,
+    "sku": "M-5002",
+    "createdAt": "2026-06-04T15:43:25.075Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780587689334",
+    "title": "Short",
+    "category": "Shortes",
+    "price": 14.99,
+    "sku": "M-8366",
+    "createdAt": "2026-06-04T15:41:29.334Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780586946345",
+    "title": "Macacão",
+    "category": "Outros",
+    "price": 20,
+    "sku": "M-8783",
+    "createdAt": "2026-06-04T15:29:06.345Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780586729520",
+    "title": "Tênis puma",
+    "category": "Tênis",
+    "price": 29.99,
+    "sku": "M-1693",
+    "createdAt": "2026-06-04T15:25:29.520Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780445449307",
+    "title": "Blusa de tricô",
+    "category": "Blusas",
+    "price": 29.99,
+    "sku": "M-7604",
+    "createdAt": "2026-06-03T00:10:49.307Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780445300813",
+    "title": "Blazer",
+    "category": "Casacos",
+    "price": 29.99,
+    "sku": "M-8136",
+    "createdAt": "2026-06-03T00:08:20.813Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780441058930",
+    "title": "Tênis",
+    "category": "Calçados",
+    "price": 50,
+    "sku": "5657",
+    "createdAt": "2026-06-02T22:57:38.930Z",
+    "origin": "MANUAL",
+    "reason": "ID gerado por timestamp de criação manual e texto coerente em português"
+  },
+  {
+    "id": "prod-1780250335177",
+    "title": "VESTIDO JEANS",
+    "category": "Vestidos",
+    "price": 19.99,
+    "sku": "M-6786",
+    "createdAt": "2026-05-31T17:58:55.177Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780101429176",
+    "title": "Short",
+    "category": "Outros",
+    "price": 35,
+    "sku": "M",
+    "createdAt": "2026-05-30T00:37:09.177Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780081474044",
+    "title": "Conjunto fitness",
+    "category": "Roupas Fitness",
+    "price": 39.99,
+    "sku": "M-6412",
+    "createdAt": "2026-05-29T19:04:34.047Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1780070908689",
+    "title": "Short Feminino Academia Tactel Básico com Bolsos Laterais Uso Casual ou Treino Soltinho Secagem Rápida",
+    "category": "Shortes",
+    "price": 15,
+    "sku": "0012",
+    "createdAt": "2026-05-29T16:08:28.689Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  },
+  {
+    "id": "prod-1779936504196",
+    "title": "VESTIDO",
+    "category": "Vestidos",
+    "price": 19.99,
+    "sku": "001",
+    "createdAt": "2026-05-28T02:48:24.196Z",
+    "origin": "MANUAL",
+    "reason": "Cadastro consistente com a marca, SKU definido, descrição detalhada e ID com timestamp longo"
+  }
+]
