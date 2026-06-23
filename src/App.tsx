@@ -1482,8 +1482,8 @@ export default function App() {
         </div>
       )}
 
-      {/* LEAD CAPTURE - RECEBA NOVIDADES PRIMEIRO */}
-      <LeadCapture />
+      {/* LEAD CAPTURE - OPCIONALMENTE DESATIVADO */}
+
 
       {/* Visual Welcome Ribbon for Authenticated Clients */}
       {currentClient && (
