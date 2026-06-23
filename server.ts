@@ -260,6 +260,24 @@ function startServer() {
       adminDb.settings({ ignoreUndefinedProperties: true });
       console.log("[Firebase Admin] Connected securely utilizing native credentials:", firebaseConfig.firestoreDatabaseId);
 
+      // Startup task: Remove test product prod-1782056011840 to maintain exactly 81 manual products
+      (async () => {
+        try {
+          const targetId = 'prod-1782056011840';
+          const docRef = adminDb.collection('products').doc(targetId);
+          const docSnap = await docRef.get();
+          if (docSnap.exists) {
+            console.log(`[Startup Sync] Found test product "${docSnap.data()?.title}". Deleting from Firestore to keep 81 manual products...`);
+            await docRef.delete();
+            console.log(`[Startup Sync] Test product ${targetId} deleted successfully from Firestore products collection!`);
+          } else {
+            console.log(`[Startup Sync] Test product ${targetId} is already absent in Firestore. Perfect!`);
+          }
+        } catch (err: any) {
+          console.warn("[Startup Sync ERROR] Failed to run test product deletion helper:", err.message || err);
+        }
+      })();
+
       console.log("[Firebase Admin] Startup initialization complete. Async seeding tasks will run using secure fallback helpers.");
     } else {
       console.error("[Firebase Admin] Config file firebase-applet-config.json missing!");
