@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   Eye, ShoppingBag, Clock, Heart, ArrowUpRight, TrendingUp, Users, DollarSign, 
   BarChart3, AlertCircle, FileSpreadsheet, FileText, Calendar, Smartphone, 
-  RefreshCw, Layers, CheckCircle, ChevronDown, Check, ArrowRight, Filter, ExternalLink
+  RefreshCw, Layers, CheckCircle, ChevronDown, Check, ArrowRight, Filter, ExternalLink,
+  Smile
 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -550,7 +551,7 @@ export default function AnalyticsDashboard({
               <span className="text-[8px] text-green-400 block">Entregues</span>
               <p className="text-base mt-1 text-green-300">{deliveredOrdersCount}</p>
             </div>
-            <SmileIcon className="h-4 w-4 text-green-400/50" />
+            <Smile className="h-4 w-4 text-green-400/50" />
           </div>
           <div className="bg-neutral-900 border border-white/5 p-3 rounded-xl flex items-center justify-between">
             <div>
@@ -1006,14 +1007,4 @@ export default function AnalyticsDashboard({
   );
 }
 
-// Minimal missing placeholder icon mock
-function SmileIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-      <line x1="9" y1="9" x2="9.01" y2="9" />
-      <line x1="15" y1="9" x2="15.01" y2="9" />
-    </svg>
-  );
-}
+// Smile icon is imported directly from lucide-react to avoid custom SVGs

@@ -266,7 +266,7 @@ interface AdminPanelProps {
   onLoginSuccess?: () => void;
 }
 
-class AdminErrorBoundary extends React.Component<
+class AdminPanelErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
 > {
@@ -280,7 +280,7 @@ class AdminErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("[AdminErrorBoundary] Uncaught admin exception:", error, errorInfo);
+    console.error("[AdminPanelErrorBoundary] Uncaught admin exception:", error, errorInfo);
   }
 
   render() {
@@ -5670,8 +5670,8 @@ function AdminPanelInner({
 
 export default function AdminPanel(props: AdminPanelProps) {
   return (
-    <AdminErrorBoundary>
+    <AdminPanelErrorBoundary>
       <AdminPanelInner {...props} />
-    </AdminErrorBoundary>
+    </AdminPanelErrorBoundary>
   );
 }
