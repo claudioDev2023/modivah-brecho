@@ -762,30 +762,14 @@ function startServer() {
     });
   });
 
-  // Helper to filter out any AI-created mock template products to enforce user absolute rule
+  // Aligned with client isRealProduct — exclude only explicit mock/IA markers, never real brand names
   function filterRealProducts(products: any[]): any[] {
     if (!Array.isArray(products)) return [];
-    const lowercaseBlacklist = [
-      "farm",
-      "schutz",
-      "zara premium",
-      "animale",
-      "le lis blanc",
-      "arezzo",
-      "cantão",
-      "cantao",
-      "colcci",
-      "loz a loz",
-      "morena rosa",
-      "osklen"
-    ];
     return products.filter((p: any) => {
       if (!p) return false;
-      const brand = String(p.brand || "").toLowerCase().trim();
-      const title = String(p.title || "").toLowerCase().trim();
       const id = String(p.id || "");
+      const title = String(p.title || "").toLowerCase().trim();
 
-      // 1. Strictly exclude mock template fields
       if (
         p.source === "mock" ||
         p.isMock === true ||
@@ -796,31 +780,48 @@ function startServer() {
         return false;
       }
 
-      // 2. Check if it's a real timestamp-based user-registered ID (e.g. prod-1779936504196)
-      const isRealTimestampId = /^prod-\d{10,}$/.test(id);
-      if (isRealTimestampId) {
-        // High timestamp IDs indicate manual, user-registered products. Keep them!
+      if (id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
+        return false;
+      }
+
+      if (id.startsWith("prod-")) {
+        const suffix = id.substring(5);
+        if (suffix.length < 8 && !isNaN(Number(suffix))) {
+          return false;
+        }
         return true;
       }
 
-      // 3. Exclude mock/template prefixes if they are NOT a long timestamp ID
-      if (id.startsWith("prod-") || id.startsWith("mock-") || id.startsWith("_mock") || id.startsWith("temp")) {
-        return false;
-      }
-
-      // 4. If the brand matches / is contained in our mock brand blacklist, exclude it
-      const isMockBrand = lowercaseBlacklist.some(b => brand === b || brand.includes(b));
-      if (isMockBrand) {
-        return false;
-      }
-
-      // 5. Prevent any accidental template text matches
       if (title.includes("demo_test_ai")) {
         return false;
       }
 
       return true;
     });
+  }
+
+  // Load canonical real backup from known deploy paths (never overwritten by Firestore sync)
+  function loadRealBackupFromDisk(): any[] {
+    const candidatePaths = [
+      path.join(process.cwd(), "public", "products_real_backup.json"),
+      path.join(process.cwd(), "products_real_backup.json"),
+    ];
+    for (const backupPath of candidatePaths) {
+      try {
+        if (fs.existsSync(backupPath)) {
+          const parsed = JSON.parse(fs.readFileSync(backupPath, "utf-8"));
+          const list = Array.isArray(parsed) ? parsed : (parsed?.products || []);
+          const filtered = filterRealProducts(list);
+          if (filtered.length > 0) {
+            console.log(`[Real Backup] Loaded ${filtered.length} products from ${backupPath}`);
+            return filtered;
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[Real Backup] Failed reading ${backupPath}:`, e.message);
+      }
+    }
+    return [];
   }
 
   // Optimized public products endpoint
@@ -860,14 +861,11 @@ function startServer() {
         cacheProducts = list;
         cacheProductsTimestamp = now;
 
-        // Save backup of last valid catalog to server disk with resilient absolute resolution
+        // Persist server-side cache only — never overwrite the canonical public/products_real_backup.json
         try {
           const backupProductsPath = path.join(process.cwd(), "products_persistence_cache.json");
-          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
-          
           fs.writeFileSync(backupProductsPath, JSON.stringify(list, null, 2), "utf-8");
-          fs.writeFileSync(realBackupPath, JSON.stringify(list, null, 2), "utf-8");
-          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual products to disk (persistence cache & products_real_backup.json).");
+          console.log("[CACHE SERVER DISK SAVE] Successfully cached actual products to products_persistence_cache.json.");
         } catch (diskErr: any) {
           console.error("[CACHE SERVER DISK SAVE FAILED] Error:", diskErr.message);
         }
@@ -878,26 +876,17 @@ function startServer() {
           source: "firestore"
         });
       } else {
-        // Database is empty. Try to load from custom real backup products_real_backup.json first!
-        try {
-          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
-          if (fs.existsSync(realBackupPath)) {
-            const dataStr = fs.readFileSync(realBackupPath, "utf-8");
-            const parsed = JSON.parse(dataStr);
-            const filteredBack = filterRealProducts(parsed);
-            if (filteredBack.length > 0) {
-              console.log("[CACHE SERVER EMPTY FALLBACK] Database was empty but successfully loaded real backup.");
-              cacheProducts = filteredBack;
-              cacheProductsTimestamp = now;
-              return res.json({
-                success: true,
-                products: cacheProducts,
-                source: "products_real_backup"
-              });
-            }
-          }
-        } catch (e: any) {
-          console.error("[CACHE SERVER EMPTY FALLBACK - FAIL]", e.message);
+        // Database is empty — use canonical static backup (same source as admin preview)
+        const filteredBack = loadRealBackupFromDisk();
+        if (filteredBack.length > 0) {
+          console.log("[CACHE SERVER EMPTY FALLBACK] Database was empty but successfully loaded real backup.");
+          cacheProducts = filteredBack;
+          cacheProductsTimestamp = now;
+          return res.json({
+            success: true,
+            products: cacheProducts,
+            source: "products_real_backup"
+          });
         }
 
         console.log("[CACHE SERVER MISS - EMPTY] Database and files have no real products. Returning empty array.");
@@ -913,23 +902,14 @@ function startServer() {
       console.error("[Products Public Fetch Fail - Logged Internally]:", err.message || err);
       
       // Fallback: 1. Try server in-memory cache
-      // 2. Try server disk real backup (products_real_backup.json)
+      // 2. Try canonical real backup (public/products_real_backup.json)
       // 3. Try server disk persistent backup cache
       if (!cacheProducts || cacheProducts.length === 0) {
-        // First try the official real backup
-        try {
-          const realBackupPath = path.join(process.cwd(), "products_real_backup.json");
-          if (fs.existsSync(realBackupPath)) {
-            const dataStr = fs.readFileSync(realBackupPath, "utf-8");
-            const parsed = JSON.parse(dataStr);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              cacheProducts = filterRealProducts(parsed);
-              cacheProductsTimestamp = now;
-              console.log("[Products Server Catch Fallback] Restored the last valid database products from products_real_backup.json.");
-            }
-          }
-        } catch (diskErr: any) {
-          console.error("[Products Server Catch Fallback products_real_backup.json error] Failed reading:", diskErr.message);
+        const fromBackup = loadRealBackupFromDisk();
+        if (fromBackup.length > 0) {
+          cacheProducts = fromBackup;
+          cacheProductsTimestamp = now;
+          console.log("[Products Server Catch Fallback] Restored products from canonical real backup.");
         }
       }
 

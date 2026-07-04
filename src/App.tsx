@@ -120,12 +120,12 @@ export default function App() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Check for test ID prod-1782056011840 or any simulated/mock/AI products and ignore stale caches (must be exactly 81 real assets)
           const hasTestProduct = parsed.some(p => p && String(p.id) === 'prod-1782056011840');
           const hasMock = parsed.some(p => p && (p.isMock === true || p.generatedBy === "ai" || p.origin === "fullMockAcervo" || p.origin === "initialProducts"));
-          
-          if (!hasTestProduct && !hasMock && parsed.length === 81) {
-            return parsed.filter(isRealProduct);
+          const realOnly = parsed.filter(isRealProduct);
+
+          if (!hasTestProduct && !hasMock && realOnly.length > 0) {
+            return realOnly;
           } else {
             console.warn("[Local Cache Clear] Cleaned and discarded dusty or test-containing local storage products.");
             try {
@@ -305,12 +305,17 @@ export default function App() {
             console.log("Dispositivo:", navigator.userAgent);
             console.log("Sessão carregada com sucesso");
           } else {
-            // Se não for administrador no banco de dados, limpa qualquer resquício
-            setIsAdminMode(false);
-            localStorage.removeItem('modivah_admin_auth');
-            sessionStorage.removeItem('modivah_admin_auth');
-            localStorage.removeItem('modivah_admin_token');
-            sessionStorage.removeItem('modivah_admin_token');
+            // Cliente Firebase autenticado sem privilégio admin — não invalidar sessão JWT do painel
+            const hasJwtAdminSession =
+              localStorage.getItem('modivah_admin_token') ||
+              sessionStorage.getItem('modivah_admin_token');
+            if (!hasJwtAdminSession) {
+              setIsAdminMode(false);
+              localStorage.removeItem('modivah_admin_auth');
+              sessionStorage.removeItem('modivah_admin_auth');
+              localStorage.removeItem('modivah_admin_token');
+              sessionStorage.removeItem('modivah_admin_token');
+            }
           }
 
         } catch (err) {
@@ -498,7 +503,7 @@ export default function App() {
     isCatalogLoadingRef.current = true;
     setIsInitialLoadingProducts(true);
 
-    const parseLoadedProducts = (data: any, isBackupSource: boolean = false): Product[] => {
+    const parseLoadedProducts = (data: any): Product[] => {
       if (!data) return [];
       let list: any[] = [];
       if (Array.isArray(data)) {
@@ -510,122 +515,93 @@ export default function App() {
           list = data.data;
         }
       }
-      
-      const filtered = list.filter(p => {
+
+      return list.filter(p => {
         if (!p) return false;
-        if (isBackupSource) {
-          // Bypassing filter checks to guarantee flawless import of pre-validated backup items
-          return true;
-        }
         if (p.isMock === true || p.generatedBy === "ai" || p.origin === "fullMockAcervo" || p.origin === "initialProducts") {
           return false;
         }
         return isRealProduct(p);
-      });
-      return filtered;
+      }).filter(p => p && String(p.id) !== 'prod-1782056011840');
     };
 
     try {
       console.log("[Public Catalog] Initiating load sequence...");
       let cleanRealProducts: Product[] = [];
-      let loadedFromAPI = false;
+      let loadedFromSource = false;
 
-      const isVercel = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
-      const isProduction = isVercel || (typeof window !== "undefined" && (
-        !window.location.hostname.includes("localhost") &&
-        !window.location.hostname.includes("127.0.0.1") &&
-        !window.location.hostname.includes("ais-dev-") &&
-        !window.location.hostname.includes("ais-pre-")
-      ));
+      // 1. Primary: API unificada (Firestore + fallback de backup no servidor — mesma fonte do admin)
+      try {
+        console.log("[Public Catalog] Fetching canonical catalog from /api/public/products...");
+        const apiRes = await fetch("/api/public/products", {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+        if (apiRes.ok) {
+          const contentType = (apiRes.headers.get("content-type") || "").toLowerCase();
+          if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+            const rawText = await apiRes.text();
+            const trimmedText = rawText.trim();
+            if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
+              const rawBody = JSON.parse(trimmedText);
+              const isSuccess = rawBody && typeof rawBody === "object" && rawBody.success !== false;
+              if (isSuccess) {
+                const parsed = parseLoadedProducts(rawBody);
+                if (parsed.length > 0) {
+                  cleanRealProducts = parsed;
+                  loadedFromSource = true;
+                  console.log(`[Public Catalog] API canonical source: ${parsed.length} products (source: ${rawBody.source || 'api'}).`);
+                }
+              }
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.warn("[Public Catalog] Primary API fetch error:", apiErr);
+      }
 
-      // 1. Fetch directly from static backup file as absolute top priority (Guarantees last correct real backup loading of 81 products)
-      const forceRealBackup = true;
-      if (forceRealBackup) {
-        console.log("[Public Catalog] Prioritizing static backup file /products_real_backup.json as the master datasource...");
+      // 2. Fallback: arquivo estático products_real_backup.json (mesmo acervo do deploy preview)
+      if (!loadedFromSource || cleanRealProducts.length === 0) {
+        console.log("[Public Catalog] API empty/unavailable — falling back to /products_real_backup.json...");
         try {
           const backupRes = await fetch(`/products_real_backup.json?t=${Date.now()}`, {
-            headers: {
-              'Accept': 'application/json'
-            },
+            headers: { 'Accept': 'application/json' },
             cache: 'no-store'
           });
           if (backupRes.ok) {
             const contentType = (backupRes.headers.get("content-type") || "").toLowerCase();
             const text = await backupRes.text();
             const trimmedText = text.trim();
-            
-            if (trimmedText.toLowerCase().startsWith("<!doctype html") || trimmedText.toLowerCase().startsWith("<html")) {
-              console.error("[Public Catalog Error] Rota de backup respondeu com HTML index em vez de JSON!");
-            } else if (!contentType.includes("text/html")) {
+
+            if (!trimmedText.toLowerCase().startsWith("<!doctype html") && !trimmedText.toLowerCase().startsWith("<html") && !contentType.includes("text/html")) {
               if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
                 const backupData = JSON.parse(trimmedText);
-                console.log("[Public Catalog] BACKUP RAW LOADED FROM FETCH");
-                const parsedBackup = parseLoadedProducts(backupData, true);
-                // Filter out the test product id: prod-1782056011840
-                const cleanList = parsedBackup.filter(p => p && String(p.id) !== 'prod-1782056011840');
-                console.log(`[Public Catalog] BACKUP PARSED COUNT : ${cleanList.length}`);
-                if (cleanList.length > 0) {
-                  cleanRealProducts = cleanList;
-                  loadedFromAPI = true;
-                  console.log(`[Public Catalog] AFTER FILTER/CLEAN COUNT: ${cleanList.length}`);
+                const parsedBackup = parseLoadedProducts(backupData);
+                if (parsedBackup.length > 0) {
+                  cleanRealProducts = parsedBackup;
+                  loadedFromSource = true;
+                  console.log(`[Public Catalog] Static backup: ${parsedBackup.length} products.`);
                 }
               }
-            } else {
-              console.warn("[Public Catalog] Backup query returned text/html content-type.");
             }
           }
         } catch (vErr) {
-          console.warn("[Public Catalog] backup fetch attempt issues:", vErr);
+          console.warn("[Public Catalog] Static backup fetch error:", vErr);
         }
       }
 
-      // 2. Static Bundle Fallback as high priority backup (prevents loading HTML or empty views if server routes failed)
-      if (cleanRealProducts.length === 0) {
-        console.log("[Public Catalog] Fetching backup failed or returned index / stale info. Falling back to statically imported backup dataset...");
+      // 3. Fallback: bundle importado em build
+      if (!loadedFromSource || cleanRealProducts.length === 0) {
+        console.log("[Public Catalog] Falling back to bundled backup dataset...");
         try {
-          const parsedBackup = parseLoadedProducts(backupProductsJSON, true);
-          const cleanList = parsedBackup.filter(p => p && String(p.id) !== 'prod-1782056011840');
-          if (cleanList.length > 0) {
-            cleanRealProducts = cleanList;
-            loadedFromAPI = true;
-            console.log("[Public Catalog] Successfully loaded 81 correct products from bundled static backup.");
+          const parsedBackup = parseLoadedProducts(backupProductsJSON);
+          if (parsedBackup.length > 0) {
+            cleanRealProducts = parsedBackup;
+            loadedFromSource = true;
+            console.log(`[Public Catalog] Bundled backup: ${parsedBackup.length} products.`);
           }
         } catch (bundleErr) {
           console.error("[Public Catalog Bundle Fallback Error]:", bundleErr);
-        }
-      }
-
-      // 3. Fetch using secondary primary API ONLY as a complete absolute last resort fallback
-      if (!loadedFromAPI || cleanRealProducts.length === 0) {
-        try {
-          console.log("[Public Catalog] Attempting to fetch primary API products (Firestore last resort fallback)...");
-          const apiRes = await fetch("/api/public/products", {
-            headers: {
-              'Accept': 'application/json'
-            }
-          });
-          if (apiRes.ok) {
-            const contentType = (apiRes.headers.get("content-type") || "").toLowerCase();
-            if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
-              const rawText = await apiRes.text();
-              const trimmedText = rawText.trim();
-              if (trimmedText && (trimmedText.startsWith("{") || trimmedText.startsWith("[")) && !trimmedText.startsWith("<")) {
-                const rawBody = JSON.parse(trimmedText);
-                const isSuccess = rawBody && typeof rawBody === "object" && rawBody.success !== false;
-                if (isSuccess) {
-                  const parsed = parseLoadedProducts(rawBody, false);
-                  const cleanList = parsed.filter(p => p && String(p.id) !== 'prod-1782056011840');
-                  if (cleanList.length > 0) {
-                    cleanRealProducts = cleanList;
-                    loadedFromAPI = true;
-                    console.log(`[Public Catalog] API: ${cleanList.length} products loaded successfully from primary endpoint.`);
-                  }
-                }
-              }
-            }
-          }
-        } catch (apiErr) {
-          console.warn("[Public Catalog] Firestore API last resort fallback error:", apiErr);
         }
       }
 
@@ -1405,6 +1381,7 @@ export default function App() {
           }>
             <AdminPanel
               isOpen={true}
+              pageMode={true}
               onClose={handleCloseAdmin}
               products={products}
               categoriesList={categoriesList}

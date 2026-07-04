@@ -250,6 +250,7 @@ export const renderCategoryIcon = (iconName?: string, className = "h-4 w-4") => 
 
 interface AdminPanelProps {
   isOpen: boolean;
+  pageMode?: boolean;
   onClose: () => void;
   products: Product[];
   categoriesList?: Category[];
@@ -347,6 +348,7 @@ class AdminPanelErrorBoundary extends React.Component<
 
 function AdminPanelInner({
   isOpen,
+  pageMode = false,
   onClose,
   products,
   categoriesList = [],
@@ -402,10 +404,10 @@ function AdminPanelInner({
 
   useEffect(() => {
     const authFlag = localStorage.getItem('modivah_admin_auth') === 'true' || sessionStorage.getItem('modivah_admin_auth') === 'true';
-    if (authFlag && !isAuthenticated) {
+    const hasToken = !!(sessionStorage.getItem('modivah_admin_token') || localStorage.getItem('modivah_admin_token'));
+    if ((authFlag || hasToken) && !isAuthenticated) {
       setIsAuthenticated(true);
-      // Clean, unexposed UI on login form.
-    } else if (!authFlag && isAuthenticated) {
+    } else if (!authFlag && !hasToken && isAuthenticated) {
       setIsAuthenticated(false);
     }
   }, [isOpen, isAuthenticated]);
@@ -1856,15 +1858,16 @@ function AdminPanelInner({
   // 🔐 SCREEN 1: PASSWORD VALIDATION
   if (!isAuthenticated) {
     return (
-      <div className="fixed inset-0 z-50 overflow-hidden" id="admin-auth-container">
-        {/* Backdrop overlay */}
-        <div 
-          className="absolute inset-0 bg-black/85 backdrop-blur-md" 
-          onClick={onClose}
-        />
+      <div className={pageMode ? "min-h-screen w-full bg-neutral-950 flex items-center justify-center p-6" : "fixed inset-0 z-50 overflow-hidden"} id="admin-auth-container">
+        {!pageMode && (
+          <div 
+            className="absolute inset-0 bg-black/85 backdrop-blur-md" 
+            onClick={onClose}
+          />
+        )}
 
-        <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
-          <div className="w-screen max-w-md bg-neutral-950 border-l border-white/10 flex flex-col justify-between p-8 shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className={pageMode ? "w-full max-w-md" : "absolute inset-y-0 right-0 max-w-full flex pl-10"}>
+          <div className={`${pageMode ? "w-full rounded-2xl border border-white/10" : "w-screen max-w-md border-l"} bg-neutral-950 flex flex-col justify-between p-8 shadow-2xl ${pageMode ? "" : "animate-in slide-in-from-right duration-300"}`}>
             
             {/* Header */}
             <div className="flex justify-between items-center pb-4 border-b border-white/10">
@@ -2278,17 +2281,18 @@ function AdminPanelInner({
     );
   }
 
-  // 🔓 SCREEN 2: AUTHENTICATED ADMIN PANEL DRAWER
+  // 🔓 SCREEN 2: AUTHENTICATED ADMIN PANEL
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden" id="admin-drawer-container">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/75 backdrop-blur-sm" 
-        onClick={onClose}
-      />
+    <div className={pageMode ? "min-h-screen w-full bg-neutral-950 flex flex-col overflow-hidden" : "fixed inset-0 z-50 overflow-hidden"} id="admin-drawer-container">
+      {!pageMode && (
+        <div 
+          className="absolute inset-0 bg-black/75 backdrop-blur-sm" 
+          onClick={onClose}
+        />
+      )}
 
-      <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-2xl bg-neutral-950 border-l border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+      <div className={pageMode ? "flex flex-col flex-1 min-h-0 w-full" : "absolute inset-y-0 right-0 max-w-full flex pl-10"}>
+        <div className={`${pageMode ? "w-full max-w-none flex-1 min-h-0" : "w-screen max-w-2xl"} bg-neutral-950 ${pageMode ? "border-0" : "border-l border-white/10"} flex flex-col shadow-2xl ${pageMode ? "" : "animate-in slide-in-from-right duration-300"}`}>
           
           {/* Header */}
           <div className="p-6 bg-bleed border-b border-white/10 flex items-center justify-between">
